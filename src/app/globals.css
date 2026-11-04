@@ -73,3 +73,27 @@ body {
   .globe-float { animation: none; }
   html { scroll-behavior: auto; }
 }
+
+/* ---- Snow globe card timeline (~8s). Pure CSS: runs without JS, never flashes, off for reduced motion. ---- */
+@keyframes sg-intro { 0% { opacity: 0; transform: translateY(8px); } 22% { opacity: 1; transform: none; } 78% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@keyframes sg-star { 0% { opacity: 0; transform: scale(0.2) rotate(-60deg); } 40% { opacity: 1; transform: scale(1.1) rotate(0); } 100% { opacity: 0; transform: scale(1.6); visibility: hidden; } }
+@keyframes sg-rise { from { opacity: 0; transform: translateY(48px) scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes sg-lift { from { transform: none; } to { transform: translateY(var(--sg-lift-y, -6dvh)) scale(var(--sg-lift-scale, 0.7)); } }
+@keyframes sg-lights { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sg-text { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+.sg-intro { animation: sg-intro 3.2s ease both; }
+.sg-star { animation: sg-star 3s ease both; }
+.sg-rise { animation: sg-rise 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) 2.2s both; }
+.sg-lift { animation: sg-lift 1.2s cubic-bezier(0.3, 0.7, 0.2, 1) 5s both; }
+.sg-lights { animation: sg-lights 1.2s ease 3.4s both; }
+.sg-t1 { animation: sg-text 0.9s ease 5.4s both; }
+.sg-t2 { animation: sg-text 0.9s ease 6.1s both; }
+.sg-t3 { animation: sg-text 0.9s ease 7s both; }
+.sg-t4 { animation: sg-text 0.9s ease 7.6s both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-intro, .sg-star { display: none; }
+  .sg-rise, .sg-lift, .sg-lights, .sg-t1, .sg-t2, .sg-t3, .sg-t4 { animation: none; }
+  .sg-lift { transform: translateY(var(--sg-lift-y, -6dvh)) scale(var(--sg-lift-scale, 0.7)); }
+}

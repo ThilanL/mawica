@@ -1,11 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
+import { fontVariables } from "../fonts";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
-import "./globals.css";
+import "../globals.css";
 
-const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"], display: "swap" });
-const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"], display: "swap", axes: ["opsz"] });
 
 export const metadata: Metadata = {
   title: "mawica. | Bring your wishes to life",
@@ -18,7 +16,7 @@ export const viewport: Viewport = { themeColor: "#FFF8F4" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${jakarta.variable} ${fraunces.variable}`}>
+    <html lang="en" className={fontVariables}>
       <body className="min-h-dvh flex flex-col">
         <a
           href="#main"

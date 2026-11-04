@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { MagicPreview } from "./MagicPreview";
+import { CardPlayer } from "@/components/cards/CardPlayer";
 
 /** "Watch the Magic" trigger plus a native <dialog> (focus trap, Esc, focus restore built in). */
 export function WatchMagic() {
@@ -35,7 +35,14 @@ export function WatchMagic() {
               <svg aria-hidden viewBox="0 0 20 20" className="size-5 stroke-current" fill="none" strokeWidth="2" strokeLinecap="round"><path d="M5 5l10 10M15 5L5 15" /></svg>
             </button>
           </div>
-          {open && <MagicPreview />}
+          {open && (
+            <>
+              <div className="mx-auto aspect-[9/16] max-h-[68dvh] overflow-hidden rounded-[2rem] bg-midnight shadow-lift" style={{ maxWidth: "min(100%, 22rem)" }}>
+                <CardPlayer compact card={{ templateKey: "snow-globe", recipientName: "Ava", senderName: "Sam", message: "Wishing you warmth, joy and a little magic this Christmas." }} />
+              </div>
+              <p className="mt-4 text-center text-sm text-ink-soft">Sample card. Names and message are examples only.</p>
+            </>
+          )}
         </div>
       </dialog>
     </>
