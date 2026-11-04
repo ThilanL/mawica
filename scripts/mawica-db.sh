@@ -28,8 +28,8 @@ CONF
     APP_PW="$(cat "$BASE/.app_pw")"
     PSQL=("$PGBIN/psql" -h 127.0.0.1 -p "$PORT" -U mawica_admin -d postgres -v ON_ERROR_STOP=1 -q)
     "${PSQL[@]}" -c "CREATE ROLE mawica_app LOGIN PASSWORD '$APP_PW' NOSUPERUSER NOCREATEDB NOCREATEROLE"
-    "${PSQL[@]}" -c "CREATE DATABASE mawica_dev OWNER mawica_app" -c "CREATE DATABASE mawica_dev_shadow OWNER mawica_app"
-    "${PSQL[@]}" -c "REVOKE CONNECT ON DATABASE mawica_dev, mawica_dev_shadow FROM PUBLIC"
+    "${PSQL[@]}" -c "CREATE DATABASE mawica_dev OWNER mawica_app" -c "CREATE DATABASE mawica_dev_shadow OWNER mawica_app" -c "CREATE DATABASE mawica_test OWNER mawica_app"
+    "${PSQL[@]}" -c "REVOKE CONNECT ON DATABASE mawica_dev, mawica_dev_shadow, mawica_test FROM PUBLIC"
     echo "Created cluster at $DATA on 127.0.0.1:$PORT. Passwords are in $BASE/.app_pw and .admin_pw (mode 600)."
     ;;
   start)  "$PGBIN/pg_ctl" -D "$DATA" -l "$LOG" -w start ;;

@@ -6,10 +6,12 @@
  */
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { assertMawicaDatabaseUrl } from "../src/lib/db-guard";
 
 try { process.loadEnvFile(".env.local"); } catch { /* use real env */ }
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");
+assertMawicaDatabaseUrl(url);
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 
 const [cmd, slug, ...rest] = process.argv.slice(2);
