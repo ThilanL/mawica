@@ -5,6 +5,7 @@ import { ArtStage } from "../parts/ArtStage";
 import { GreetingPanel } from "../parts/GreetingPanel";
 import { ParticleBurst, type BurstHandle } from "../parts/ParticleBurst";
 import { useSchedule } from "../parts/useSchedule";
+import { ArtSlot, SceneBackdrop, SceneForeground } from "../parts/ArtLayers";
 import type { SceneProps } from "../types";
 
 const BULBS = [6, 17, 28, 39, 50, 61, 72, 83, 94];
@@ -21,6 +22,7 @@ export function NewYearCelebrationScene({ recipientName, senderName, message, gr
 
   return (
     <div key={replayKey} className="relative flex size-full flex-col items-center overflow-hidden bg-[radial-gradient(100%_70%_at_50%_40%,#4a2a5f,#241238_60%,#12091f)] text-ivory">
+      <SceneBackdrop k="new-year-celebration" />
       <div aria-hidden className="cc-spin cc-rays pointer-events-none absolute left-1/2 top-[30%] aspect-square w-[170%] -translate-x-1/2 -translate-y-1/2 opacity-60 [mask-image:radial-gradient(closest-side,#000_20%,transparent)]" style={{ background: "repeating-conic-gradient(from 0deg, rgb(244 195 113/.35) 0 4deg, transparent 4deg 15deg)", "--d": "0.2s" } as React.CSSProperties} />
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16">
         {BULBS.map((x, i) => (
@@ -32,7 +34,7 @@ export function NewYearCelebrationScene({ recipientName, senderName, message, gr
       <ArtStage ratio={1} maxRem={20}>
         <button type="button" onClick={tap} aria-label="Celebrate with confetti" className="relative block size-full rounded-3xl">
           <ParticleBurst ref={fx} />
-          <svg viewBox="0 0 300 300" className="size-full overflow-visible" aria-hidden>
+          <ArtSlot k="new-year-celebration"><svg viewBox="0 0 300 300" className="size-full overflow-visible" aria-hidden>
             <defs>
               <linearGradient id="flute" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#FFF8F4" stopOpacity=".55" /><stop offset=".5" stopColor="#F7E6EF" stopOpacity=".18" /><stop offset="1" stopColor="#FFF8F4" stopOpacity=".5" /></linearGradient>
               <linearGradient id="bubbly" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#FBDB98" /><stop offset="1" stopColor="#E9AE55" /></linearGradient>
@@ -54,9 +56,10 @@ export function NewYearCelebrationScene({ recipientName, senderName, message, gr
             <g className="cc-pop" style={{ "--d": "2.3s", transformOrigin: "150px 78px" } as React.CSSProperties}>
               <path d="M150 54 l5 14 14 5 -14 5 -5 14 -5 -14 -14 -5 14 -5z" fill="#F4C371" />
             </g>
-          </svg>
+          </svg></ArtSlot>
         </button>
       </ArtStage>
+      <SceneForeground k="new-year-celebration" />
       <GreetingPanel {...{ recipientName, senderName, message, greeting, compact }} start={4.2} tone="gold" hint="Tap the glasses for confetti" />
     </div>
   );

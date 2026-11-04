@@ -5,6 +5,7 @@ import { ArtStage } from "../parts/ArtStage";
 import { GreetingPanel } from "../parts/GreetingPanel";
 import { ParticleBurst, type BurstHandle } from "../parts/ParticleBurst";
 import { useSchedule } from "../parts/useSchedule";
+import { SceneBackdrop, SceneForeground } from "../parts/ArtLayers";
 import type { SceneProps } from "../types";
 
 const COUNT = [5, 4, 3, 2, 1];
@@ -25,6 +26,7 @@ export function NewYear2027Scene({ recipientName, senderName, message, greeting,
 
   return (
     <div key={replayKey} onClick={tap} className="relative flex size-full cursor-pointer flex-col items-center overflow-hidden bg-[radial-gradient(90%_60%_at_50%_35%,#3a2250,#160c26_65%,#0a0612)] text-ivory">
+      <SceneBackdrop k="new-year-2027" />
       <ParticleBurst ref={fx} />
       <ArtStage ratio={1} maxRem={22}>
         <div className="relative grid size-full place-items-center" aria-label="Countdown to 2027" role="img">
@@ -41,6 +43,7 @@ export function NewYear2027Scene({ recipientName, senderName, message, greeting,
           </span>
         </div>
       </ArtStage>
+      <SceneForeground k="new-year-2027" />
       <GreetingPanel {...{ recipientName, senderName, message, greeting, compact }} start={6.2} tone="gold" hint="Tap anywhere for fireworks" />
     </div>
   );

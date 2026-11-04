@@ -6,6 +6,7 @@ import { ArtStage } from "../parts/ArtStage";
 import { GreetingPanel } from "../parts/GreetingPanel";
 import { ParticleBurst, type BurstHandle } from "../parts/ParticleBurst";
 import { useSchedule } from "../parts/useSchedule";
+import { ArtSlot, SceneBackdrop, SceneForeground } from "../parts/ArtLayers";
 import type { SceneProps } from "../types";
 
 // Ornaments ordered bottom to top: the tree lights up progressively.
@@ -28,11 +29,12 @@ export function ChristmasTreeScene({ recipientName, senderName, message, greetin
 
   return (
     <div key={replayKey} className="relative flex size-full flex-col items-center overflow-hidden bg-[radial-gradient(110%_70%_at_50%_30%,#1d3a3d,#12202a_60%,#0d0f1c)] text-ivory">
+      <SceneBackdrop k="christmas-tree" />
       <SnowCanvas count={26} speed={0.5} className="opacity-50" />
       <ArtStage ratio={300 / 380} maxRem={24}>
         <button type="button" onClick={tap} aria-label="Make the tree sparkle" className="relative block size-full rounded-3xl focus-visible:outline-offset-8">
           <ParticleBurst ref={fx} />
-          <svg viewBox="0 0 300 380" className="size-full overflow-visible" aria-hidden>
+          <ArtSlot k="christmas-tree"><svg viewBox="0 0 300 380" className="size-full overflow-visible" aria-hidden>
             <defs>
               <linearGradient id="bough" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2f8a6b" /><stop offset="1" stopColor="#14503f" /></linearGradient>
               <radialGradient id="glw"><stop offset="0" stopColor="#fff" stopOpacity=".95" /><stop offset=".35" stopColor="#F4C371" stopOpacity=".55" /><stop offset="1" stopColor="#F4C371" stopOpacity="0" /></radialGradient>
@@ -68,9 +70,10 @@ export function ChristmasTreeScene({ recipientName, senderName, message, greetin
               <circle cx="150" cy="48" r="46" fill="url(#glw)" style={{ mixBlendMode: "screen" }} />
               <path d="M150 20 l8 20 22 2 -17 14 6 22 -19 -12 -19 12 6 -22 -17 -14 22 -2z" fill="#F4C371" stroke="#FFE3A8" strokeWidth="1.5" />
             </g>
-          </svg>
+          </svg></ArtSlot>
         </button>
       </ArtStage>
+      <SceneForeground k="christmas-tree" />
       <GreetingPanel {...{ recipientName, senderName, message, greeting, compact }} start={5.6} hint="Tap the tree to make it sparkle" />
     </div>
   );

@@ -6,6 +6,7 @@ import { CardPlayer } from "@/components/cards/CardPlayer";
 import { CardArt } from "@/components/landing/CardArt";
 import { Button } from "@/components/ui/Button";
 import { LIMITS } from "@/modules/cards/schema";
+import { hasTemporaryArtwork } from "@/content/artwork";
 import { templates, type TemplateKey } from "@/modules/templates/registry";
 
 type Step = "choose" | "personalise" | "preview" | "published";
@@ -148,7 +149,8 @@ export function CreateWizard() {
       {step === "preview" && (
         <section aria-labelledby="prev-h" className="text-center">
           <h1 id="prev-h" className="font-display text-4xl sm:text-5xl">Preview your card</h1>
-          <p className="mt-3 text-ink-soft">This is exactly what {fields.recipientName} will see.</p>
+          <p className="mt-3 text-ink-soft">This is what {fields.recipientName} will see.</p>
+          {hasTemporaryArtwork(templateKey) && <p className="mt-1 text-sm text-ink-soft/80">Illustration is temporary while final artwork is produced.</p>}
           <div className="mx-auto mt-8 aspect-[9/16] max-h-[70dvh] w-auto overflow-hidden rounded-[2.2rem] bg-midnight shadow-lift ring-8 ring-midnight" style={{ maxWidth: "min(100%, 24rem)" }}>
             <CardPlayer compact card={{ templateKey, ...fields }} />
           </div>

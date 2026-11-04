@@ -5,6 +5,7 @@ import { ArtStage } from "../parts/ArtStage";
 import { GreetingPanel } from "../parts/GreetingPanel";
 import { ParticleBurst, type BurstHandle } from "../parts/ParticleBurst";
 import { useSchedule } from "../parts/useSchedule";
+import { ArtSlot, SceneBackdrop, SceneForeground } from "../parts/ArtLayers";
 import type { SceneProps } from "../types";
 
 export function SpecialGiftScene({ recipientName, senderName, message, greeting, replayKey, compact = false }: SceneProps) {
@@ -15,12 +16,13 @@ export function SpecialGiftScene({ recipientName, senderName, message, greeting,
 
   return (
     <div key={replayKey} className="relative flex size-full flex-col items-center overflow-hidden bg-[radial-gradient(100%_70%_at_50%_45%,#6d2b5b,#2a1b3d_62%,#170f24)] text-ivory">
+      <SceneBackdrop k="special-gift" />
       {/* soft golden light from the open box */}
       <div aria-hidden className="cc-rays pointer-events-none absolute left-1/2 top-[12%] h-[60%] w-[150%] -translate-x-1/2 opacity-90 [mask-image:radial-gradient(closest-side,#000,transparent)]" style={{ "--d": "2.4s", background: "conic-gradient(from 180deg at 50% 62%, transparent 0 8%, rgb(244 195 113/.55) 10% 12%, transparent 14% 24%, rgb(244 195 113/.4) 26% 28%, transparent 30% 70%, rgb(244 195 113/.4) 72% 74%, transparent 76% 86%, rgb(244 195 113/.55) 88% 90%, transparent 92%)" } as React.CSSProperties} />
       <ArtStage ratio={1} maxRem={22}>
         <button type="button" onClick={tap} aria-label="Release more golden sparkles" className="relative block size-full rounded-3xl">
           <ParticleBurst ref={fx} />
-          <svg viewBox="0 0 300 300" className="size-full overflow-visible" aria-hidden>
+          <ArtSlot k="special-gift"><svg viewBox="0 0 300 300" className="size-full overflow-visible" aria-hidden>
             <defs>
               <linearGradient id="giftBody" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#E680B3" /><stop offset="1" stopColor="#A93E7C" /></linearGradient>
               <linearGradient id="giftGold" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#E9AE55" /><stop offset=".5" stopColor="#FBDB98" /><stop offset="1" stopColor="#E9AE55" /></linearGradient>
@@ -48,9 +50,10 @@ export function SpecialGiftScene({ recipientName, senderName, message, greeting,
                 <path key={i} className="cc-tw" style={{ transformOrigin: `${x}px ${y}px`, animationDelay: `${3 + i * 0.4}s` }} d={`M${x} ${y - 8} L${x + 2} ${y - 2} L${x + 8} ${y} L${x + 2} ${y + 2} L${x} ${y + 8} L${x - 2} ${y + 2} L${x - 8} ${y} L${x - 2} ${y - 2}Z`} fill="#F4C371" />
               ))}
             </g>
-          </svg>
+          </svg></ArtSlot>
         </button>
       </ArtStage>
+      <SceneForeground k="special-gift" />
       <GreetingPanel {...{ recipientName, senderName, message, greeting, compact }} start={4.4} hint="Tap the gift for more sparkles" />
     </div>
   );

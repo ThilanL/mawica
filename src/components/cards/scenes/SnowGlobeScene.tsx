@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { heroArtwork } from "@/content/hero";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import { SnowCanvas } from "@/components/landing/SnowCanvas";
+import { SceneBackdrop, SceneForeground } from "../parts/ArtLayers";
 import type { SceneProps } from "../types";
 
 /**
@@ -36,6 +37,7 @@ export function SnowGlobeScene({ recipientName, senderName, message, greeting, r
       className="relative flex size-full flex-col items-center overflow-hidden bg-[radial-gradient(120%_80%_at_50%_20%,#5b3d8f,#2a1b3d_70%)] text-ivory"
      
     >
+      <SceneBackdrop k="snow-globe" />
       <SnowCanvas count={28} speed={0.6} className="opacity-60" />
 
       {/* Beat 1: magical introduction */}
@@ -77,6 +79,7 @@ export function SnowGlobeScene({ recipientName, senderName, message, greeting, r
         </div>
       </div>
 
+      <SceneForeground k="snow-globe" />
       {/* Beats 4 and 5: personalised greeting, persists as readable text */}
       <section aria-label="Your greeting" className="relative z-10 mt-auto w-full px-6 pb-[max(2.75rem,env(safe-area-inset-bottom))] pt-2 text-center">
         <div className={`sg-t1 mx-auto max-w-md rounded-[1.75rem] bg-midnight/55 ${compact ? "p-4" : "p-6"} ring-1 ring-white/15 backdrop-blur-md`}>

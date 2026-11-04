@@ -3,6 +3,7 @@
 import { SnowCanvas } from "@/components/landing/SnowCanvas";
 import { ArtStage } from "../parts/ArtStage";
 import { GreetingPanel } from "../parts/GreetingPanel";
+import { ArtSlot, SceneBackdrop, SceneForeground } from "../parts/ArtLayers";
 import type { SceneProps } from "../types";
 
 const BULBS = [8, 20, 32, 44, 56, 68, 80, 92];
@@ -12,6 +13,7 @@ const BULB_COLORS = ["#F4C371", "#FFB36B", "#F4C371", "#E98FB8", "#F4C371", "#FF
 export function WarmWishesScene({ recipientName, senderName, message, greeting, replayKey, compact = false }: SceneProps) {
   return (
     <div key={replayKey} className="relative flex size-full flex-col items-center overflow-hidden bg-[linear-gradient(180deg,#2b1420_0%,#4a2230_45%,#8a4a3a_100%)] text-ivory">
+      <SceneBackdrop k="warm-wishes" />
       {/* string lights along the top */}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20">
         <svg viewBox="0 0 100 14" preserveAspectRatio="none" className="absolute inset-x-0 top-0 h-14 w-full"><path d="M0 2 Q12.5 12 25 4 T50 4 T75 4 T100 3" fill="none" stroke="#1a0c14" strokeWidth=".5" /></svg>
@@ -23,7 +25,7 @@ export function WarmWishesScene({ recipientName, senderName, message, greeting, 
       </div>
       <ArtStage ratio={300 / 340} maxRem={22}>
         <div className="cc-fade relative size-full" style={{ "--d": "0.3s" } as React.CSSProperties}>
-          <svg viewBox="0 0 300 340" className="size-full overflow-visible" aria-hidden>
+          <ArtSlot k="warm-wishes"><svg viewBox="0 0 300 340" className="size-full overflow-visible" aria-hidden>
             <defs>
               <linearGradient id="night" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#1b2347" /><stop offset="1" stopColor="#4b4a86" /></linearGradient>
               <radialGradient id="candleGlow"><stop offset="0" stopColor="#FFE3A8" stopOpacity=".9" /><stop offset="1" stopColor="#FFB36B" stopOpacity="0" /></radialGradient>
@@ -46,13 +48,14 @@ export function WarmWishesScene({ recipientName, senderName, message, greeting, 
             <ellipse cx="214" cy="276" rx="2" ry="5" fill="#FFF3C4" className="cc-flick" />
             {/* wreath-like berries on the left of the sill */}
             <g><circle cx="78" cy="298" r="6" fill="#c2415e" /><circle cx="90" cy="302" r="6" fill="#c2415e" /><path d="M70 304 Q84 286 100 304" fill="none" stroke="#2f7a63" strokeWidth="5" strokeLinecap="round" /></g>
-          </svg>
+          </svg></ArtSlot>
           {/* snow falling outside only (inside the window pane) */}
           <div aria-hidden className="absolute inset-0" style={{ clipPath: "inset(12% 20.7% 10.5% 20.7% round 45% 45% 0 0)" }}>
             <SnowCanvas count={55} speed={0.55} color="255,248,244" />
           </div>
         </div>
       </ArtStage>
+      <SceneForeground k="warm-wishes" />
       <GreetingPanel {...{ recipientName, senderName, message, greeting, compact }} start={3.2} tone="warm" hint="Wishing you warmth this season" />
     </div>
   );

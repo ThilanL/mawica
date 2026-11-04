@@ -23,6 +23,7 @@ export const heroArtwork = {
   alt: "A glass snow globe holding a small illuminated village and a Christmas tree",
   width: 600,
   height: 680,
+  /** Flip to false only when final, approved artwork is in place. Shows the "temporary artwork" note while true. */
   isPlaceholder: true,
   /** CSS clip-path that confines snowfall to the inside of the globe */
   snowClip: "circle(39.5% at 50% 42.6%)",
