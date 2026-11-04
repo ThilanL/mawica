@@ -1,26 +1,73 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-midnight: #2a1b3d;
+  --color-rose: #d969a3;
+  --color-lavender: #9c7edb;
+  --color-blush: #f7e6ef;
+  --color-ivory: #fff8f4;
+  --color-gold: #f4c371;
+  --color-ink-soft: #5d4b73; /* body copy on ivory, 7:1 */
+
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  --shadow-soft: 0 24px 60px -24px rgb(42 27 61 / 0.35);
+  --shadow-lift: 0 30px 80px -30px rgb(42 27 61 / 0.5);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+  background: var(--color-ivory);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-ivory);
+  color: var(--color-midnight);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-lavender);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Scroll reveal: only hides content when motion is allowed (and JS adds .is-in) */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity 0.8s cubic-bezier(0.2, 0.7, 0.2, 1),
+      transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  .reveal.is-in {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.35; transform: translate(-50%, -50%) scale(0.8); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+}
+@keyframes drift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.light-glow {
+  animation: twinkle 3.2s ease-in-out infinite;
+}
+.globe-float {
+  animation: drift 7s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .light-glow { animation: none; opacity: 0.85; transform: translate(-50%, -50%); }
+  .globe-float { animation: none; }
+  html { scroll-behavior: auto; }
 }
