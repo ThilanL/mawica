@@ -20,9 +20,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${jakarta.variable} ${fraunces.variable}`}>
       <body className="min-h-dvh flex flex-col">
-        <noscript>
-          <style>{".reveal{opacity:1!important;transform:none!important}"}</style>
-        </noscript>
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-full focus:bg-midnight focus:px-5 focus:py-3 focus:text-ivory"

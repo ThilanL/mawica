@@ -13,7 +13,7 @@ export function HeroArtwork({ snowCount }: { snowCount: number }) {
     <div className="relative mx-auto w-full max-w-[17rem] sm:max-w-[26rem] lg:max-w-[34rem]" style={{ aspectRatio: `${a.width} / ${a.height}` }}>
       <div data-hero="halo" data-depth="-14" aria-hidden className="absolute -inset-[12%] rounded-full bg-[radial-gradient(closest-side,rgb(217_105_163/0.28),rgb(156_126_219/0.18)_55%,transparent)] blur-2xl" />
       <div data-hero="globe" data-depth="12" className="absolute inset-0">
-        <div className="globe-float relative size-full">
+        <div data-hero="enter" className="size-full"><div className="globe-float relative size-full">
           <Image
             src={a.src}
             alt={a.alt}
@@ -30,7 +30,7 @@ export function HeroArtwork({ snowCount }: { snowCount: number }) {
             {a.lights.map((l, i) => (
               <span
                 key={i}
-                className="light-glow absolute rounded-full"
+                data-hero="light" className="light-glow absolute rounded-full"
                 style={{
                   left: `${l.x}%`,
                   top: `${l.y}%`,
@@ -43,6 +43,7 @@ export function HeroArtwork({ snowCount }: { snowCount: number }) {
               />
             ))}
           </div>
+        </div>
         </div>
       </div>
       {a.isPlaceholder && (

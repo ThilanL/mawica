@@ -18,6 +18,10 @@ export function Reveal({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // Only arm (hide) elements that are below the fold, after hydration.
+    // Without JS, or on failure, content simply stays visible.
+    if (el.getBoundingClientRect().top < window.innerHeight * 0.9) return;
+    el.classList.add("reveal-armed");
     const io = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {

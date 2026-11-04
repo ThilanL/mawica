@@ -17,11 +17,14 @@ export function Hero() {
   useEffect(() => {
     if (reduced || !root.current) return;
     const ctx = gsap.context(() => {
+      // Progressive enhancement: content is already visible in the SSR HTML.
+      // Only transforms animate on text and globe; nothing is ever set to opacity 0.
       gsap
         .timeline({ defaults: { ease: "power3.out" } })
-        .from("[data-hero=halo]", { opacity: 0, scale: 0.8, duration: 1.4 })
-        .from("[data-hero=globe]", { opacity: 0, y: 40, scale: 0.94, duration: 1.2 }, 0.1)
-        .from("[data-in]", { opacity: 0, y: 22, duration: 0.9, stagger: 0.12 }, 0.2);
+        .from("[data-hero=halo]", { scale: 0.85, duration: 1.6 })
+        .from("[data-hero=enter]", { y: 28, scale: 0.96, duration: 1.3 }, 0)
+        .from("[data-in]", { y: 18, duration: 0.9, stagger: 0.1 }, 0.1)
+        .from("[data-hero=light]", { opacity: 0, duration: 1.2, stagger: 0.08 }, 0.6);
     }, root);
     return () => ctx.revert();
   }, [reduced]);
