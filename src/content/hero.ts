@@ -19,26 +19,28 @@ export type HeroLight = {
 };
 
 export const heroArtwork = {
-  src: "/hero/snow-globe-placeholder.svg",
-  alt: "A glass snow globe holding a small illuminated village and a Christmas tree",
-  width: 600,
-  height: 680,
+  src: "/art/hero/globe@2x.webp",
+  alt: "A glass snow globe holding a snowy village and an illuminated Christmas tree, on a rose-gold base with pine, baubles and pine cones",
+  width: 2400,
+  height: 2720,
   /** Flip to false only when final, approved artwork is in place. Shows the "temporary artwork" note while true. */
-  isPlaceholder: true,
-  /** CSS clip-path that confines snowfall to the inside of the globe */
-  snowClip: "circle(39.5% at 50% 42.6%)",
+  isPlaceholder: false,
+  /** Transparent margin (% of image height) trimmed from the layout box above and below the subject */
+  crop: { top: 17, bottom: 18 },
+  /** CSS clip-path that confines snowfall to the inside of the glass (measured on globe@2x.webp) */
+  snowClip: "circle(22.7% at 50.2% 42%)",
   lights: [
-    { x: 47.5, y: 38.5, color: "gold", size: 9, delay: 0 },
-    { x: 53, y: 40.6, color: "rose", size: 9, delay: 0.6 },
-    { x: 44.7, y: 46.8, color: "rose", size: 9, delay: 1.1 },
-    { x: 55, y: 48, color: "gold", size: 9, delay: 0.3 },
-    { x: 41.3, y: 57, color: "gold", size: 9, delay: 0.9 },
-    { x: 50, y: 54.7, color: "rose", size: 9, delay: 1.4 },
-    { x: 58.7, y: 57.6, color: "gold", size: 9, delay: 0.5 },
-    { x: 30, y: 64, color: "gold", size: 7, delay: 0.2 },
-    { x: 33.5, y: 64, color: "gold", size: 7, delay: 1 },
-    { x: 67.5, y: 64.5, color: "gold", size: 7, delay: 0.7 },
-    { x: 71, y: 64.5, color: "gold", size: 7, delay: 1.3 },
-    { x: 50, y: 28.5, color: "gold", size: 14, delay: 0.4 },
+    { x: 49.4, y: 30.9, color: "gold", size: 14, delay: 0 },
+    { x: 49.4, y: 40.8, color: "rose", size: 8, delay: 0.6 },
+    { x: 49.1, y: 51.2, color: "gold", size: 9, delay: 1.1 },
+    { x: 39.6, y: 48, color: "gold", size: 7, delay: 0.3 },
+    { x: 36.5, y: 52, color: "gold", size: 7, delay: 0.9 },
+    { x: 60.8, y: 52.2, color: "gold", size: 7, delay: 0.5 },
+    { x: 56.5, y: 51.7, color: "gold", size: 6, delay: 1.3 },
+    { x: 31.3, y: 49.2, color: "gold", size: 6, delay: 0.2 },
+    { x: 44, y: 44, color: "gold", size: 6, delay: 1 },
+    { x: 55, y: 42, color: "rose", size: 7, delay: 0.7 },
+    { x: 52.5, y: 58, color: "gold", size: 7, delay: 1.4 },
+    { x: 22.9, y: 72.4, color: "gold", size: 6, delay: 0.4 },
   ] satisfies HeroLight[],
 } as const;

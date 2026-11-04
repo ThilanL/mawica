@@ -19,7 +19,7 @@ export type ArtAsset = {
 };
 
 export const batch1: ArtAsset[] = [
-  { id: "H1", file: "public/art/hero/globe@2x.webp", width: 2400, height: 2720, alpha: true, maxKB: 260, layer: 2, viewport: "all" },
+  { id: "H1", file: "public/art/hero/globe@2x.webp", width: 2400, height: 2720, alpha: true, maxKB: 320, layer: 2, viewport: "all" },
   { id: "H2", file: "public/art/hero/plate-desktop@2x.webp", width: 2880, height: 1240, alpha: false, maxKB: 220, layer: 0, viewport: "desktop" },
   { id: "H3", file: "public/art/hero/plate-mobile@2x.webp", width: 1170, height: 1000, alpha: false, maxKB: 120, layer: 0, viewport: "mobile" },
   { id: "H4", file: "public/art/hero/foreground-ornaments@2x.webp", width: 1400, height: 700, alpha: true, maxKB: 120, layer: 4, viewport: "desktop" },

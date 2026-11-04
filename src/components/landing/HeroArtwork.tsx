@@ -9,10 +9,14 @@ import { SnowCanvas } from "./SnowCanvas";
  */
 export function HeroArtwork({ snowCount }: { snowCount: number }) {
   const a = heroArtwork;
+  // The render has transparent margin above and below the subject. The visible crop box trims it so the
+  // layout does not reserve empty space; the full image (and every % coordinate) stays in the inner box.
+  const { top, bottom } = a.crop;
+  const visible = (100 - top - bottom) / 100;
   return (
-    <div className="relative mx-auto w-full max-w-[17rem] sm:max-w-[26rem] lg:max-w-[34rem]" style={{ aspectRatio: `${a.width} / ${a.height}` }}>
-      <div data-hero="halo" data-depth="-14" aria-hidden className="absolute -inset-[12%] rounded-full bg-[radial-gradient(closest-side,rgb(217_105_163/0.28),rgb(156_126_219/0.18)_55%,transparent)] blur-2xl" />
-      <div data-hero="globe" data-depth="12" className="absolute inset-0">
+    <div className="relative mx-auto w-full max-w-[22rem] sm:max-w-[30rem] lg:max-w-[46rem] xl:max-w-[50rem] lg:-mr-8" style={{ aspectRatio: `${a.width} / ${a.height * visible}` }}>
+      <div data-hero="halo" data-depth="-14" aria-hidden className="absolute -inset-[8%] rounded-full bg-[radial-gradient(closest-side,rgb(217_105_163/0.22),rgb(156_126_219/0.14)_55%,transparent)] blur-2xl" />
+      <div data-hero="globe" data-depth="12" className="absolute inset-x-0" style={{ top: `${-(top / 100 / visible) * 100}%`, height: `${100 / visible}%` }}>
         <div data-hero="enter" className="size-full"><div className="globe-float relative size-full">
           <Image
             src={a.src}
@@ -21,7 +25,7 @@ export function HeroArtwork({ snowCount }: { snowCount: number }) {
             priority
             unoptimized={a.src.endsWith(".svg")}
             sizes="(min-width: 1024px) 34rem, 90vw"
-            className="object-contain drop-shadow-[0_40px_50px_rgb(42_27_61/0.35)]"
+            className="object-contain drop-shadow-[0_24px_30px_rgb(42_27_61/0.18)]"
           />
           <div aria-hidden className="absolute inset-0" style={{ clipPath: a.snowClip }}>
             <SnowCanvas count={snowCount} />
