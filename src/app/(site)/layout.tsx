@@ -2,14 +2,18 @@ import type { Metadata, Viewport } from "next";
 import { fontVariables } from "../fonts";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import "../globals.css";
 
 
 export const metadata: Metadata = {
-  title: "mawica. | Bring your wishes to life",
-  description:
-    "Create beautiful, personalised, magical Christmas and New Year greeting cards for free, and share them with a link, WhatsApp or QR code.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: "mawica. | Bring your wishes to life", template: "%s" },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
   icons: { icon: "/brand/mawica-app-icon.png", apple: "/brand/mawica-app-icon.png" },
+  openGraph: { type: "website", siteName: SITE_NAME, locale: "en_AU", title: "mawica. | Bring your wishes to life", description: SITE_DESCRIPTION, url: "/" },
+  twitter: { card: "summary_large_image", title: "mawica. | Bring your wishes to life", description: SITE_DESCRIPTION },
 };
 
 export const viewport: Viewport = { themeColor: "#FFF8F4" };

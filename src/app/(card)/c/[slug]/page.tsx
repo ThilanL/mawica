@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CardPlayer } from "@/components/cards/CardPlayer";
 import { ReportCard } from "@/components/cards/ReportCard";
 import { getPublishedCard } from "@/modules/cards/service";
 import { isTemplateKey } from "@/modules/templates/registry";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  return { alternates: { canonical: `/c/${slug}` } }; // no database lookup, no personal text
+}
 
 // Blocking (non-streamed) route on purpose: the lookup is a single indexed query and
 // blocking lets removed/unknown cards return a real HTTP 404 instead of a streamed 200.

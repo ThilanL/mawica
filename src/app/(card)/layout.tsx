@@ -1,8 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { fontVariables } from "../fonts";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 import "../globals.css";
 
-export const metadata: Metadata = { title: "A card for you | mawica.", robots: { index: false, follow: false } };
+// Cards are private links: not indexed, and nothing personal appears in metadata or the preview image.
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  title: "A card for you | mawica.",
+  description: "Someone made you a card on mawica. Open it for a little magic.",
+  robots: { index: false, follow: false, nocache: true },
+  openGraph: { type: "website", siteName: SITE_NAME, locale: "en_AU", title: "A card for you | mawica.", description: "Someone made you a card on mawica. Open it for a little magic." },
+  twitter: { card: "summary_large_image", title: "A card for you | mawica." },
+};
 export const viewport: Viewport = { themeColor: "#2A1B3D", viewportFit: "cover" };
 
 /** Recipient layout: no site chrome, so the card fills the phone. */

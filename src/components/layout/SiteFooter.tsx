@@ -4,12 +4,13 @@ import Link from "next/link";
 const cols = [
   { title: "Cards", links: [["Christmas Cards", "/#christmas"], ["New Year Cards", "/#new-year"], ["Create Free Card", "/create"]] },
   { title: "Mawica", links: [["How It Works", "/#how-it-works"], ["About", "/#about"], ["Sign In", "/sign-in"]] },
+  { title: "Legal", links: [["Privacy Policy", "/privacy"], ["Terms of Use", "/terms"]] },
 ] as const;
 
 export function SiteFooter() {
   return (
     <footer className="bg-midnight text-ivory">
-      <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <Image src="/brand/mawica-app-icon.png" alt="" width={56} height={56} className="size-14 rounded-2xl" />
           <p className="mt-6 max-w-xs font-display text-2xl leading-snug">Bring your wishes to life.</p>
