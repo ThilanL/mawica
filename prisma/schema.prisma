@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CardStatus {
+  PUBLISHED
+  REMOVED
+}
+
+enum ReportReason {
+  INAPPROPRIATE
+  HARASSMENT
+  SPAM
+  OTHER
+}
+
+/// A published, personalised card. Template content lives in code (src/modules/templates).
+model Card {
+  id            String     @id @default(uuid()) @db.Uuid
+  slug          String     @unique @db.VarChar(16)
+  templateKey   String     @db.VarChar(40)
+  recipientName String     @db.VarChar(40)
+  senderName    String     @db.VarChar(40)
+  message       String     @db.VarChar(500)
+  status        CardStatus @default(PUBLISHED)
+  createdAt     DateTime   @default(now())
+  removedAt     DateTime?
+  removedReason String?    @db.VarChar(200)
+  reports       Report[]
+
+  @@index([status, createdAt])
+}
+
+model Report {
+  id           String       @id @default(uuid()) @db.Uuid
+  cardId       String       @db.Uuid
+  card         Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  reason       ReportReason
+  details      String?      @db.VarChar(300)
+  /// HMAC of the reporter IP, never the raw address.
+  reporterHash String       @db.VarChar(64)
+  createdAt    DateTime     @default(now())
+
+  @@index([cardId])
+}
+
+/// Fixed-window counters keyed by HMAC(ip + scope). Rows expire and are purged (see rate-limit.ts).
+model RateLimit {
+  key         String   @id @db.VarChar(80)
+  count       Int
+  windowStart DateTime
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+}
