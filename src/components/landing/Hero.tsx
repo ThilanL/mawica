@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { ButtonLink } from "@/components/ui/Button";
 import { useMediaQuery, usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import { HeroArtwork } from "./HeroArtwork";
+import { HeroOrnaments, HeroPlate } from "./HeroBackdrop";
 import { WatchMagic } from "./WatchMagic";
 
 export function Hero() {
@@ -64,7 +65,8 @@ export function Hero() {
 
   return (
     <section ref={root} aria-labelledby="hero-title" className="relative overflow-hidden bg-[radial-gradient(120%_80%_at_80%_10%,#e9defa_0%,transparent_60%),linear-gradient(180deg,#fff8f4,#f7e6ef_130%)]">
-      <div className="mx-auto grid max-w-7xl items-center gap-8 px-5 pb-12 pt-6 sm:gap-12 sm:px-8 sm:pb-20 lg:min-h-[calc(100dvh-4rem)] lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:pb-16">
+      <HeroPlate />
+      <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 pb-12 pt-6 sm:gap-12 sm:px-8 sm:pb-20 lg:min-h-[calc(100dvh-4rem)] lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:pb-16">
         <div className="text-center lg:text-left">
           <p data-in className="text-sm font-semibold uppercase tracking-[0.22em] text-rose" style={{ color: "#a63d78" }}>
             Christmas &amp; New Year 2026
@@ -84,6 +86,7 @@ export function Hero() {
           <HeroArtwork snowCount={compact ? 40 : 90} />
         </div>
       </div>
+      <HeroOrnaments />
     </section>
   );
 }

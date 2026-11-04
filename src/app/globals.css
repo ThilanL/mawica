@@ -68,9 +68,18 @@ body {
 .globe-float {
   animation: drift 7s ease-in-out infinite;
 }
+@keyframes plate-zoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.04); }
+}
+.hero-plate {
+  animation: plate-zoom 24s ease-in-out infinite alternate;
+  transform-origin: 70% 60%;
+}
 @media (prefers-reduced-motion: reduce) {
   .light-glow { animation: none; opacity: 0.85; transform: translate(-50%, -50%); }
   .globe-float { animation: none; }
+  .hero-plate { animation: none; }
   html { scroll-behavior: auto; }
 }
 

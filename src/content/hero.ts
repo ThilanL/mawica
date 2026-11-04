@@ -44,3 +44,23 @@ export const heroArtwork = {
     { x: 22.9, y: 72.4, color: "gold", size: 6, delay: 0.4 },
   ] satisfies HeroLight[],
 } as const;
+
+/**
+ * Batch 1 background plates and foreground ornaments (H2, H3, H4). All three are intentionally unset:
+ * until approved artwork is supplied the hero keeps its gradient background and shows nothing extra.
+ * To enable, set the field to the spec below (files: docs/batch1-intake.md, validate with `npm run art:check`).
+ * `position` is the CSS object-position for the cover crop (tune per plate once it exists).
+ */
+export type HeroPlate = { src: string; width: number; height: number; position?: string };
+export const heroPlates: {
+  /** H2, >= 1024px, 2880x1240 opaque */
+  desktop?: HeroPlate;
+  /** H3, < 1024px, 1170x1000 opaque */
+  mobile?: HeroPlate;
+  /** H4, >= 768px, 1400x700 transparent, bottom-right of the hero */
+  ornaments?: HeroPlate;
+} = {
+  desktop: undefined,
+  mobile: undefined,
+  ornaments: undefined,
+};
