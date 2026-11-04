@@ -9,7 +9,7 @@ async function logoDataUri() {
   return `data:image/png;base64,${buf.toString("base64")}`;
 }
 
-/** Generic brand preview. Never includes a recipient name, sender or message. */
+/** Generic brand preview. Carries no personal text. */
 export async function brandOg(variant: "site" | "card") {
   const logo = await logoDataUri();
   const dark = variant === "card";
