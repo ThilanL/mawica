@@ -1,0 +1,72 @@
+# EXAMPLE ONLY. Not active: it lives outside .github/workflows. Review, then move to .github/workflows/ when staging is approved.
+# Uses OIDC federated credentials (no stored Azure secrets). Needs repository variables:
+#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (the Mawica ones), MAWICA_SUBSCRIPTION_ID, STAGING_APP_NAME,
+#   STAGING_RESOURCE_GROUP, STAGING_URL (e.g. https://staging.mawica.com)
+name: staging
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_USER: mawica_app, POSTGRES_PASSWORD: ci_only_password, POSTGRES_DB: mawica_test }
+        ports: ["5433:5432"]   # the isolation guard requires the Mawica port
+        options: >-
+          --health-cmd "pg_isready -U mawica_app" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://mawica_app:ci_only_password@127.0.0.1:5433/mawica_test?schema=public
+      DATABASE_URL: postgresql://mawica_app:ci_only_password@127.0.0.1:5433/mawica_test?schema=public
+      RATE_LIMIT_SALT: ci-only-salt-ci-only-salt-ci-only
+      NEXT_PUBLIC_SITE_URL: ${{ vars.STAGING_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run lint && npx tsc --noEmit
+      - run: npm test
+      - run: npm run build
+      - name: Assemble standalone artifact
+        run: |
+          cp -R .next/static .next/standalone/.next/static
+          cp -R public .next/standalone/public
+          cp -R prisma .next/standalone/prisma
+      - uses: actions/upload-artifact@v4
+        with: { name: mawica-standalone, path: .next/standalone, include-hidden-files: true }
+
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging            # configure required reviewers on this environment
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: mawica-standalone, path: app }
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Assert this is the Mawica subscription
+        run: |
+          test "$(az account show --query id -o tsv)" = "${{ vars.MAWICA_SUBSCRIPTION_ID }}" || { echo "Wrong subscription"; exit 1; }
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.STAGING_APP_NAME }}
+          package: app
+      - name: Smoke tests
+        run: |
+          sleep 30
+          curl -fsS ${{ vars.STAGING_URL }}/api/health
+          test "$(curl -s -o /dev/null -w '%{http_code}' ${{ vars.STAGING_URL }}/)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' ${{ vars.STAGING_URL }}/c/aaaaaaaaaaaa)" = 404
+          curl -sI ${{ vars.STAGING_URL }}/ | grep -i x-content-type-options

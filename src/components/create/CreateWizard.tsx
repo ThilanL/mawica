@@ -44,6 +44,18 @@ export function CreateWizard() {
 
   const set = (k: keyof Fields) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setFields((f) => ({ ...f, [k]: e.target.value }));
 
+  // Radio-group keyboard pattern: one tab stop, arrow keys move and select.
+  function onRadioKeys(e: React.KeyboardEvent<HTMLDivElement>) {
+    const keys = Object.keys(templates) as TemplateKey[];
+    const i = keys.indexOf(templateKey);
+    const step = ["ArrowRight", "ArrowDown"].includes(e.key) ? 1 : ["ArrowLeft", "ArrowUp"].includes(e.key) ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = keys[(i + step + keys.length) % keys.length];
+    chooseTemplate(next);
+    requestAnimationFrame(() => e.currentTarget.querySelector<HTMLElement>(`[data-key="${next}"]`)?.focus());
+  }
+
   function validateLocal(): Errors {
     const e: Errors = {};
     if (!fields.recipientName.trim()) e.recipientName = "Enter the recipient's name";
@@ -113,9 +125,9 @@ export function CreateWizard() {
         <section aria-labelledby="choose-h">
           <h1 id="choose-h" className="text-center font-display text-4xl sm:text-5xl">Choose your card</h1>
           <p className="mt-3 text-center text-ink-soft">Four Christmas cards and two for New Year.</p>
-          <div role="radiogroup" aria-label="Card template" className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div role="radiogroup" aria-label="Card template" onKeyDown={onRadioKeys} className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Object.values(templates).map((t) => (
-              <button key={t.key} type="button" role="radio" aria-checked={templateKey === t.key} onClick={() => chooseTemplate(t.key)}
+              <button key={t.key} type="button" role="radio" aria-checked={templateKey === t.key} tabIndex={templateKey === t.key ? 0 : -1} data-key={t.key} onClick={() => chooseTemplate(t.key)}
                 className={`overflow-hidden rounded-[1.5rem] bg-white text-left shadow-soft ring-2 transition ${templateKey === t.key ? "ring-lavender" : "ring-transparent hover:ring-midnight/10"}`}>
                 <CardArt theme={t.key} className="aspect-[16/10]" />
                 <div className="p-5">

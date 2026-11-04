@@ -136,3 +136,11 @@ describe("report, removal and QR", () => {
     expect(await removeCard(slug, "again")).toBe(false);
   });
 });
+
+describe("proxy debug endpoint", () => {
+  it("is invisible unless explicitly enabled and authorised", async () => {
+    const { GET } = await import("@/app/api/_proxy-debug/route");
+    const res = await GET(new Request("http://t/api/_proxy-debug", { headers: { "x-admin-token": "whatever" } }));
+    expect(res.status).toBe(404); // ENABLE_PROXY_DEBUG is not set in tests
+  });
+});

@@ -6,6 +6,8 @@ const schema = z.object({
   DATABASE_URL: z.string().url(),
   RATE_LIMIT_SALT: z.string().min(16),
   ADMIN_TOKEN: z.string().min(24).optional(),
+  /** Staging only: enables /api/_proxy-debug (needs ADMIN_TOKEN). Must be unset in production. */
+  ENABLE_PROXY_DEBUG: z.enum(["0", "1"]).optional(),
   /** Number of trusted reverse proxies in front of the app (see docs/security.md). 0 = ignore forwarded headers. */
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
