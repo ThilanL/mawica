@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "admin": "tsx scripts/admin.mts",
+    "art:check": "tsx scripts/check-art.mts",
     "test": "vitest run"
   },
   "dependencies": {
