@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createCardSchema } from "@/modules/cards/schema";
 import { isTemplateKey, TEMPLATE_KEYS, templates } from "@/modules/templates/registry";
-import { scenes } from "@/components/cards/scenes";
+import { readFileSync } from "node:fs";
 import { cardPreviews } from "@/content/site";
 
 describe("template registry", () => {
@@ -10,14 +10,17 @@ describe("template registry", () => {
     expect(TEMPLATE_KEYS.filter((k) => templates[k].occasion === "Christmas")).toHaveLength(4);
     expect(TEMPLATE_KEYS.filter((k) => templates[k].occasion === "New Year")).toHaveLength(2);
   });
-  it("every key has template data, a scene component and a landing preview", () => {
+  it("every key has template data and a landing preview", () => {
     for (const k of TEMPLATE_KEYS) {
       expect(templates[k].key).toBe(k);
-      expect(typeof scenes[k]).toBe("function");
       expect(cardPreviews.some((p) => p.id === k)).toBe(true);
       expect(isTemplateKey(k)).toBe(true);
     }
     expect(isTemplateKey("nope")).toBe(false);
+  });
+  it("every key is registered in the lazy scene map (one chunk per scene)", () => {
+    const src = readFileSync("src/components/cards/scenes/index.ts", "utf8");
+    for (const k of TEMPLATE_KEYS) expect(src).toContain(`"${k}": dynamic(`);
   });
   it("every default message is valid input and titles are unique", () => {
     const titles = new Set<string>();

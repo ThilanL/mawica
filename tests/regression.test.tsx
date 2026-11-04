@@ -1,12 +1,21 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { scenes } from "@/components/cards/scenes";
+import { SnowGlobeScene } from "@/components/cards/scenes/SnowGlobeScene";
+import { ChristmasTreeScene } from "@/components/cards/scenes/ChristmasTreeScene";
+import { SpecialGiftScene } from "@/components/cards/scenes/SpecialGiftScene";
+import { WarmWishesScene } from "@/components/cards/scenes/WarmWishesScene";
+import { NewYear2027Scene } from "@/components/cards/scenes/NewYear2027Scene";
+import { NewYearCelebrationScene } from "@/components/cards/scenes/NewYearCelebrationScene";
 import { TEMPLATE_KEYS, templates } from "@/modules/templates/registry";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 
+const scenes = {
+  "snow-globe": SnowGlobeScene, "christmas-tree": ChristmasTreeScene, "special-gift": SpecialGiftScene,
+  "warm-wishes": WarmWishesScene, "new-year-2027": NewYear2027Scene, "new-year-celebration": NewYearCelebrationScene,
+} as const;
 const root = path.resolve(__dirname, "..");
 const css = readFileSync(path.join(root, "src/app/globals.css"), "utf8");
 const read = (p: string) => readFileSync(path.join(root, p), "utf8");
@@ -59,6 +68,12 @@ describe("recipient scenes render readable, personalised, safe content on the se
       expect(html).not.toMatch(/display:\s*none/);
     });
   }
+});
+
+describe("recipient page is delivered complete (no streamed placeholder)", () => {
+  it("has no loading.tsx, which would hide the card behind a JS-swapped boundary", () => {
+    expect(existsSync(path.join(root, "src/app/(card)/c/[slug]/loading.tsx"))).toBe(false);
+  });
 });
 
 describe("indexing policy and public metadata", () => {

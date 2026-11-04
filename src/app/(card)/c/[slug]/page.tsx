@@ -11,6 +11,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return { alternates: { canonical: `/c/${slug}` } }; // no database lookup, no personal text
 }
 
+// No loading.tsx on purpose: it would stream a spinner first and put the card in a hidden, JS-swapped block,
+// breaking the no-JavaScript experience. The lookup is one indexed query, so the document arrives complete.
 // Blocking (non-streamed) route on purpose: the lookup is a single indexed query and
 // blocking lets removed/unknown cards return a real HTTP 404 instead of a streamed 200.
 export const instant = false;

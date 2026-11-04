@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import gsap from "gsap";
 import { ButtonLink } from "@/components/ui/Button";
 import { useMediaQuery, usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import { HeroArtwork } from "./HeroArtwork";
@@ -16,7 +15,12 @@ export function Hero() {
   // Entrance animation
   useEffect(() => {
     if (reduced || !root.current) return;
-    const ctx = gsap.context(() => {
+    let cancelled = false;
+    let revert: (() => void) | undefined;
+    // GSAP is loaded after first paint so it never competes with hydration or LCP.
+    void import("gsap").then(({ default: gsap }) => {
+      if (cancelled || !root.current) return;
+      const ctx = gsap.context(() => {
       // Progressive enhancement: content is already visible in the SSR HTML.
       // Only transforms animate on text and globe; nothing is ever set to opacity 0.
       gsap
@@ -25,14 +29,20 @@ export function Hero() {
         .from("[data-hero=enter]", { y: 28, scale: 0.96, duration: 1.3 }, 0)
         .from("[data-in]", { y: 18, duration: 0.9, stagger: 0.1 }, 0.1)
         .from("[data-hero=light]", { opacity: 0, duration: 1.2, stagger: 0.08 }, 0.6);
-    }, root);
-    return () => ctx.revert();
+      }, root);
+      revert = () => ctx.revert();
+    });
+    return () => { cancelled = true; revert?.(); };
   }, [reduced]);
 
   // Desktop pointer parallax (fine pointers only, never with reduced motion)
   useEffect(() => {
     const el = root.current;
     if (!el || reduced || !finePointer) return;
+    let cancelled = false;
+    let teardown: (() => void) | undefined;
+    void import("gsap").then(({ default: gsap }) => {
+    if (cancelled) return;
     const layers = Array.from(el.querySelectorAll<HTMLElement>("[data-depth]")).map((node) => ({
       x: gsap.quickTo(node, "x", { duration: 0.9, ease: "power3.out" }),
       y: gsap.quickTo(node, "y", { duration: 0.9, ease: "power3.out" }),
@@ -47,7 +57,9 @@ export function Hero() {
     const leave = () => layers.forEach((l) => { l.x(0); l.y(0); });
     el.addEventListener("pointermove", move);
     el.addEventListener("pointerleave", leave);
-    return () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerleave", leave); };
+    teardown = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerleave", leave); };
+    });
+    return () => { cancelled = true; teardown?.(); };
   }, [reduced, finePointer]);
 
   return (

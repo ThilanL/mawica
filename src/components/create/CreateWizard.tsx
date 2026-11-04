@@ -2,12 +2,18 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { CardPlayer } from "@/components/cards/CardPlayer";
+import dynamic from "next/dynamic";
 import { CardArt } from "@/components/landing/CardArt";
 import { Button } from "@/components/ui/Button";
 import { LIMITS } from "@/modules/cards/schema";
 import { hasTemporaryArtwork } from "@/content/artwork";
 import { templates, type TemplateKey } from "@/modules/templates/registry";
+
+// Loaded on demand: the scene code is not part of the first /create bundle.
+const CardPlayer = dynamic(() => import("@/components/cards/CardPlayer").then((m) => m.CardPlayer), {
+  ssr: false,
+  loading: () => <div className="grid size-full place-items-center bg-midnight text-ivory/70">Loading preview…</div>,
+});
 
 type Step = "choose" | "personalise" | "preview" | "published";
 type Fields = { recipientName: string; senderName: string; message: string };
@@ -91,7 +97,7 @@ export function CreateWizard() {
     <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 lg:py-16">
       <ol className="mb-10 flex items-center justify-center gap-2 text-sm font-semibold" aria-label="Progress">
         {STEPS.map((s, i) => (
-          <li key={s.id} aria-current={i === idx ? "step" : undefined} className={`flex items-center gap-2 rounded-full px-4 py-2 ${i === idx ? "bg-midnight text-ivory" : i < idx ? "bg-blush text-midnight" : "text-midnight/60"}`}>
+          <li key={s.id} aria-current={i === idx ? "step" : undefined} className={`flex items-center gap-2 rounded-full px-4 py-2 ${i === idx ? "bg-midnight text-ivory" : i < idx ? "bg-blush text-midnight" : "text-ink-soft"}`}>
             <span aria-hidden>{i + 1}</span> {s.label}
           </li>
         ))}

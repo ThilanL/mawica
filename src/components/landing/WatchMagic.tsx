@@ -2,7 +2,10 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { CardPlayer } from "@/components/cards/CardPlayer";
+import dynamic from "next/dynamic";
+
+// The card player (and its scene) is only downloaded when the preview is opened.
+const CardPlayer = dynamic(() => import("@/components/cards/CardPlayer").then((m) => m.CardPlayer), { ssr: false });
 
 /** "Watch the Magic" trigger plus a native <dialog> (focus trap, Esc, focus restore built in). */
 export function WatchMagic() {

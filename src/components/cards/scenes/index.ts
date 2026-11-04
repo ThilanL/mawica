@@ -1,19 +1,18 @@
+import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
 import type { TemplateKey } from "@/modules/templates/registry";
 import type { SceneProps } from "../types";
-import { SnowGlobeScene } from "./SnowGlobeScene";
-import { ChristmasTreeScene } from "./ChristmasTreeScene";
-import { SpecialGiftScene } from "./SpecialGiftScene";
-import { WarmWishesScene } from "./WarmWishesScene";
-import { NewYear2027Scene } from "./NewYear2027Scene";
-import { NewYearCelebrationScene } from "./NewYearCelebrationScene";
 
-/** Register one scene per template key. */
+/**
+ * One scene per template key. Each scene is a separate chunk, so a page only downloads the scene it shows
+ * (the recipient page still server-renders it, so the greeting is in the first HTML).
+ * Tests import the scene files directly (tests/regression.test.tsx).
+ */
 export const scenes: Record<TemplateKey, ComponentType<SceneProps>> = {
-  "snow-globe": SnowGlobeScene,
-  "christmas-tree": ChristmasTreeScene,
-  "special-gift": SpecialGiftScene,
-  "warm-wishes": WarmWishesScene,
-  "new-year-2027": NewYear2027Scene,
-  "new-year-celebration": NewYearCelebrationScene,
+  "snow-globe": dynamic(() => import("./SnowGlobeScene").then((m) => m.SnowGlobeScene)),
+  "christmas-tree": dynamic(() => import("./ChristmasTreeScene").then((m) => m.ChristmasTreeScene)),
+  "special-gift": dynamic(() => import("./SpecialGiftScene").then((m) => m.SpecialGiftScene)),
+  "warm-wishes": dynamic(() => import("./WarmWishesScene").then((m) => m.WarmWishesScene)),
+  "new-year-2027": dynamic(() => import("./NewYear2027Scene").then((m) => m.NewYear2027Scene)),
+  "new-year-celebration": dynamic(() => import("./NewYearCelebrationScene").then((m) => m.NewYearCelebrationScene)),
 };
