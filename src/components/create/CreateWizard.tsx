@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { CardPlayer } from "@/components/cards/CardPlayer";
+import { CardArt } from "@/components/landing/CardArt";
 import { Button } from "@/components/ui/Button";
 import { LIMITS } from "@/modules/cards/schema";
 import { templates, type TemplateKey } from "@/modules/templates/registry";
@@ -27,6 +28,12 @@ export function CreateWizard() {
   const [busy, setBusy] = useState(false);
   const [published, setPublished] = useState<{ slug: string; url: string } | null>(null);
   const honeypot = useRef<HTMLInputElement>(null);
+
+  // Switching template swaps in that template's default message only if the user has not edited the current one.
+  function chooseTemplate(key: TemplateKey) {
+    setTemplateKey(key);
+    setFields((f) => (f.message === templates[templateKey].defaultMessage || !f.message.trim() ? { ...f, message: templates[key].defaultMessage } : f));
+  }
 
   const set = (k: keyof Fields) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setFields((f) => ({ ...f, [k]: e.target.value }));
 
@@ -98,14 +105,17 @@ export function CreateWizard() {
       {step === "choose" && (
         <section aria-labelledby="choose-h">
           <h1 id="choose-h" className="text-center font-display text-4xl sm:text-5xl">Choose your card</h1>
-          <p className="mt-3 text-center text-ink-soft">More Christmas and New Year cards are on the way.</p>
-          <div role="radiogroup" aria-label="Card template" className="mx-auto mt-10 grid max-w-md gap-4">
+          <p className="mt-3 text-center text-ink-soft">Four Christmas cards and two for New Year.</p>
+          <div role="radiogroup" aria-label="Card template" className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Object.values(templates).map((t) => (
-              <button key={t.key} type="button" role="radio" aria-checked={templateKey === t.key} onClick={() => setTemplateKey(t.key)}
-                className={`rounded-[1.75rem] bg-white p-6 text-left shadow-soft ring-2 transition ${templateKey === t.key ? "ring-lavender" : "ring-transparent"}`}>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#6c4fb5" }}>{t.occasion}</p>
-                <p className="mt-2 font-display text-2xl">{t.title}</p>
-                <p className="mt-1 text-ink-soft">{t.description}</p>
+              <button key={t.key} type="button" role="radio" aria-checked={templateKey === t.key} onClick={() => chooseTemplate(t.key)}
+                className={`overflow-hidden rounded-[1.5rem] bg-white text-left shadow-soft ring-2 transition ${templateKey === t.key ? "ring-lavender" : "ring-transparent hover:ring-midnight/10"}`}>
+                <CardArt theme={t.key} className="aspect-[16/10]" />
+                <div className="p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#6c4fb5" }}>{t.occasion}</p>
+                  <p className="mt-1 font-display text-xl">{t.title}</p>
+                  <p className="mt-1 text-sm text-ink-soft">{t.description}</p>
+                </div>
               </button>
             ))}
           </div>

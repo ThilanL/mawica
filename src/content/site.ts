@@ -5,13 +5,9 @@ export const navLinks = [
   { label: "About", href: "/#about" },
 ] as const;
 
-export type CardTheme =
-  | "snow-globe"
-  | "golden-tree"
-  | "winter-village"
-  | "starlit"
-  | "fireworks"
-  | "countdown";
+import { templates, TEMPLATE_KEYS, type TemplateKey } from "@/modules/templates/registry";
+
+export type CardTheme = TemplateKey;
 
 export type CardPreview = {
   id: string;
@@ -21,14 +17,10 @@ export type CardPreview = {
   blurb: string;
 };
 
-export const cardPreviews: CardPreview[] = [
-  { id: "snow-globe", theme: "snow-globe", occasion: "Christmas", title: "Snow Globe Night", blurb: "A tiny glowing village, shaken into a snowy hush." },
-  { id: "golden-tree", theme: "golden-tree", occasion: "Christmas", title: "Golden Tree", blurb: "A tree that lights up, one warm bauble at a time." },
-  { id: "winter-village", theme: "winter-village", occasion: "Christmas", title: "Winter Village", blurb: "Lantern-lit rooftops under a soft falling snow." },
-  { id: "starlit", theme: "starlit", occasion: "Christmas", title: "Starlit Wish", blurb: "Make a wish beneath the brightest star of the season." },
-  { id: "fireworks", theme: "fireworks", occasion: "New Year", title: "Midnight Fireworks", blurb: "Welcome the new year with a sky full of colour." },
-  { id: "countdown", theme: "countdown", occasion: "New Year", title: "Golden Countdown", blurb: "Ten seconds to midnight, then a shower of gold." },
-];
+/** Landing-page previews are derived from the template registry so they never drift. */
+export const cardPreviews: CardPreview[] = TEMPLATE_KEYS.map((k) => ({
+  id: k, theme: k, occasion: templates[k].occasion, title: templates[k].title, blurb: templates[k].description,
+}));
 
 export const steps = [
   { n: "01", title: "Create", body: "Choose a card from our Christmas and New Year collection." },

@@ -24,7 +24,7 @@ export function CardPreviews() {
   return (
     <section aria-labelledby="cards-title" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:py-32">
       <Reveal>
-        <SectionHeading id="cards-title" eyebrow="The collection" title="Six cards, ready to be made yours" body="Four for Christmas and two to welcome the new year. Previews shown here are illustrative; the animated cards arrive as we build them." />
+        <SectionHeading id="cards-title" eyebrow="The collection" title="Six cards, ready to be made yours" body="Four for Christmas and two to welcome the new year. Preview images here are illustrative; open any card in the creator to see the real animation." />
       </Reveal>
       <div id="christmas" className="mt-16 scroll-mt-24">
         <h3 className="mb-6 font-display text-3xl">Christmas Cards</h3>
