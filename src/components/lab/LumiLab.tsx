@@ -5,11 +5,11 @@ import Image from "next/image";
 import { Component, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { heroArtwork } from "@/content/hero";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
-import type { LumiControls, LumiStats } from "./LumiCanvas";
-import { webglAvailable } from "./lumiMath";
+import type { LumiControls, LumiStats } from "@/components/lumi/LumiCanvas";
+import { webglAvailable } from "@/components/lumi/lumiMath";
 
 // Three.js and react-three-fiber live in this chunk only; it is fetched when the lab page mounts.
-const LumiCanvas = dynamic(() => import("./LumiCanvas"), { ssr: false });
+const LumiCanvas = dynamic(() => import("@/components/lumi/LumiCanvas"), { ssr: false });
 
 type Mode = "globe" | "closeup";
 
@@ -35,6 +35,7 @@ function StaticLumi({ small }: { small?: boolean }) {
 }
 
 const subscribeNone = () => () => {};
+const stillSnapshot = () => new URLSearchParams(window.location.search).has("still");
 
 export function LumiLab() {
   const reduced = usePrefersReducedMotion();
@@ -47,6 +48,7 @@ export function LumiLab() {
   const controls = useRef<LumiControls | null>(null);
   const stage = useRef<HTMLDivElement>(null);
   const webgl = useSyncExternalStore(subscribeNone, webglAvailable, () => true);
+  const still = useSyncExternalStore(subscribeNone, stillSnapshot, () => false); // ?still=1: frozen pose, no glow (used to render the static preview image)
   const live = webgl && !forceFallback;
 
   // Pause rendering when the stage is off screen or the tab is hidden.
@@ -120,7 +122,7 @@ export function LumiLab() {
           <div className="absolute inset-0" style={{ clipPath: clip }}>
             {live ? (
               <Boundary fallback={<StaticLumi small={mode === "globe"} />}>
-                <LumiCanvas anchor={anchor} size={size} running={inView && tabVisible} reduced={reduced} controls={controls} onStats={setStats} />
+                <LumiCanvas anchor={anchor} size={size} running={inView && tabVisible} reduced={reduced} controls={controls} onStats={setStats} still={still} />
               </Boundary>
             ) : (
               <StaticLumi small={mode === "globe"} />

@@ -1,5 +1,6 @@
 import { Hero } from "@/components/landing/Hero";
 import { CardPreviews } from "@/components/landing/CardPreviews";
+import { MeetLumi } from "@/components/landing/MeetLumi";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { RecipientShowcase } from "@/components/landing/RecipientShowcase";
 import { Benefits } from "@/components/landing/Benefits";
@@ -10,6 +11,7 @@ export default function Home() {
     <>
       <Hero />
       <CardPreviews />
+      <MeetLumi />
       <HowItWorks />
       <RecipientShowcase />
       <Benefits />

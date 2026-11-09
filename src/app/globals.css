@@ -151,3 +151,49 @@ body {
   .cc-draw { stroke-dasharray: none; }
   .cc-only-motion { display: none !important; }
 }
+
+/* ---- Meet Lumi section ---- */
+.lumi-section {
+  background:
+    radial-gradient(70% 60% at 25% 45%, rgb(156 126 219 / 0.28), transparent 70%),
+    radial-gradient(60% 50% at 85% 20%, rgb(217 105 163 / 0.18), transparent 70%),
+    linear-gradient(180deg, #2a1b3d, #1d1230);
+}
+.lumi-dust {
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 22%, rgb(244 195 113 / 0.8), transparent),
+    radial-gradient(1px 1px at 28% 78%, rgb(255 248 244 / 0.7), transparent),
+    radial-gradient(1.5px 1.5px at 44% 12%, rgb(244 195 113 / 0.6), transparent),
+    radial-gradient(1px 1px at 63% 66%, rgb(255 248 244 / 0.6), transparent),
+    radial-gradient(1.5px 1.5px at 78% 30%, rgb(244 195 113 / 0.7), transparent),
+    radial-gradient(1px 1px at 90% 82%, rgb(255 248 244 / 0.6), transparent),
+    radial-gradient(1px 1px at 6% 60%, rgb(255 248 244 / 0.5), transparent);
+}
+.lumi-halo {
+  background: radial-gradient(closest-side, rgb(255 200 110 / 0.5), rgb(244 160 90 / 0.18) 55%, transparent);
+}
+.lumi-btn-primary,
+.lumi-btn-secondary {
+  display: inline-flex; min-height: 3.5rem; align-items: center; justify-content: center; gap: 0.5rem;
+  border-radius: 9999px; padding: 0.75rem 1.75rem; font-weight: 600; font-size: 1rem; text-align: center;
+  transition: transform 0.2s, background-color 0.2s; touch-action: manipulation;
+}
+.lumi-btn-primary { background: var(--color-gold); color: var(--color-midnight); }
+.lumi-btn-primary:hover { background: #f8d28e; }
+.lumi-btn-secondary { border: 1px solid rgb(255 248 244 / 0.45); color: var(--color-ivory); background: transparent; }
+.lumi-btn-secondary:hover { background: rgb(255 248 244 / 0.1); }
+.lumi-btn-primary:active, .lumi-btn-secondary:active { transform: scale(0.98); }
+.lumi-section :where(a, button):focus-visible { outline: 3px solid var(--color-gold); outline-offset: 3px; }
+/* the name field uses a thick gold underline as its focus indicator instead of a boxed outline */
+.lumi-section input:focus, .lumi-section input:focus-visible { outline: none; border-bottom-width: 3px; border-color: var(--color-gold); }
+/* the greeting is focused programmatically so it is announced; it is not interactive, so no ring */
+.lumi-section [tabindex="-1"]:focus { outline: none; }
+@keyframes lumi-bob { 0%, 100% { transform: translateY(5%); } 50% { transform: translateY(2%); } }
+@keyframes lumi-pop { 0% { transform: scale(1); } 30% { transform: scale(1.12) rotate(-4deg); } 60% { transform: scale(0.96) rotate(3deg); } 100% { transform: scale(1); } }
+.lumi-float { animation: lumi-bob 4.5s ease-in-out infinite; }
+.lumi-pop { animation: lumi-pop 0.9s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .lumi-float { animation: none; }
+  .lumi-pop { animation: none; }
+  .lumi-btn-primary, .lumi-btn-secondary { transition: none; }
+}
