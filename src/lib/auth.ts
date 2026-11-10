@@ -7,6 +7,7 @@ import { env } from "@/lib/env";
 import { recordAudit } from "@/modules/auth/audit";
 import { CLIENT_IP_HEADER, parseOrigins } from "@/modules/auth/request";
 import { sendOtpEmail } from "@/modules/email/transport";
+import { ensureWallet } from "@/modules/wallet/wallet";
 
 /**
  * Better Auth, pinned at 1.7.19 (compatibility proof: docs/accounts.md). Email one-time codes only: no passwords,
@@ -67,6 +68,12 @@ export const auth = betterAuth({
             ]);
           } catch {
             console.error("profile bootstrap failed"); // /account re-creates a missing profile on first visit
+          }
+          try {
+            // Wallet + one-time welcome credit for a verified email. Idempotent, and also created lazily on first wallet use.
+            await db.$transaction((tx) => ensureWallet(tx, { id: user.id, email: user.email, emailVerified: user.emailVerified }, new Date()));
+          } catch {
+            console.error("wallet bootstrap failed"); // generic on purpose; the wallet is created on first use instead
           }
           await recordAudit("auth.user_created", { userId: user.id, ip: clientIpOf(ctx) });
         },

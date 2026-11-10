@@ -121,7 +121,12 @@ describe("isolation of the auth library (initial bundle)", () => {
   });
   it("public pages, the header and the guest card flow never import the auth modules", () => {
     const publicFiles = [...files.filter((f) => f.includes("src/components/landing") || f.includes("src/components/cards") || f.includes("src/components/create") || f.includes("src/components/lumi")), "src/app/(site)/page.tsx", "src/app/api/cards/route.ts", "src/components/auth/AccountNav.tsx", "src/components/layout/SiteHeader.tsx", "src/proxy.ts"];
-    for (const f of publicFiles) expect(read(f), f).not.toMatch(/@\/lib\/auth|@\/modules\/auth\/(session|audit)|better-auth/);
+    // Static imports only: the cards route reaches accounts/wallet through guarded dynamic imports (signed-in requests only).
+    const staticImports = (f: string) => read(f).split("\n").filter((l) => /^import\b/.test(l)).join("\n");
+    for (const f of publicFiles) expect(staticImports(f), f).not.toMatch(/@\/lib\/auth|@\/modules\/auth\/(session|audit)|@\/modules\/wallet|better-auth/);
+    const route = read("src/app/api/cards/route.ts");
+    expect(route).toMatch(/hasSessionCookie\(request\.headers\.get\("cookie"\)\)/);
+    expect(route.indexOf('await import("@/modules/auth/session")')).toBeGreaterThan(route.indexOf("hasSessionCookie(request"));
   });
   it("the auth route is deny-by-default with an explicit allowlist", () => {
     const src = read("src/app/api/auth/[...all]/route.ts");
@@ -148,7 +153,7 @@ describe("schema invariants", () => {
   });
   it("card ownership is nullable with SetNull and there is no ownership-required constraint (flag rollback stays possible)", () => {
     expect(schema).toMatch(/ownerId\s+String\?\s+@db\.Uuid/);
-    expect(schema).toMatch(/onDelete: SetNull\)\n\n\s+@@index\(\[status, createdAt\]\)/);
+    expect(schema).toMatch(/owner\s+User\?\s+@relation\(fields: \[ownerId\], references: \[id\], onDelete: SetNull\)/);
     const sql = readdirSync("prisma/migrations").filter((d) => d.includes("accounts_foundation")).map((d) => read(`prisma/migrations/${d}/migration.sql`)).join("\n");
     expect(sql).toMatch(/ADD COLUMN\s+"ownerId" UUID;/); // nullable, no default, no NOT NULL / CHECK
     expect(sql).not.toMatch(/NOT NULL.*ownerId|CHECK \("ownerId"|DROP |ALTER COLUMN/i);

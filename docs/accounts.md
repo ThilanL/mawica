@@ -3,6 +3,8 @@
 Email one-time-code sign-in with database sessions, built on **Better Auth 1.7.19** (`@better-auth/prisma-adapter` 1.7.19, pinned exactly).
 Local-only: nothing here is deployed, no real email is sent, and the guest card flow is unchanged.
 
+> The card wallet that builds on these accounts is documented in docs/wallet.md.
+
 ## What exists
 | Area | Where |
 |---|---|

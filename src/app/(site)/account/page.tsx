@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountSettings } from "@/components/auth/AccountSettings";
 import { db } from "@/lib/db";
@@ -23,7 +24,14 @@ export default async function AccountPage() {
             <h1 className="font-display text-3xl leading-tight sm:text-4xl">{profile.displayName?.trim() ? `Hello, ${profile.displayName.trim()}` : "Welcome back"}</h1>
           </div>
         </div>
-        <div className="mt-8">
+        <Link href="/account/wallet" className="mt-8 flex items-center justify-between gap-4 rounded-[1.75rem] bg-[linear-gradient(150deg,#3a2556,#2a1b3d)] p-6 text-ivory shadow-lift ring-1 ring-white/10 transition hover:-translate-y-0.5 focus-visible:outline-offset-4">
+          <span>
+            <span className="block text-sm font-semibold uppercase tracking-[0.18em] text-ivory/70">Card Wallet</span>
+            <span className="mt-1 block font-display text-2xl">See your cards and credits</span>
+          </span>
+          <span aria-hidden className="text-2xl">&rarr;</span>
+        </Link>
+        <div className="mt-6">
           <AccountSettings initial={{ email: user.email, emailVerified: user.emailVerified, displayName: profile.displayName, timeZone: profile.timeZone }} />
         </div>
       </div>

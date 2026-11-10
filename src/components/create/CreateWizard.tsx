@@ -35,6 +35,7 @@ export function CreateWizard() {
   const [busy, setBusy] = useState(false);
   const [published, setPublished] = useState<{ slug: string; url: string } | null>(null);
   const honeypot = useRef<HTMLInputElement>(null);
+  const idemKey = useRef<string | null>(null);
 
   // Switching template swaps in that template's default message only if the user has not edited the current one.
   function chooseTemplate(key: TemplateKey) {
@@ -68,25 +69,35 @@ export function CreateWizard() {
     ev.preventDefault();
     const e = validateLocal();
     setErrors(e);
+    idemKey.current = null; // content may have changed: a new publish attempt gets a new key
     if (Object.keys(e).length === 0) setStep("preview");
   }
 
   async function publish() {
     setBusy(true);
     setErrors({});
+    // One key per publish attempt, reused if the same attempt is retried, so a double click or a network retry can never make two cards.
+    idemKey.current ??= crypto.randomUUID();
     try {
       const res = await fetch("/api/cards", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": idemKey.current },
         body: JSON.stringify({ templateKey, ...fields, website: honeypot.current?.value ?? "" }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 201) {
+      if (res.status === 201 || res.status === 200) {
+        idemKey.current = null;
         setPublished({ slug: data.slug, url: data.url });
         setStep("published");
       } else if (res.status === 400 && data.errors) {
         setErrors(data.errors);
         setStep("personalise");
+      } else if (res.status === 402) {
+        const when = data.resetsAt ? ` Your allowance renews on ${new Date(data.resetsAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}.` : "";
+        setErrors({ form: `You've used all your cards for this month.${when}` });
+      } else if (res.status === 422) {
+        idemKey.current = null;
+        setErrors({ form: "That card changed since you tried to publish it. Please press Publish again." });
       } else if (res.status === 429) {
         const mins = Math.ceil(Number(res.headers.get("Retry-After") ?? 60) / 60);
         setErrors({ form: `You've made a lot of cards. Please try again in about ${mins} minute${mins === 1 ? "" : "s"}.` });

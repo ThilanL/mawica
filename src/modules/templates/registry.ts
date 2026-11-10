@@ -57,3 +57,16 @@ export const templates: Record<TemplateKey, CardTemplate> = {
 };
 
 export const isTemplateKey = (v: string): v is TemplateKey => (TEMPLATE_KEYS as readonly string[]).includes(v);
+
+/**
+ * Card tiers. Resolved on the SERVER from the template key, never from client input.
+ * Phase 2B.2 ships no premium templates: all six launch cards are STANDARD forever (existing access is unchanged).
+ * A future premium scene must be added here AND to TEMPLATE_KEYS / the scene map deliberately.
+ */
+export type CardTierName = "STANDARD" | "PREMIUM";
+const PREMIUM: string[] = [];
+export const PREMIUM_TEMPLATE_KEYS: readonly string[] = PREMIUM;
+export function templateTier(key: string): CardTierName {
+  if (!isTemplateKey(key)) throw new Error(`Unknown template: ${key}`);
+  return PREMIUM.includes(key) ? "PREMIUM" : "STANDARD";
+}

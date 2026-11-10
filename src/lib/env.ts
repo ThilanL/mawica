@@ -17,6 +17,8 @@ const schema = z.object({
   BETTER_AUTH_URL: z.string().url().optional(),
   /** Extra comma-separated origins allowed to call auth endpoints (local dev on other ports only). */
   AUTH_TRUSTED_ORIGINS: z.string().optional(),
+  /** Secret for the welcome-credit tombstone HMAC. Used for nothing else; never rotate (rotating unlinks old tombstones). Wallet creation fails closed without it. */
+  WELCOME_PEPPER: z.string().min(32).optional(),
   /** File that the LOCAL mail transport appends one-time codes to. Dev/test only; unset in production = no mail is sent. */
   MAIL_LOCAL_OUTBOX: z.string().optional(),
 });

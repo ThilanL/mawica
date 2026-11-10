@@ -7,3 +7,4 @@ process.env.DATABASE_URL = testUrl;
 process.env.TRUSTED_PROXY_HOPS = "1";
 process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
 process.env.BETTER_AUTH_SECRET ??= "vitest-only-secret-0123456789abcdef0123456789";
+process.env.WELCOME_PEPPER ??= "vitest-only-pepper-0123456789abcdef0123456789ab";

@@ -37,6 +37,9 @@ model Card {
   /// what happens to a deleted user's cards is an open product decision (docs/accounts.md).
   ownerId       String?    @db.Uuid
   owner         User?      @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  /// Resolved on the server from the template registry at publish time (never from the client); a snapshot, so
+  /// reclassifying a template later does not rewrite history. Every existing card is STANDARD.
+  tier          CardTier   @default(STANDARD)
 
   @@index([status, createdAt])
   @@index([ownerId])
@@ -84,6 +87,7 @@ model User {
   settings      AccountSettings?
   cards         Card[]
   auditLogs     AuditLog[]
+  creditAccount CreditAccount?
 
   @@unique([email])
   @@map("user")
@@ -186,4 +190,155 @@ model AuditLog {
 
   @@index([actorId, createdAt])
   @@index([action, createdAt])
+}
+
+// ============================ Card wallet (Phase 2B.2) ============================
+// Design proven in the isolated spike (docs/wallet.md). Balances live in CreditGrant.remaining, guarded by CHECK
+// constraints and updated only by conditional decrements inside a transaction; LedgerEntry is the append-only audit.
+// All timestamps are timestamptz and the app connects in UTC (see src/lib/db.ts).
+
+enum CardTier {
+  STANDARD
+  PREMIUM
+}
+
+enum EntitlementPeriod {
+  NONE
+  MONTH
+  SUBSCRIPTION_YEAR
+  LIFETIME
+  EVENT
+}
+
+enum GrantUnit {
+  TOTAL
+  PREMIUM
+}
+
+enum GrantSource {
+  WELCOME
+  PLAN_PERIOD
+  PURCHASE
+  ADJUSTMENT
+}
+
+enum LedgerKind {
+  GRANT
+  RESERVE
+  COMMIT
+  RELEASE
+  EXPIRE
+  REFUND
+  ADJUST
+}
+
+enum ReservationStatus {
+  HELD
+  COMMITTED
+  RELEASED
+}
+
+/// Plans are data. Corporate, Unlimited and Event are future rows (periods SUBSCRIPTION_YEAR / EVENT already exist).
+model Plan {
+  key          String            @id @db.VarChar(40)
+  name         String            @db.VarChar(80)
+  active       Boolean           @default(true)
+  /// False until the payments phase: no client or API can put an account on a non-purchasable plan.
+  purchasable  Boolean           @default(false)
+  sortOrder    Int               @default(0)
+  createdAt    DateTime          @default(now()) @db.Timestamptz(3)
+  entitlements PlanEntitlement[]
+  accounts     CreditAccount[]
+}
+
+/// key is one of: sends.total, sends.premium, welcome.premium, schedule.months_ahead (value NULL = unlimited, fair use applies).
+model PlanEntitlement {
+  planKey String            @db.VarChar(40)
+  plan    Plan              @relation(fields: [planKey], references: [key], onDelete: Cascade)
+  key     String            @db.VarChar(60)
+  value   Int?
+  period  EntitlementPeriod
+
+  @@id([planKey, key])
+}
+
+model CreditAccount {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// SetNull: deleting a user keeps the ledger (anonymised); the welcome tombstone is what stops a second gift.
+  userId       String?             @unique @db.Uuid
+  user         User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  planKey      String              @default("free") @db.VarChar(40)
+  plan         Plan                @relation(fields: [planKey], references: [key])
+  /// Fixed instant that anchors monthly periods (the account anniversary). Never changes.
+  periodAnchor DateTime            @default(now()) @db.Timestamptz(3)
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+  grants       CreditGrant[]
+  reservations CreditReservation[]
+  ledger       LedgerEntry[]
+}
+
+model CreditGrant {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId String        @db.Uuid
+  account   CreditAccount @relation(fields: [accountId], references: [id])
+  unit      GrantUnit
+  source    GrantSource
+  /// Deterministic per logical grant ("welcome", "period:free:<start>:TOTAL", "purchase:<order>"), unique per account:
+  /// retries are idempotent and many legitimate grants of one source can coexist.
+  grantKey  String        @db.VarChar(100)
+  amount    Int
+  remaining Int
+  validFrom DateTime      @db.Timestamptz(3)
+  /// NULL = never expires (welcome gift).
+  validTo   DateTime?     @db.Timestamptz(3)
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  ledger    LedgerEntry[]
+
+  @@unique([accountId, grantKey])
+  @@index([accountId, unit, validTo])
+}
+
+model CreditReservation {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId      String            @db.Uuid
+  account        CreditAccount     @relation(fields: [accountId], references: [id])
+  idempotencyKey String            @db.VarChar(64)
+  /// sha256 of the canonical request: same key + different hash is a client bug, refused.
+  requestHash    String            @db.VarChar(64)
+  status         ReservationStatus @default(HELD)
+  premium        Boolean
+  /// Plain id (no FK) on purpose: settled reservations are immutable, so a referential action must never need to update them.
+  cardId         String?           @unique @db.Uuid
+  deliverAt      DateTime?         @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  settledAt      DateTime?         @db.Timestamptz(3)
+  ledger         LedgerEntry[]
+
+  @@unique([accountId, idempotencyKey])
+  @@index([accountId, createdAt])
+}
+
+/// Append-only (database trigger). Internal: never returned by an API.
+model LedgerEntry {
+  id            BigInt             @id @default(autoincrement())
+  accountId     String             @db.Uuid
+  account       CreditAccount      @relation(fields: [accountId], references: [id])
+  grantId       String             @db.Uuid
+  grant         CreditGrant        @relation(fields: [grantId], references: [id])
+  reservationId String?            @db.Uuid
+  reservation   CreditReservation? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  kind          LedgerKind
+  delta         Int
+  reason        String?            @db.VarChar(80)
+  createdAt     DateTime           @default(now()) @db.Timestamptz(3)
+
+  @@index([accountId, createdAt])
+  @@index([grantId])
+  @@index([reservationId])
+}
+
+/// Survives account deletion. No user link, keyed hash only (HMAC with WELCOME_PEPPER, a secret used for nothing else).
+model WelcomeGrantTombstone {
+  emailHash String   @id @db.VarChar(64)
+  grantedAt DateTime @default(now()) @db.Timestamptz(3)
 }
