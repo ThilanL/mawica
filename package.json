@@ -15,9 +15,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@better-auth/prisma-adapter": "1.7.19",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "@react-three/fiber": "^9.8.2",
+    "better-auth": "1.7.19",
     "gsap": "^3.15.1",
     "nanoid": "^5.1.16",
     "next": "16.4.5",

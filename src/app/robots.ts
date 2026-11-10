@@ -3,5 +3,5 @@ import { SITE_URL } from "@/lib/site";
 
 // Public pages are indexable. Cards are private links (also noindex via meta/header) and the API is off-limits.
 export default function robots(): MetadataRoute.Robots {
-  return { rules: [{ userAgent: "*", allow: "/", disallow: ["/c/", "/api/", "/lab/"] }], sitemap: `${SITE_URL}/sitemap.xml` };
+  return { rules: [{ userAgent: "*", allow: "/", disallow: ["/c/", "/api/", "/lab/", "/account", "/sign-in"] }], sitemap: `${SITE_URL}/sitemap.xml` };
 }

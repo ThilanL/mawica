@@ -20,9 +20,10 @@ export default function PrivacyPage() {
           <li><strong>Card content you enter:</strong> the recipient&rsquo;s name, your name, your message and the card design you chose. Anyone with a card&rsquo;s link can see it.</li>
           <li><strong>A scrambled network identifier:</strong> to limit abuse we keep a one-way, keyed hash of your connection&rsquo;s network address with a counter. We do not store the address itself. These records expire within about 24 hours after their window ends.</li>
           <li><strong>Reports:</strong> if someone reports a card we keep the reason, optional details, a one-way hash of their network address and the time, for up to 90 days.</li>
+          <li><strong>Account details (only if you create an account):</strong> your email address (to send sign-in codes), an optional display name and time zone, a record of when you signed in and out, and a session record. We do not use passwords. <Todo>Legal review before accounts launch: retention periods, account deletion, minimum age, consent wording and the processor for sign-in emails</Todo>.</li>
           <li><strong>Server logs:</strong> our hosting provider (<Todo>confirm: Microsoft Azure</Todo>) may record standard request logs (time, page, status, network address). <Todo>Confirm log retention and region</Todo>.</li>
         </ul>
-        <p>mawica. has no accounts, no advertising and, at this time, sets no cookies and uses no analytics. <Todo>Update this section if analytics or cookies are added</Todo>.</p>
+        <p>mawica. has no advertising and uses no analytics. Creating and viewing cards sets no cookies. If you sign in, we set one strictly necessary, HttpOnly session cookie that is removed when you sign out or after 14 days. <Todo>Update this section if analytics or other cookies are added</Todo>.</p>
       </section>
       <section>
         <h2>How we use it</h2>

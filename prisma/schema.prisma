@@ -32,8 +32,14 @@ model Card {
   removedAt     DateTime?
   removedReason String?    @db.VarChar(200)
   reports       Report[]
+  /// Nullable on purpose: historical and guest cards have no owner and are never auto-assigned one.
+  /// SetNull (not Cascade/Restrict) so deleting an account can never delete or block public cards by accident;
+  /// what happens to a deleted user's cards is an open product decision (docs/accounts.md).
+  ownerId       String?    @db.Uuid
+  owner         User?      @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+  @@index([ownerId])
 }
 
 model Report {
@@ -57,4 +63,127 @@ model RateLimit {
   expiresAt   DateTime
 
   @@index([expiresAt])
+}
+
+// ============================ Accounts (Better Auth 1.7.19) ============================
+// Table/column shapes for User, Session, Account, Verification and AuthRateLimit come from the Better Auth CLI
+// (`npx auth@1.7.19 generate`, see docs/accounts.md). Deliberate edits: Timestamptz(3) on every timestamp, and the
+// rate-limit model is renamed AuthRateLimit so it can never merge into Mawica's own RateLimit table.
+
+model User {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+  sessions      Session[]
+  accounts      Account[]
+  profile       Profile?
+  settings      AccountSettings?
+  cards         Card[]
+  auditLogs     AuditLog[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  expiresAt DateTime @db.Timestamptz(3)
+  token     String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  ipAddress String?
+  userAgent String?
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId             String
+  providerId            String
+  userId                String    @db.Uuid
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(3)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@index([expiresAt])
+  @@map("verification")
+}
+
+model AuthRateLimit {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String
+  count       Int
+  lastRequest BigInt
+
+  @@unique([key])
+  @@map("authRateLimit")
+}
+
+// ---- Mawica-owned account data ----
+
+model Profile {
+  userId          String    @id @db.Uuid
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName     String?   @db.VarChar(40)
+  /// IANA zone id, validated server-side. Used later for scheduling; UTC until the user chooses.
+  timeZone        String    @default("UTC") @db.VarChar(64)
+  /// Time the sign-in notice (Terms and Privacy links) was shown and accepted by continuing. Not a legal-consent record.
+  termsAcceptedAt DateTime? @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+}
+
+/// Preferences with safe defaults. Nothing reads these yet (reminders arrive with scheduling).
+model AccountSettings {
+  userId         String   @id @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminderEmails Boolean  @default(true)
+  productNews    Boolean  @default(false)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+}
+
+/// Append-only in spirit: application code only inserts. Never store emails, codes, tokens or message text in meta.
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  actorId   String?  @db.Uuid
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String   @db.VarChar(60)
+  meta      Json?
+  /// HMAC of the client IP (same keyed hash scheme as rate limits), never the raw address.
+  ipHash    String?  @db.VarChar(64)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
 }

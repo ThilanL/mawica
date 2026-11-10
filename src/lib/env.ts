@@ -11,6 +11,14 @@ const schema = z.object({
   /** Number of trusted reverse proxies in front of the app (see docs/security.md). 0 = ignore forwarded headers. */
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
+  /** Accounts (Better Auth). Optional so the guest card flow never depends on them; auth routes fail closed without them. */
+  BETTER_AUTH_SECRET: z.string().min(32).optional(),
+  /** Public base URL used for Origin checks and cookies. Defaults to NEXT_PUBLIC_SITE_URL. */
+  BETTER_AUTH_URL: z.string().url().optional(),
+  /** Extra comma-separated origins allowed to call auth endpoints (local dev on other ports only). */
+  AUTH_TRUSTED_ORIGINS: z.string().optional(),
+  /** File that the LOCAL mail transport appends one-time codes to. Dev/test only; unset in production = no mail is sent. */
+  MAIL_LOCAL_OUTBOX: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

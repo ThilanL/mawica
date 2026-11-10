@@ -6,3 +6,4 @@ if (!/\/mawica_test(\?|$)/.test(testUrl)) throw new Error("TEST_DATABASE_URL mus
 process.env.DATABASE_URL = testUrl;
 process.env.TRUSTED_PROXY_HOPS = "1";
 process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
+process.env.BETTER_AUTH_SECRET ??= "vitest-only-secret-0123456789abcdef0123456789";

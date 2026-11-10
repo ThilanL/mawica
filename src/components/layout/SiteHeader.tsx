@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/brand/Logo";
+import { AccountNav } from "@/components/auth/AccountNav";
 import { ButtonLink } from "@/components/ui/Button";
 import { navLinks } from "@/content/site";
 
@@ -39,7 +40,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="hidden items-center gap-2 lg:flex">
-          <ButtonLink href="/sign-in" variant="ghost" size="md">Sign In</ButtonLink>
+          <AccountNav />
           <ButtonLink href="/create" size="md">Create Free Card</ButtonLink>
         </div>
         <button
@@ -64,7 +65,7 @@ export function SiteHeader() {
           ))}
           <div className="mt-3 flex flex-col gap-3">
             <ButtonLink href="/create" onClick={() => setOpen(false)}>Create Free Card</ButtonLink>
-            <ButtonLink href="/sign-in" variant="secondary" onClick={() => setOpen(false)}>Sign In</ButtonLink>
+            <AccountNav mobile onNavigate={() => setOpen(false)} />
           </div>
         </nav>
       </div>

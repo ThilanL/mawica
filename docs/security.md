@@ -31,3 +31,6 @@ Missing/short/malformed header with `hops > 0` also falls into the shared bucket
 - Retention: rate-limit rows purged 24 h after expiry; reports 90 days (`npm run admin -- purge`).
 - Removal: `npm run admin -- remove <slug> "reason"`. Card page, QR and report endpoints return 404 immediately; pages are never cached (`proxy.ts` gives a real HTTP 404).
 - Database isolation: see docs/local-database.md; `src/lib/db-guard.ts` is enforced by the app, Prisma config and admin CLI.
+
+## Accounts
+See docs/accounts.md: deny-by-default auth route allowlist, per-IP/per-email/global OTP limits, Origin checks on all mutating routes, hashed codes, no secrets in logs or audit rows, and the UTC connection requirement for timestamptz.
