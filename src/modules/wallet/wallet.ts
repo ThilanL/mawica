@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { normalizeEmail } from "@/modules/auth/request";
-import { templates, isTemplateKey } from "@/modules/templates/registry";
+import { getTemplate, isAnyTemplateKey } from "@/modules/templates/registry";
 import { balances, ensurePeriodGrants, expireGrants, grantCredit, type Tx } from "./engine";
 import { loadEntitlements, UnsupportedPlanError } from "./entitlements";
 import { periodFor } from "./periods";
@@ -93,7 +93,7 @@ export async function walletActivity(userId: string, opts: { limit?: number; bef
         at: r.createdAt.toISOString(),
         type: r.status === "RELEASED" ? "card_cancelled" : r.status === "HELD" ? "card_scheduled" : "card_published",
         premium: r.premium,
-        card: c ? { title: isTemplateKey(c.templateKey) ? templates[c.templateKey].title : "Card", slug: c.slug } : null,
+        card: c ? { title: isAnyTemplateKey(c.templateKey) ? getTemplate(c.templateKey).title : "Card", slug: c.slug } : null,
       };
     }),
     ...welcome.map((g): ActivityItem => ({ at: g.createdAt.toISOString(), type: "welcome_gift", premium: true, card: null })),

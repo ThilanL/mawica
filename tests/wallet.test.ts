@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { periodFor } from "@/modules/wallet/periods";
 import { loadEntitlements, UnsupportedPlanError } from "@/modules/wallet/entitlements";
@@ -33,7 +33,6 @@ const spend = (acc: WalletAccount, k: string, o: { premium?: boolean; now?: Date
 const bal = (acc: WalletAccount, now = t0) => run((tx) => balances(tx, acc.id, now));
 const drift = (acc?: WalletAccount) => run((tx) => reconcile(tx, acc?.id));
 
-afterEach(() => { (PREMIUM_TEMPLATE_KEYS as string[]).length = 0; });
 afterAll(async () => {
   await db.$transaction(async (tx) => {
     await tx.$executeRaw`SET LOCAL mawica.ledger_purge = 'on'`;
@@ -96,7 +95,8 @@ describe("plans are data", () => {
   it("the six launch cards are STANDARD; unknown templates throw; tier is never an input", () => {
     for (const k of TEMPLATE_KEYS) expect(templateTier(k)).toBe("STANDARD");
     expect(() => templateTier("nope")).toThrow();
-    expect(PREMIUM_TEMPLATE_KEYS).toHaveLength(0);
+    expect([...PREMIUM_TEMPLATE_KEYS]).toEqual(["lumis-wish"]);
+    expect(templateTier("lumis-wish")).toBe("PREMIUM");
   });
 });
 
@@ -455,13 +455,14 @@ describe("publishing a card with the wallet", () => {
     expect((await bal(acc)).total).toBe(0);
     expect(await drift(acc)).toEqual([]);
   });
-  it("premium tier (simulated) needs a premium credit: uses the welcome gift, then refuses and rolls back the total credit", async () => {
-    (PREMIUM_TEMPLATE_KEYS as string[]).push("snow-globe"); // simulate a premium template for this test only
+  it("the premium template needs a premium credit: uses the welcome gift, then refuses and rolls back the total credit", async () => {
     const { u, acc } = await open();
-    const a = await publishOwnedCard(body, u, { idempotencyKey: key("prem1"), now: t0 });
+    const prem = { ...body, templateKey: "lumis-wish" as const };
+    const a = await publishOwnedCard(prem, u, { idempotencyKey: key("prem1"), now: t0 });
     expect((await db.card.findUnique({ where: { slug: a.slug } }))?.tier).toBe("PREMIUM");
+    expect(a).toMatchObject({ remaining: 9, premiumRemaining: 0 });
     expect(await bal(acc)).toMatchObject({ total: 9, premium: 0 });
-    await expect(publishOwnedCard({ ...body, message: "second" }, u, { idempotencyKey: key("prem2"), now: t0 })).rejects.toBeInstanceOf(InsufficientCreditsError);
+    await expect(publishOwnedCard({ ...prem, message: "second" }, u, { idempotencyKey: key("prem2"), now: t0 })).rejects.toBeInstanceOf(InsufficientCreditsError);
     expect((await bal(acc)).total).toBe(9);
     expect(await db.card.count({ where: { ownerId: u.id } })).toBe(1);
     expect(await drift(acc)).toEqual([]);

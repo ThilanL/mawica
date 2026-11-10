@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TEMPLATE_KEYS } from "@/modules/templates/registry";
+import { ALL_TEMPLATE_KEYS } from "@/modules/templates/registry";
 
 export const LIMITS = { name: 40, message: 500 } as const;
 
@@ -15,7 +15,7 @@ const name = (label: string) =>
   z.string({ error: `${label} is required` }).transform(clean(false)).pipe(z.string().min(1, `${label} is required`).max(LIMITS.name, `${label} must be ${LIMITS.name} characters or fewer`));
 
 export const createCardSchema = z.object({
-  templateKey: z.enum(TEMPLATE_KEYS, { error: "Choose a card" }),
+  templateKey: z.enum(ALL_TEMPLATE_KEYS, { error: "Choose a card" }),
   recipientName: name("Recipient name"),
   senderName: name("Your name"),
   message: z

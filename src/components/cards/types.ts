@@ -1,4 +1,4 @@
-import type { TemplateKey } from "@/modules/templates/registry";
+import type { AnyTemplateKey } from "@/modules/templates/registry";
 
 export type SceneProps = {
   recipientName: string;
@@ -12,7 +12,7 @@ export type SceneProps = {
 };
 
 export type CardData = {
-  templateKey: TemplateKey;
+  templateKey: AnyTemplateKey;
   recipientName: string;
   senderName: string;
   message: string;

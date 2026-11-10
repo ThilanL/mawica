@@ -7,7 +7,7 @@ import { templateTier } from "@/modules/templates/registry";
 import { expireGrants, reserveCredits, settleReservation, balances } from "./engine";
 import { ensureWallet } from "./wallet";
 
-export type PublishOwnedResult = { slug: string; replay: boolean; remaining: number };
+export type PublishOwnedResult = { slug: string; replay: boolean; remaining: number; premiumRemaining: number };
 
 export const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
@@ -37,14 +37,16 @@ export async function publishOwnedCard(
         if (r.replay) {
           const card = r.cardId ? await tx.card.findUnique({ where: { id: r.cardId }, select: { slug: true } }) : null;
           if (!card) throw new Error("Original publish is still pending"); // cannot happen: reserve+commit are one transaction
-          return { slug: card.slug, replay: true, remaining: (await balances(tx, account.id, now)).total };
+          const b = await balances(tx, account.id, now);
+          return { slug: card.slug, replay: true, remaining: b.total, premiumRemaining: b.premium };
         }
         const card = await tx.card.create({
           data: { slug: slugFn(), templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message, ownerId: user.id, tier },
           select: { id: true, slug: true },
         });
         await settleReservation(tx, account.id, r.reservationId, "COMMIT", { now, cardId: card.id });
-        return { slug: card.slug, replay: false, remaining: (await balances(tx, account.id, now)).total };
+        const b = await balances(tx, account.id, now);
+        return { slug: card.slug, replay: false, remaining: b.total, premiumRemaining: b.premium };
       }, { timeout: 15000, maxWait: 15000 });
     } catch (e) {
       // Unique-slug collision (astronomically rare): the whole transaction rolled back, so retrying cannot double-spend.

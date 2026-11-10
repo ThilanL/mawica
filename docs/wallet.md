@@ -2,6 +2,8 @@
 
 Local only: nothing is deployed, there are no payments, no scheduling worker and no premium card scene. Guest publishing is unchanged.
 
+> The first premium card built on this wallet is documented in docs/premium-lumis-wish.md.
+
 ## What exists
 | Area | Where |
 |---|---|

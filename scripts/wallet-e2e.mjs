@@ -156,6 +156,43 @@ let slugA;
   check("8 an expired session loses wallet access (401) and publishes only as a guest", r.status === 401 && p.json.owned === undefined);
 }
 
+// --- premium card: Lumi's Wish
+{
+  const prem = (m = "A wish for you") => ({ templateKey: "lumis-wish", recipientName: "WalletE2E", senderName: "Sam", message: m });
+  const g = await call("/api/cards", { method: "POST", body: prem(), origin: null });
+  check("10 anonymous premium publish is refused (401 SIGN_IN_REQUIRED) and creates nothing", g.status === 401 && g.json.code === "SIGN_IN_REQUIRED" && sql(`select count(*) from "Card" where "templateKey"='lumis-wish' and "createdAt" >= '${started}'`) === "0", `status ${g.status}`);
+  const forgedGuest = await call("/api/cards", { method: "POST", body: { ...prem(), tier: "STANDARD" }, origin: null });
+  check("10b a forged tier cannot make an anonymous premium publish succeed", forgedGuest.status === 401);
+
+  const cookieP = await login(mail("premium"));
+  check("10c a new account has one premium credit", (await wallet(cookieP)).premium.remaining === 1);
+  await publish(cookieP, card("standard first"));
+  check("10d a standard card leaves the premium credit alone", (await wallet(cookieP)).premium.remaining === 1 && (await wallet(cookieP)).sends.remaining === 9);
+  const p1 = await publish(cookieP, { ...prem(), tier: "STANDARD" });
+  check("10e premium publish: 201, tier PREMIUM (client tier ignored), uses 1 card AND 1 premium credit", p1.status === 201 && p1.json.premiumRemaining === 0 && p1.json.remaining === 8 && sql(`select tier='PREMIUM' and "ownerId"='${userId(mail("premium"))}' from "Card" where slug='${p1.json.slug}'`) === "t", JSON.stringify({ s: p1.status, r: p1.json.remaining, p: p1.json.premiumRemaining }));
+  const p2 = await publish(cookieP, prem("second"));
+  check("10f a second premium publish is refused (402 premium code) and deducts nothing", p2.status === 402 && p2.json.code === "INSUFFICIENT_PREMIUM_CREDITS" && (await wallet(cookieP)).sends.remaining === 8, `${p2.status} ${p2.json.code}`);
+  check("10g ledger reconciles after premium spending", driftCount() === "0");
+  const act = await call("/api/wallet/activity", { cookie: cookieP });
+  check("10h activity labels the premium card", act.json.items.some((i) => i.type === "card_published" && i.premium === true && i.card?.title === "Lumi's Wish"));
+
+  const view = await fetch(`${BASE}/c/${p1.json.slug}`);
+  const html = await view.text();
+  check("10i the recipient opens the public URL with no sign-in: 200, personalised, no cookies", view.status === 200 && html.includes("WalletE2E") && html.includes("A wish for you") && (view.headers.getSetCookie?.() ?? []).length === 0, `status ${view.status}`);
+  check("10j the card page exposes no wallet, credit, tier or account details", !/credit|wallet|ownerId|PREMIUM|tier/i.test(html.replace(/<script[\s\S]*?<\/script>/g, "").replaceAll("WalletE2E", "")) /* the recipient name itself contains "Wallet" */, "visible HTML scanned");
+  const qr = await fetch(`${BASE}/c/${p1.json.slug}/qr.png`);
+  check("10k the QR route works for the premium card", qr.status === 200 && qr.headers.get("content-type")?.includes("image/png"));
+
+  const cookieR = await login(mail("race")), ipR = newIp();
+  const race = await Promise.all(Array.from({ length: 25 }, (_, i) => publish(cookieR, prem(`race ${i}`), { ip: ipR })));
+  check("10l 25 simultaneous premium publishes with 1 premium credit: exactly 1 card, 24 refused", race.filter((r) => r.status === 201).length === 1 && race.filter((r) => r.status === 402).length === 24, `201:${race.filter((r) => r.status === 201).length} 402:${race.filter((r) => r.status === 402).length}`);
+  check("10m exactly one premium card exists for that user; balances never negative", sql(`select count(*) from "Card" where "ownerId"='${userId(mail("race"))}' and tier='PREMIUM'`) === "1" && sql(`select count(*) from "CreditGrant" where remaining < 0`) === "0" && driftCount() === "0");
+
+  const cookieQ = await login(mail("dupe")), ipQ = newIp();
+  const dupes = await Promise.all(Array.from({ length: 20 }, () => publish(cookieQ, prem("same"), { key: "premium-dup-key-0001", ip: ipQ })));
+  check("10n 20 duplicate premium requests with one Idempotency-Key create exactly one card", dupes.filter((r) => r.status === 201).length === 1 && dupes.filter((r) => r.status === 200).length === 19 && new Set(dupes.map((r) => r.json.slug)).size === 1 && (await wallet(cookieQ)).premium.remaining === 0, `201:${dupes.filter((r) => r.status === 201).length}`);
+}
+
 // --- logs and responses
 {
   const log = SERVER_LOG ? readFileSync(SERVER_LOG, "utf8") : null;

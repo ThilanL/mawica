@@ -104,6 +104,87 @@ describe("POST /api/cards: signed-in publishing through the wallet", () => {
   });
 });
 
+describe("premium card: Lumi's Wish", () => {
+  const prem = { ...body, templateKey: "lumis-wish" };
+  const bal = async (userId: string) => {
+    const acc = await db.creditAccount.findUnique({ where: { userId } });
+    const g = await db.creditGrant.findMany({ where: { accountId: acc!.id } });
+    const live = g.filter((x) => !x.validTo || x.validTo > new Date());
+    return { total: live.filter((x) => x.unit === "TOTAL").reduce((a, x) => a + x.remaining, 0), premium: live.filter((x) => x.unit === "PREMIUM").reduce((a, x) => a + x.remaining, 0) };
+  };
+  it("cannot be published anonymously: 401, nothing created", async () => {
+    const before = await db.card.count({ where: { templateKey: "lumis-wish" } });
+    const r = await post(prem);
+    expect(r.status).toBe(401);
+    expect((await r.json()).code).toBe("SIGN_IN_REQUIRED");
+    expect(await db.card.count({ where: { templateKey: "lumis-wish" } })).toBe(before);
+  });
+  it("a stale or invalid session cookie is treated as anonymous: still refused", async () => {
+    as(null);
+    expect((await post(prem, { cookie: true })).status).toBe(401);
+  });
+  it("consumes one total AND one premium credit, tier PREMIUM, and reports the remaining premium balance", async () => {
+    const u = await mkUser(); as(u);
+    const r = await post(prem, { cookie: true, key: "prem-key-00000001" });
+    expect(r.status).toBe(201);
+    const j = await r.json();
+    expect(j).toMatchObject({ owned: true, remaining: 9, premiumRemaining: 0 });
+    expect(await db.card.findUnique({ where: { slug: j.slug } })).toMatchObject({ ownerId: u.id, tier: "PREMIUM", templateKey: "lumis-wish" });
+    expect(await bal(u.id)).toEqual({ total: 9, premium: 0 });
+  });
+  it("without a premium credit it is refused (402 with a premium-specific code) and nothing is deducted or created", async () => {
+    const u = await mkUser(); as(u);
+    expect((await post(prem, { cookie: true, key: "prem-key-00000002" })).status).toBe(201); // spends the welcome gift
+    const r = await post({ ...prem, message: "again" }, { cookie: true, key: "prem-key-00000003" });
+    expect(r.status).toBe(402);
+    expect((await r.json()).code).toBe("INSUFFICIENT_PREMIUM_CREDITS");
+    expect(await bal(u.id)).toEqual({ total: 9, premium: 0 }); // the total credit touched first was rolled back
+    expect(await db.card.count({ where: { ownerId: u.id } })).toBe(1);
+  });
+  it("a standard card never consumes the premium credit", async () => {
+    const u = await mkUser(); as(u);
+    for (let i = 0; i < 3; i++) await post(body, { cookie: true, key: `std-key-${String(i).padStart(9, "0")}` });
+    expect(await bal(u.id)).toEqual({ total: 7, premium: 1 });
+  });
+  it("a client-supplied tier cannot bypass enforcement in either direction", async () => {
+    const u = await mkUser(); as(u);
+    const a = await (await post({ ...prem, tier: "STANDARD" }, { cookie: true, key: "tier-key-0000001" })).json();
+    expect(await db.card.findUnique({ where: { slug: a.slug } })).toMatchObject({ tier: "PREMIUM" });
+    expect(await bal(u.id)).toEqual({ total: 9, premium: 0 }); // still charged as premium
+    const b = await (await post({ ...body, tier: "PREMIUM" }, { cookie: true, key: "tier-key-0000002" })).json();
+    expect(await db.card.findUnique({ where: { slug: b.slug } })).toMatchObject({ tier: "STANDARD" });
+    expect(await bal(u.id)).toEqual({ total: 8, premium: 0 });
+    // anonymous with a forged "standard" tier is still refused for the premium template
+    as(null);
+    expect((await post({ ...prem, tier: "STANDARD" })).status).toBe(401);
+  });
+  it("duplicate requests with one Idempotency-Key create exactly one premium card and spend once", async () => {
+    const u = await mkUser(); as(u);
+    const rs = await Promise.all(Array.from({ length: 15 }, () => post(prem, { cookie: true, key: "dup-key-00000001", ip: "198.51.100.200" })));
+    const ok = rs.filter((r) => r.status === 201 || r.status === 200);
+    expect(ok).toHaveLength(15);
+    expect(new Set(await Promise.all(ok.map(async (r) => (await r.json()).slug))).size).toBe(1);
+    expect(await db.card.count({ where: { ownerId: u.id } })).toBe(1);
+    expect(await bal(u.id)).toEqual({ total: 9, premium: 0 });
+  });
+  it("20 concurrent premium publishes with one premium credit: exactly one card, 19 refused, never overspent", async () => {
+    const u = await mkUser(); as(u);
+    const rs = await Promise.all(Array.from({ length: 20 }, (_, i) => post({ ...prem, message: `wish ${i}` }, { cookie: true, key: `race-key-${String(i).padStart(7, "0")}`, ip: "198.51.100.201" })));
+    expect(rs.filter((r) => r.status === 201)).toHaveLength(1);
+    expect(rs.filter((r) => r.status === 402)).toHaveLength(19);
+    expect(await db.card.count({ where: { ownerId: u.id } })).toBe(1);
+    expect(await bal(u.id)).toEqual({ total: 9, premium: 0 });
+  });
+  it("public viewing of a premium card needs no sign-in and reveals no wallet or account data", async () => {
+    const u = await mkUser(); as(u);
+    const j = await (await post(prem, { cookie: true, key: "view-key-0000001" })).json();
+    const { getPublishedCard } = await import("@/modules/cards/service");
+    const card = await getPublishedCard(j.slug);
+    expect(card).toEqual({ slug: j.slug, templateKey: "lumis-wish", recipientName: "RouteTest", senderName: "Sam", message: "Hello" });
+    expect(JSON.stringify(card)).not.toMatch(/owner|tier|credit|wallet|email|userId/i);
+  });
+});
+
 describe("guest publishing is unchanged", () => {
   it("no cookie: guest path, no owner, no credits touched, per-IP limit still applies", async () => {
     const u = await mkUser(); as(u); // even if some session existed, without the cookie the guest path runs

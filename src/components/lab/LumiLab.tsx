@@ -36,6 +36,8 @@ function StaticLumi({ small }: { small?: boolean }) {
 
 const subscribeNone = () => () => {};
 const stillSnapshot = () => new URLSearchParams(window.location.search).has("still");
+// ?awake=0 renders the sleeping pose (used to render the still frames of the Lumi's Wish premium card).
+const sleepingSnapshot = () => new URLSearchParams(window.location.search).get("awake") === "0";
 
 export function LumiLab() {
   const reduced = usePrefersReducedMotion();
@@ -48,6 +50,7 @@ export function LumiLab() {
   const controls = useRef<LumiControls | null>(null);
   const stage = useRef<HTMLDivElement>(null);
   const webgl = useSyncExternalStore(subscribeNone, webglAvailable, () => true);
+  const sleeping = useSyncExternalStore(subscribeNone, sleepingSnapshot, () => false);
   const still = useSyncExternalStore(subscribeNone, stillSnapshot, () => false); // ?still=1: frozen pose, no glow (used to render the static preview image)
   const live = webgl && !forceFallback;
 
@@ -122,7 +125,7 @@ export function LumiLab() {
           <div className="absolute inset-0" style={{ clipPath: clip }}>
             {live ? (
               <Boundary fallback={<StaticLumi small={mode === "globe"} />}>
-                <LumiCanvas anchor={anchor} size={size} running={inView && tabVisible} reduced={reduced} controls={controls} onStats={setStats} still={still} />
+                <LumiCanvas anchor={anchor} size={size} running={inView && tabVisible} reduced={reduced} controls={controls} onStats={setStats} still={still} awake={!sleeping} />
               </Boundary>
             ) : (
               <StaticLumi small={mode === "globe"} />

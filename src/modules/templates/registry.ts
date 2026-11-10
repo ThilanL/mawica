@@ -59,14 +59,34 @@ export const templates: Record<TemplateKey, CardTemplate> = {
 export const isTemplateKey = (v: string): v is TemplateKey => (TEMPLATE_KEYS as readonly string[]).includes(v);
 
 /**
- * Card tiers. Resolved on the SERVER from the template key, never from client input.
- * Phase 2B.2 ships no premium templates: all six launch cards are STANDARD forever (existing access is unchanged).
- * A future premium scene must be added here AND to TEMPLATE_KEYS / the scene map deliberately.
+ * PREMIUM templates. Kept apart from the six launch cards on purpose: TEMPLATE_KEYS / templates / the homepage gallery stay
+ * exactly as shipped (all STANDARD, free to publish). A premium card is reachable only from the creation flow, needs a
+ * signed-in account and consumes 1 total + 1 premium credit from the wallet. The tier is resolved HERE, on the server,
+ * from the template key. A client-supplied tier is never read.
  */
+export const PREMIUM_TEMPLATE_KEYS = ["lumis-wish"] as const;
+export type PremiumTemplateKey = (typeof PREMIUM_TEMPLATE_KEYS)[number];
+export type AnyTemplateKey = TemplateKey | PremiumTemplateKey;
+export const ALL_TEMPLATE_KEYS = [...TEMPLATE_KEYS, ...PREMIUM_TEMPLATE_KEYS] as const;
+
+export type PremiumCardTemplate = Omit<CardTemplate, "key" | "occasion"> & { key: PremiumTemplateKey; occasion: "Any occasion" };
+
+export const premiumTemplates: Record<PremiumTemplateKey, PremiumCardTemplate> = {
+  "lumis-wish": {
+    key: "lumis-wish", title: "Lumi's Wish", occasion: "Any occasion",
+    description: "Lumi, our golden star, wakes up, finds your person and makes a wish just for them.",
+    greeting: "Lumi made a wish for you",
+    defaultMessage: "Lumi travelled a long way to bring you this wish: may your days be full of warmth, wonder and everything that makes you smile.",
+  },
+};
+
+export const isPremiumTemplateKey = (v: string): v is PremiumTemplateKey => (PREMIUM_TEMPLATE_KEYS as readonly string[]).includes(v);
+export const isAnyTemplateKey = (v: string): v is AnyTemplateKey => isTemplateKey(v) || isPremiumTemplateKey(v);
+/** Template data for any card (standard or premium). */
+export const getTemplate = (key: AnyTemplateKey): CardTemplate | PremiumCardTemplate => (isPremiumTemplateKey(key) ? premiumTemplates[key] : templates[key]);
+
 export type CardTierName = "STANDARD" | "PREMIUM";
-const PREMIUM: string[] = [];
-export const PREMIUM_TEMPLATE_KEYS: readonly string[] = PREMIUM;
 export function templateTier(key: string): CardTierName {
-  if (!isTemplateKey(key)) throw new Error(`Unknown template: ${key}`);
-  return PREMIUM.includes(key) ? "PREMIUM" : "STANDARD";
+  if (!isAnyTemplateKey(key)) throw new Error(`Unknown template: ${key}`);
+  return isPremiumTemplateKey(key) ? "PREMIUM" : "STANDARD";
 }

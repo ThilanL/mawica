@@ -4,7 +4,7 @@
 //   node scripts/lumi-e2e.mjs flow  <tag> <width> <height> [reduced] [nowebgl] [touch] [keyboard] [contextloss]
 //   node scripts/lumi-e2e.mjs perf  <width> <height>          (use a production server: next build && next start -p 3100)
 //   node scripts/lumi-e2e.mjs cleanup                         (dev server: /lab/lumi unmount / remount, context loss, listener and rAF counts)
-//   node scripts/lumi-e2e.mjs still <out.png>                 (transparent render of /lab/lumi?still=1, dev server only)
+//   node scripts/lumi-e2e.mjs still <out.png>                 (transparent render of /lab/lumi?still=1, dev server only; STILL_QS="still=1&awake=0" renders the sleeping pose)
 //
 // BASE   server origin (default http://localhost:3010)
 // OUT    screenshot folder for `flow` (default docs/screenshots/meet-lumi)
@@ -267,7 +267,7 @@ async function still(outFile) {
   try {
     await send("Emulation.setDeviceMetricsOverride", { width: 1000, height: 1100, deviceScaleFactor: 3, mobile: false });
     await send("Emulation.setDefaultBackgroundColorOverride", { color: { r: 0, g: 0, b: 0, a: 0 } });
-    await send("Page.navigate", { url: BASE + "/lab/lumi?still=1" });
+    await send("Page.navigate", { url: BASE + "/lab/lumi?" + (process.env.STILL_QS || "still=1") });
     await waitFor(ev, `[...document.querySelectorAll('button')].some(b=>b.textContent.includes('Close-up'))`, 90000);
     await sleep(1500);
     await ev(`[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Close-up')).click()`);

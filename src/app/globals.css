@@ -197,3 +197,53 @@ body {
   .lumi-pop { animation: none; }
   .lumi-btn-primary, .lumi-btn-secondary { transition: none; }
 }
+
+/* ---- Lumi's Wish (premium card). Same contract as the cc-* primitives: the default style is the FINISHED card;
+   keyframes only describe the "from" frame (or a transient that ends hidden), so reduced motion and no-JS land on a complete,
+   readable greeting. Transient layers also carry .cc-only-motion, which reduced motion hides. ---- */
+.lw-root {
+  background:
+    radial-gradient(60% 45% at 50% 38%, rgb(244 195 113 / 0.22), transparent 70%),
+    radial-gradient(55% 40% at 18% 72%, rgb(156 126 219 / 0.30), transparent 72%),
+    radial-gradient(55% 40% at 86% 30%, rgb(217 105 163 / 0.26), transparent 72%),
+    linear-gradient(180deg, #2a1b3d 0%, #21132f 55%, #170f24 100%);
+}
+@keyframes lw-orb { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); } 30% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); visibility: hidden; } }
+@keyframes lw-rise { from { opacity: 0; transform: scale(0.5) translateY(18px); } }
+@keyframes lw-float { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-2.4%) rotate(1.2deg); } }
+@keyframes lw-wake-in { from { opacity: 0; } }
+@keyframes lw-sleep-out { to { opacity: 0; visibility: hidden; } }
+@keyframes lw-hop { 0% { transform: translateY(0) scale(1, 1); } 22% { transform: translateY(1.5%) scale(1.06, 0.92); } 55% { transform: translateY(-7%) scale(0.96, 1.07); } 100% { transform: translateY(0) scale(1, 1); } }
+@keyframes lw-notice { 0% { transform: rotate(0); } 40% { transform: rotate(-5deg) translateX(-2%); } 75% { transform: rotate(3deg) translateX(1.5%); } 100% { transform: rotate(0); } }
+@keyframes lw-celebrate { 0%, 100% { transform: translateY(0) rotate(0) scale(1); } 15% { transform: translateY(2%) scale(1.07, 0.9); } 38% { transform: translateY(-11%) rotate(-7deg) scale(0.96, 1.08); } 58% { transform: translateY(1%) scale(1.05, 0.94); } 78% { transform: translateY(-7%) rotate(6deg) scale(0.97, 1.05); } }
+@keyframes lw-wiggle { 0%, 100% { transform: rotate(0) scale(1); } 20% { transform: rotate(-8deg) scale(1.06); } 45% { transform: rotate(7deg) scale(1.08); } 70% { transform: rotate(-3deg) scale(1.02); } }
+@keyframes lw-halo { from { opacity: 0; transform: translate(-50%, -50%) scale(0.4); } }
+@keyframes lw-pulse { 0%, 100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.07); } }
+@keyframes lw-gather { 0% { opacity: 0; transform: rotate(var(--a)) translateX(var(--r)) scale(0.5); } 55% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateX(0) scale(0.15); visibility: hidden; } }
+@keyframes lw-name-in { from { opacity: 0; letter-spacing: 0.32em; filter: blur(9px); transform: translateY(10px); } }
+@keyframes lw-shimmer { to { background-position: 200% 0; } }
+@keyframes lw-ripple { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); } 12% { opacity: 0.85; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(2.1); visibility: hidden; } }
+@keyframes lw-wish-star { 0% { opacity: 0; transform: translate(0, 0) scale(0.4) rotate(0); } 15% { opacity: 1; } 70% { opacity: 1; transform: translate(var(--tx), var(--ty)) scale(1.1) rotate(220deg); } 100% { opacity: 0; transform: translate(calc(var(--tx) * 1.15), calc(var(--ty) * 1.25)) scale(0.2) rotate(300deg); visibility: hidden; } }
+@keyframes lw-wish-word { 0% { opacity: 0; transform: translateY(14px); } 20% { opacity: 0.95; } 80% { opacity: 0.8; } 100% { opacity: 0; transform: translateY(-70px); } }
+
+.lw-orb { animation: lw-orb 2.7s ease 0s both; }
+.lw-rise { animation: lw-rise 1.4s cubic-bezier(0.2, 1.1, 0.4, 1) var(--d, 1s) both, lw-float 7s ease-in-out calc(var(--d, 1s) + 1.6s) infinite; }
+.lw-awake { animation: lw-wake-in 0.7s ease var(--d, 2.6s) both; }
+.lw-asleep { animation: lw-sleep-out 0.7s ease var(--d, 2.6s) both; }
+.lw-hop { animation: lw-hop 0.9s cubic-bezier(0.3, 1, 0.4, 1) var(--d, 2.6s) both; }
+.lw-notice { animation: lw-notice 1.5s ease-in-out var(--d, 3.8s) both; }
+.lw-celebrate { animation: lw-celebrate 1.9s ease-in-out var(--d, 8.8s) both; }
+.lw-wiggle { animation: lw-wiggle 0.7s ease both; }
+.lw-halo { animation: lw-halo 1.6s ease var(--d, 1s) both, lw-pulse 5s ease-in-out calc(var(--d, 1s) + 1.6s) infinite; }
+.lw-gather { animation: lw-gather 1.15s cubic-bezier(0.5, 0, 0.9, 0.6) var(--d, 4.2s) both; }
+.lw-name { background: linear-gradient(100deg, #f4c371 0%, #fff3d6 22%, #f0a9cf 48%, #b9a4ee 74%, #f4c371 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: lw-name-in 1.3s cubic-bezier(0.2, 0.8, 0.3, 1) var(--d, 5.4s) both, lw-shimmer 7s linear calc(var(--d, 5.4s) + 1.4s) infinite; }
+.lw-ripple { animation: lw-ripple 2.4s ease-out var(--d, 10.2s) both; }
+.lw-wish-star { animation: lw-wish-star 2.6s ease-in-out var(--d, 10.2s) both; }
+.lw-wish-word { animation: lw-wish-word 6s ease-in-out var(--d, 11s) infinite backwards; }
+.lw-lumi-btn { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.lw-lumi-btn:focus-visible { outline: 3px solid #f0a9cf; outline-offset: 6px; border-radius: 2rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lw-orb, .lw-rise, .lw-awake, .lw-asleep, .lw-hop, .lw-notice, .lw-celebrate, .lw-wiggle, .lw-halo, .lw-gather, .lw-name, .lw-ripple, .lw-wish-star, .lw-wish-word { animation: none; }
+  .lw-halo { transform: translate(-50%, -50%); }
+}

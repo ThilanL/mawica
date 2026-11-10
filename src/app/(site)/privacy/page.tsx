@@ -23,7 +23,7 @@ export default function PrivacyPage() {
           <li><strong>Account details (only if you create an account):</strong> your email address (to send sign-in codes), an optional display name and time zone, a record of when you signed in and out, and a session record. We do not use passwords. <Todo>Legal review before accounts launch: retention periods, account deletion, minimum age, consent wording and the processor for sign-in emails</Todo>.</li>
           <li><strong>Server logs:</strong> our hosting provider (<Todo>confirm: Microsoft Azure</Todo>) may record standard request logs (time, page, status, network address). <Todo>Confirm log retention and region</Todo>.</li>
         </ul>
-        <p>mawica. has no advertising and uses no analytics. Creating and viewing cards sets no cookies. If you sign in, we set one strictly necessary, HttpOnly session cookie that is removed when you sign out or after 14 days. <Todo>Update this section if analytics or other cookies are added</Todo>.</p>
+        <p>mawica. has no advertising and uses no analytics. Creating and viewing cards sets no cookies. If you sign in, we set one strictly necessary, HttpOnly session cookie that is removed when you sign out or after 14 days. If you sign in from a premium card preview, your unfinished card is kept in your browser tab&rsquo;s temporary storage only until you return, then deleted. <Todo>Update this section if analytics or other cookies are added</Todo>.</p>
       </section>
       <section>
         <h2>How we use it</h2>

@@ -1,6 +1,6 @@
 import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
-import type { TemplateKey } from "@/modules/templates/registry";
+import { isPremiumTemplateKey, type AnyTemplateKey, type PremiumTemplateKey, type TemplateKey } from "@/modules/templates/registry";
 import type { SceneProps } from "../types";
 
 /**
@@ -16,3 +16,10 @@ export const scenes: Record<TemplateKey, ComponentType<SceneProps>> = {
   "new-year-2027": dynamic(() => import("./NewYear2027Scene").then((m) => m.NewYear2027Scene)),
   "new-year-celebration": dynamic(() => import("./NewYearCelebrationScene").then((m) => m.NewYearCelebrationScene)),
 };
+
+/** Premium scenes, separate from the six launch scenes (their map above is untouched). Also one lazy chunk per scene. */
+export const premiumScenes: Record<PremiumTemplateKey, ComponentType<SceneProps>> = {
+  "lumis-wish": dynamic(() => import("./LumisWishScene").then((m) => m.LumisWishScene)),
+};
+
+export const sceneFor = (key: AnyTemplateKey): ComponentType<SceneProps> => (isPremiumTemplateKey(key) ? premiumScenes[key] : scenes[key]);

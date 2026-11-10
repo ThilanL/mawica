@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { templates } from "@/modules/templates/registry";
-import { scenes } from "./scenes";
+import { getTemplate, isPremiumTemplateKey } from "@/modules/templates/registry";
+import { premiumScenes, scenes } from "./scenes";
 import type { CardData } from "./types";
 
 /** Renders a card scene with a replay control. Used for preview and the recipient view. */
 export function CardPlayer({ card, compact = false }: { card: CardData; compact?: boolean }) {
   const [replayKey, setReplayKey] = useState(0);
-  const Scene = scenes[card.templateKey];
-  const t = templates[card.templateKey];
+  const Scene = isPremiumTemplateKey(card.templateKey) ? premiumScenes[card.templateKey] : scenes[card.templateKey]; // module-level maps: no component is created during render
+  const t = getTemplate(card.templateKey);
   return (
     <div className="relative size-full">
       <Scene {...card} greeting={t.greeting} replayKey={replayKey} compact={compact} />

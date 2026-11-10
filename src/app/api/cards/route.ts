@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { createCardSchema } from "@/modules/cards/schema";
 import { createCard } from "@/modules/cards/service";
 import { hasSessionCookie } from "@/modules/auth/request";
+import { templateTier } from "@/modules/templates/registry";
 import { clientIp, hashFor } from "@/modules/security/client-hash";
 import { hit } from "@/modules/security/rate-limit";
 
@@ -55,6 +56,11 @@ export async function POST(request: Request) {
     if (user) return publishSignedIn(request, user, parsed.data);
   }
 
+  // Premium cards are never published anonymously (preview is client-side and free). The tier comes from the server registry.
+  if (templateTier(parsed.data.templateKey) === "PREMIUM") {
+    return NextResponse.json({ error: "Sign in to publish a premium card. Previews are always free.", code: "SIGN_IN_REQUIRED" }, { status: 401, headers: { "Cache-Control": "no-store" } });
+  }
+
   // Publish quota only counts valid submissions, so typos never burn it.
   const [perIp, global] = await Promise.all([
     hit(hashFor("publish", ip), PER_IP.limit, PER_IP.windowSeconds),
@@ -79,12 +85,12 @@ async function publishSignedIn(request: Request, user: { id: string; email: stri
   if (blocked) return tooMany(blocked.retryAfterSeconds);
   try {
     const out = await publishOwnedCard(data as Parameters<typeof publishOwnedCard>[0], user, { idempotencyKey: headerKey ?? crypto.randomUUID() });
-    return NextResponse.json({ slug: out.slug, url: `${env.NEXT_PUBLIC_SITE_URL}/c/${out.slug}`, owned: true, remaining: out.remaining }, { status: out.replay ? 200 : 201, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ slug: out.slug, url: `${env.NEXT_PUBLIC_SITE_URL}/c/${out.slug}`, owned: true, remaining: out.remaining, premiumRemaining: out.premiumRemaining }, { status: out.replay ? 200 : 201, headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     if (e instanceof InsufficientCreditsError) {
       let resetsAt: string | null = null;
       try { const { walletSummary } = await import("@/modules/wallet/wallet"); resetsAt = (await walletSummary(user)).period.nextReset; } catch { /* message still works without the date */ }
-      return NextResponse.json({ error: "You've used all your cards for this month.", code: "INSUFFICIENT_CREDITS", resetsAt }, { status: 402, headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({ error: e.unit === "PREMIUM" ? "You don't have a premium credit available." : "You've used all your cards for this month.", code: e.unit === "PREMIUM" ? "INSUFFICIENT_PREMIUM_CREDITS" : "INSUFFICIENT_CREDITS", resetsAt }, { status: 402, headers: { "Cache-Control": "no-store" } });
     }
     if (e instanceof IdempotencyKeyReuseError) return NextResponse.json({ error: "That request key was already used for a different card.", code: "IDEMPOTENCY_KEY_REUSED" }, { status: 422 });
     console.error("signed-in publish failed"); // generic on purpose

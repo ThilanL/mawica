@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CardPlayer } from "@/components/cards/CardPlayer";
 import { ReportCard } from "@/components/cards/ReportCard";
 import { getPublishedCard } from "@/modules/cards/service";
-import { isTemplateKey } from "@/modules/templates/registry";
+import { isAnyTemplateKey } from "@/modules/templates/registry";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -21,7 +21,7 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   // Uncached lookup before any Suspense boundary: removed cards give a real 404, never a stale page.
   const card = await getPublishedCard(slug);
-  if (!card || !isTemplateKey(card.templateKey)) notFound();
+  if (!card || !isAnyTemplateKey(card.templateKey)) notFound();
 
   return (
     <div className="relative h-dvh bg-midnight">
