@@ -207,7 +207,7 @@ export function CreateWizard() {
             {Object.values(templates).map((t) => (
               <button key={t.key} type="button" role="radio" aria-checked={templateKey === t.key} tabIndex={templateKey === t.key ? 0 : -1} data-key={t.key} onClick={() => chooseTemplate(t.key)}
                 className={`overflow-hidden rounded-[1.5rem] bg-white text-left shadow-soft ring-2 transition ${templateKey === t.key ? "ring-lavender" : "ring-transparent hover:ring-midnight/10"}`}>
-                <CardArt theme={t.key} className="aspect-[16/10]" />
+                <CardArt theme={t.key} ratio="16x10" className="aspect-[16/10]" />
                 <div className="p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#6c4fb5" }}>{t.occasion}</p>
                   <p className="mt-1 font-display text-xl">{t.title}</p>

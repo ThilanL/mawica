@@ -17,7 +17,7 @@ export function RecipientShowcase() {
         <figure className="flex flex-col items-center">
           <div className="relative w-[15.5rem] rounded-[2.6rem] bg-midnight p-2.5 shadow-lift sm:w-[17rem]">
             <div className="relative overflow-hidden rounded-[2.1rem]">
-              <CardArt theme="snow-globe" className="aspect-[9/17]" />
+              <CardArt theme="snow-globe" ratio="9x17" className="aspect-[9/17]" />
               <div className="absolute inset-0 flex flex-col items-center justify-end gap-2 bg-gradient-to-t from-midnight/80 via-transparent px-6 pb-10 text-center text-ivory">
                 <p className="text-xs uppercase tracking-[0.2em] text-ivory/80">For Ava</p>
                 <p className="font-display text-2xl">Merry Christmas</p>

@@ -9,12 +9,12 @@ import type { SceneProps } from "../types";
  * Tests import the scene files directly (tests/regression.test.tsx).
  */
 export const scenes: Record<TemplateKey, ComponentType<SceneProps>> = {
-  "snow-globe": dynamic(() => import("./SnowGlobeScene").then((m) => m.SnowGlobeScene)),
-  "christmas-tree": dynamic(() => import("./ChristmasTreeScene").then((m) => m.ChristmasTreeScene)),
-  "special-gift": dynamic(() => import("./SpecialGiftScene").then((m) => m.SpecialGiftScene)),
-  "warm-wishes": dynamic(() => import("./WarmWishesScene").then((m) => m.WarmWishesScene)),
-  "new-year-2027": dynamic(() => import("./NewYear2027Scene").then((m) => m.NewYear2027Scene)),
-  "new-year-celebration": dynamic(() => import("./NewYearCelebrationScene").then((m) => m.NewYearCelebrationScene)),
+  "snow-globe": dynamic(() => import("../premium3d/stage/entries/globe").then((m) => m.default)), // existing premium artwork + the shared Mawica ending
+  "christmas-tree": dynamic(() => import("../premium3d/stage/entries/tree").then((m) => m.default)), // 3D (WebGL), with the CSS scene as its fallback
+  "special-gift": dynamic(() => import("../premium3d/stage/entries/gift").then((m) => m.default)),
+  "warm-wishes": dynamic(() => import("../premium3d/stage/entries/window").then((m) => m.default)),
+  "new-year-2027": dynamic(() => import("../premium3d/stage/entries/newyear").then((m) => m.default)),
+  "new-year-celebration": dynamic(() => import("../premium3d/stage/entries/glasses").then((m) => m.default)),
 };
 
 /** Premium scenes, separate from the six launch scenes (their map above is untouched). Also one lazy chunk per scene. */

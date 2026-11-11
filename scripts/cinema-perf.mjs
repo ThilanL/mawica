@@ -9,6 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const BASE = process.env.BASE || "http://localhost:3030";
+const PAGE = process.env.PAGE || "/lab/cinema?perf=1"; // any lab route that publishes window.__cinema, e.g. "/lab/card?key=christmas-tree&perf=1&noperfguard=1"
+const VP = process.env.VP || "both";
 const CHROME = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -35,15 +37,15 @@ async function run(name, vp, cpu) {
     if (cpu > 1) await c.send("Emulation.setCPUThrottlingRate", { rate: cpu });
     await c.send("Network.setCacheDisabled", { cacheDisabled: true });
     const t0 = Date.now();
-    await c.send("Page.navigate", { url: `${BASE}/lab/cinema?perf=1` });
+    await c.send("Page.navigate", { url: `${BASE}${PAGE}` });
     // first meaningful visual: the canvas exists and the first frame statistics were published
     let firstVisual = null;
     for (let i = 0; i < 200 && firstVisual === null; i++) { await sleep(100); if (await c.ev("!!document.querySelector('canvas') && !!window.__cinema")) firstVisual = Date.now() - t0; }
     const samples = [];
     const at = async (label, atMs) => { await sleep(Math.max(0, atMs - (Date.now() - t0))); const s = await c.ev("window.__cinema ? JSON.stringify(window.__cinema) : null"); const heap = await c.ev("performance.memory ? performance.memory.usedJSHeapSize : null"); samples.push({ label, t: Math.round((Date.now() - t0) / 100) / 10, ...(s ? JSON.parse(s) : {}), heapMB: heap ? Math.round(heap / 1048576) : null }); };
-    await at("storm", 4000); await at("opening", 11000); await at("card-opening", 14500); await at("reading", 19000);
+    const T = process.env.TIMES ? JSON.parse(process.env.TIMES) : [4000, 11000, 14500, 19000]; await at("early", T[0]); await at("middle", T[1]); await at("late", T[2]); await at("reading", T[3]);
     // after the animation, rendering should wind down: compare the frame stamp over two windows far apart
-    await at("rest-30s", 48000);
+    await at("rest", Number(process.env.REST || 48000));
     const stamp1 = samples.at(-1).at;
     await sleep(6000);
     const s2 = JSON.parse((await c.ev("JSON.stringify(window.__cinema)")) ?? "{}");
@@ -64,5 +66,5 @@ async function run(name, vp, cpu) {
   } finally { c.close(); }
 }
 
-await run("desktop", { w: 1280, h: 800, dpr: 1, mobile: false }, 1);
-await run("mobile (4x CPU slowdown)", { w: 390, h: 844, dpr: 2, mobile: true }, 4);
+if (VP !== "mobile") await run("desktop", { w: 1280, h: 800, dpr: 1, mobile: false }, 1);
+if (VP !== "desktop") await run("mobile (4x CPU slowdown)", { w: 390, h: 844, dpr: 2, mobile: true }, 4);

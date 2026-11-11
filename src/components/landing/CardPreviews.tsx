@@ -7,7 +7,7 @@ function CardTile({ card, i }: { card: CardPreview; i: number }) {
   return (
     <Reveal as="li" delay={(i % 3) * 90}>
       <article className="group h-full overflow-hidden rounded-[1.75rem] bg-white shadow-soft ring-1 ring-midnight/5 transition duration-500 hover:-translate-y-1.5 hover:shadow-lift">
-        <CardArt theme={card.theme} className="aspect-[4/5] transition duration-700 group-hover:scale-[1.03]" />
+        <CardArt theme={card.theme} ratio="4x5" className="aspect-[4/5] transition duration-700 group-hover:scale-[1.03]" />
         <div className="p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-lavender" style={{ color: "#6c4fb5" }}>{card.occasion}</p>
           <h3 className="mt-2 font-display text-2xl">{card.title}</h3>
