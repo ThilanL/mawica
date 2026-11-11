@@ -54,7 +54,7 @@ export function SignInForm() {
       if (res.status === 429) setError("Too many requests. Please wait a minute and try again.");
       else if (res.status === 400) setError(data.error ?? "Enter a valid email address.");
       else if (!res.ok) setError("We couldn't send a code right now. Please try again shortly.");
-      else { setStep("code"); setCode(""); setCooldown(30); setNotice(`We sent a 6-digit code to ${email.trim().toLowerCase()}.`); }
+      else { setStep("code"); setCode(""); setCooldown(30); setNotice(`If ${email.trim().toLowerCase()} can receive email, a 6-digit code is on its way. It can take a couple of minutes; check your spam folder too.`); }
     } catch { setError("You appear to be offline. Check your connection and try again."); }
     finally { setBusy(false); }
   }

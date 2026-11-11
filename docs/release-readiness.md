@@ -3,7 +3,7 @@
 **Nothing here has been provisioned or executed.** It is the plan for a *controlled staging integration*. Production sending, recipient email and the guest-publishing cutover are out of scope.
 
 ## 1. Provider recommendation
-Azure Communication Services (ACS) Email, Australia data location, behind the provider-independent interface ([email.md](email.md)). Proceed to a staging evaluation, not to production. Conditions: the integration-test items in email.md pass; per-email pricing is confirmed; the ACS retirement/breaking-changes guide has been read and does not affect Email.
+**Superseded by [email-provider-assessment.md](email-provider-assessment.md): ACS Email is retiring (30 Sep 2028); migrate the adapter before staging.** The text below is the original Phase 2D.1 position, kept for history. Azure Communication Services (ACS) Email, Australia data location, behind the provider-independent interface ([email.md](email.md)). Proceed to a staging evaluation, not to production. Conditions: the integration-test items in email.md pass; per-email pricing is confirmed; the ACS retirement/breaking-changes guide has been read and does not affect Email.
 
 ## 2. Azure resources required (staging; none created)
 In the existing staging resource group of [azure-staging.md](azure-staging.md), Australia East:

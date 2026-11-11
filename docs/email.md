@@ -1,5 +1,7 @@
 # Transactional email (Phase 2D.1)
 
+> **Update (Phase 2D.2, 2026-11-11): ACS Email retires on 30 September 2028 and Microsoft limits onboarding for customers without an existing ACS resource. The "proceed with ACS" recommendation below is superseded: see [email-provider-assessment.md](email-provider-assessment.md). Do not deploy the ACS adapter to staging.**
+
 **Status:** built and tested locally. Nothing has been sent to a real mailbox, no Azure resource exists, no DNS was touched. Real delivery is off by default and stays off until staging integration is approved.
 
 ## Three purposes, one enabled

@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { emailOTP } from "better-auth/plugins";
@@ -93,7 +94,7 @@ export const auth = betterAuth({
         const sent = await sendAuthCode(email, otp, OTP_TTL_SECONDS / 60);
         if (!sent.ok) {
           // No code reached the user: drop the stored one so it cannot be guessed later, and flag the request as failed (generic 503 from the route).
-          await db.verification.deleteMany({ where: { identifier: `sign-in-otp-${email}` } }).catch(() => {});
+          await db.verification.deleteMany({ where: { identifier: `sign-in-otp-${email}`, value: { startsWith: `${createHash("sha256").update(otp).digest("base64url")}:` } } }).catch(() => {}); // only THIS request's code: a concurrent request's newer valid code is never touched
           markEmailSendFailed(); // Better Auth swallows errors thrown from this hook, so the route wrapper reads this flag instead
         }
       },

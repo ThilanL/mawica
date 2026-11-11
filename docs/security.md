@@ -21,7 +21,8 @@ Missing/short/malformed header with `hops > 0` also falls into the shared bucket
 1. The App Service front end appends the connecting address (with port) to `X-Forwarded-For`. Confirm on a staging slot by sending `X-Forwarded-For: 1.2.3.4` yourself and logging what the app receives: the real client IP must be the rightmost entry.
 2. Set `TRUSTED_PROXY_HOPS` to the real hop count (1, or 2 behind Front Door). A wrong number either lets spoofed values in (too low) or collapses everyone into one bucket (too high).
 3. If using Front Door, restrict App Service access to it (access restriction by service tag `AzureFrontDoor.Backend` plus `X-Azure-FDID` header check). Otherwise clients can bypass Front Door and hit the origin directly.
-4. This **cannot be verified locally** (there is no Azure proxy here). Only the parsing logic is tested. Status: **open deployment blocker**.
+4. A step-by-step staging verification (forged-header and second-network checks) is in [azure-readiness.md](azure-readiness.md) section 4.
+5. This **cannot be verified locally** (there is no Azure proxy here). Only the parsing logic is tested. Status: **open deployment blocker**.
 
 ## Other controls
 - Server-side zod validation, control/bidi character stripping, length limits, 4 KB body cap, honeypot.

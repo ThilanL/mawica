@@ -64,6 +64,9 @@ No HTTP trigger; command-line only, refuses to run with `NODE_ENV=production` wi
 - Recovery after a hard worker crash (process exit mid-batch) with a 3 s lease and 0.5 s backoff: all jobs published about 4.0 s after the crash.
 These come from a quiet local database with no network latency; do not extrapolate them to production.
 
+## Hosting (updated in Phase 2D.2)
+The MVP recommendation is an **App Service triggered WebJob on a one-minute schedule**, evaluated against Functions and Container Apps jobs in [azure-readiness.md](azure-readiness.md) (section 6). The worker script is not yet deployable (it needs a bundled production entrypoint). The older Functions proposal below is kept for reference.
+
 ## Azure Functions hosting proposal (not created)
 1. A **timer-triggered** Function App (Node, TypeScript) with **no HTTP triggers**, calling `runDeliveryCycle()` every minute. Scheduled delivery granularity is then about a minute plus processing; if tighter timing is required, run the same `runLoop` in an App Service WebJob or Container Apps job instead (the logic does not change).
 2. Network and identity: VNet integration to reach Azure Database for PostgreSQL over a private endpoint; managed identity + Key Vault references for `DATABASE_URL`; the isolation guard stays on. Keep the pool small (set `DELIVERY_CONCURRENCY` and the connection limit per instance; consider PgBouncer if instances scale out).

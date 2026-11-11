@@ -10,6 +10,7 @@ import { FakeTransport } from "@/modules/email/transports/fake";
 import { LocalOutboxTransport } from "@/modules/email/transports/local-outbox";
 import { authCodeEmail } from "@/modules/email/templates";
 import { PURPOSE_POLICY } from "@/modules/email/purposes";
+import { applyDeliveryEvent, SUPPRESSING } from "@/modules/email/events";
 
 const KEY = Buffer.from("k".repeat(32)).toString("base64");
 const LOCAL_DB = "postgresql://u:p@127.0.0.1:5433/mawica_test";
@@ -200,5 +201,28 @@ describe("purpose separation (static)", () => {
     for (const f of files.filter((f) => f.startsWith("src/components") || f.startsWith("src/app") && /\.tsx$/.test(f) && /^"use client"/m.test(read(f)))) {
       expect(read(f), f).not.toMatch(/ACS_EMAIL|modules\/email|MAIL_LOCAL_OUTBOX/);
     }
+  });
+});
+
+describe("delivery-status fold (design logic, not wired to anything)", () => {
+  const ev = (status: Parameters<typeof applyDeliveryEvent>[1]["status"], s = 0) => ({ providerRef: "m1", status, at: new Date(1_000 + s) });
+  const fold = (events: ReturnType<typeof ev>[]) => events.reduce<ReturnType<typeof applyDeliveryEvent>["state"] | null>((st, e) => applyDeliveryEvent(st, e).state, null)!;
+  it("is idempotent: replaying an event changes nothing but the seen counter", () => {
+    const a = applyDeliveryEvent(null, ev("delivered")); const b = applyDeliveryEvent(a.state, ev("delivered"));
+    expect(b.changed).toBe(false); expect(b.state.status).toBe("delivered"); expect(b.state.seen).toBe(2);
+  });
+  it("is order-independent: every permutation of the same events ends in the same status", () => {
+    const evs = [ev("accepted"), ev("deferred", 1), ev("delivered", 2), ev("bounced", 3)];
+    const perms = (a: typeof evs): (typeof evs)[] => (a.length < 2 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map((p) => [x, ...p])));
+    for (const p of perms(evs)) expect(fold(p).status).toBe("bounced");
+  });
+  it("a weaker late event never overwrites a stronger one; complaints are sticky", () => {
+    expect(fold([ev("delivered"), ev("deferred", 5)]).status).toBe("delivered");
+    expect(fold([ev("complained"), ev("delivered", 5), ev("bounced", 6)]).status).toBe("complained");
+  });
+  it("rejects an event for another message and marks permanent signals as suppressing", () => {
+    expect(() => applyDeliveryEvent(fold([ev("accepted")]), { ...ev("delivered"), providerRef: "other" })).toThrow();
+    expect([...SUPPRESSING].sort()).toEqual(["bounced", "complained", "suppressed"]);
+    expect(SUPPRESSING.has("delivered")).toBe(false);
   });
 });
