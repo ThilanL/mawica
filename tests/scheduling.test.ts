@@ -282,7 +282,7 @@ describe("cancellation", () => {
   it("a schedule that is being delivered cannot be cancelled", async () => {
     const u = await mkUser();
     const { schedule } = await sched(u, "x4");
-    await db.$executeRaw`UPDATE "ScheduledDelivery" SET status = 'PROCESSING', "updatedAt" = now() WHERE id = ${schedule.id}::uuid`;
+    await db.$executeRaw`UPDATE "ScheduledDelivery" SET status = 'PROCESSING', "leaseToken" = gen_random_uuid(), "leaseOwner" = 'test', "leaseExpiresAt" = now() + interval '5 minutes', "attemptCount" = "attemptCount" + 1, "updatedAt" = now() WHERE id = ${schedule.id}::uuid`;
     const err = (await fails(cancelSchedule(u, schedule.id, NOW))) as ScheduleConflictError;
     expect(err).toBeInstanceOf(ScheduleConflictError);
     expect(err.code).toBe("NOT_CANCELLABLE");
@@ -435,7 +435,7 @@ describe("database guarantees", () => {
     const { schedule } = await sched(u, "g1");
     const attempt = (q: Promise<unknown>) => q.then(() => "allowed", () => "blocked");
     expect(await attempt(db.$executeRaw`UPDATE "ScheduledDelivery" SET "ownerId" = ${v.id}::uuid WHERE id = ${schedule.id}::uuid`)).toBe("blocked");
-    expect(await attempt(db.$executeRaw`UPDATE "ScheduledDelivery" SET status = 'DELIVERED', "deliveredAt" = now() WHERE id = ${schedule.id}::uuid`)).toBe("blocked"); // SCHEDULED -> DELIVERED skips PROCESSING
+    expect(await attempt(db.$executeRaw`UPDATE "ScheduledDelivery" SET status = 'PUBLISHED', "publishedAt" = now() WHERE id = ${schedule.id}::uuid`)).toBe("blocked"); // SCHEDULED -> PUBLISHED skips PROCESSING
     expect(await attempt(db.$executeRaw`UPDATE "ScheduledDelivery" SET "localDate" = '2026-13-45' WHERE id = ${schedule.id}::uuid`)).toBe("blocked"); // CHECK
     await cancelSchedule(u, schedule.id, NOW);
     expect(await attempt(db.$executeRaw`UPDATE "ScheduledDelivery" SET status = 'SCHEDULED', "cancelledAt" = NULL WHERE id = ${schedule.id}::uuid`)).toBe("blocked"); // CANCELLED is terminal

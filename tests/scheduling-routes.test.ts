@@ -225,7 +225,7 @@ describe("GET/PATCH/DELETE and cross-account access", () => {
   it("a schedule in delivery cannot be cancelled: 409", async () => {
     const u = await mkUser(); as(u);
     const j = await (await create()).json();
-    await db.$executeRaw`UPDATE "ScheduledDelivery" SET status = 'PROCESSING', "updatedAt" = now() WHERE id = ${j.schedule.id}::uuid`;
+    await db.$executeRaw`UPDATE "ScheduledDelivery" SET status = 'PROCESSING', "leaseToken" = gen_random_uuid(), "leaseOwner" = 'test', "leaseExpiresAt" = now() + interval '5 minutes', "attemptCount" = "attemptCount" + 1, "updatedAt" = now() WHERE id = ${j.schedule.id}::uuid`;
     const r = await cancel(j.schedule.id);
     expect(r.status).toBe(409);
     expect((await r.json()).code).toBe("NOT_CANCELLABLE");

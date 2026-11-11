@@ -4,24 +4,25 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { describeInstant } from "@/modules/scheduling/time";
+import { LINK_DELIVERY_NOTICE, LINK_LIVE_NOTICE } from "@/modules/delivery/notices";
 import { WhenFields } from "./WhenFields";
 import { evaluateWhen, type When } from "./when";
 
 const CardPlayer = dynamic(() => import("@/components/cards/CardPlayer").then((m) => m.CardPlayer), { ssr: false, loading: () => <div className="grid size-full place-items-center bg-midnight text-ivory/70">Loading preview…</div> });
 
 type Schedule = {
-  id: string; status: "SCHEDULED" | "PROCESSING" | "DELIVERED" | "CANCELLED" | "FAILED"; deliverAtUtc: string; timeZone: string; localDate: string; localTime: string; version: number;
+  id: string; status: "SCHEDULED" | "PROCESSING" | "PUBLISHED" | "CANCELLED" | "FAILED"; deliverAtUtc: string; timeZone: string; localDate: string; localTime: string; version: number;
   card: { templateKey: string; title: string; premium: boolean; recipientName: string; senderName: string; message: string };
-  recipient: { id: string; name: string } | null; creditsReserved: number;
+  recipient: { id: string; name: string } | null; creditsReserved: number; link: string | null; failureNote: string | null;
 };
 type State = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok"; items: Schedule[]; monthsAhead: number };
 
 const STATUS: Record<Schedule["status"], { label: string; cls: string }> = {
   SCHEDULED: { label: "Scheduled", cls: "bg-[#e9defb] text-[#4b2f8a]" },
-  PROCESSING: { label: "Delivering", cls: "bg-[#fff0cf] text-[#7a5300]" },
-  DELIVERED: { label: "Delivered", cls: "bg-[#dcf3e6] text-[#1d6b46]" },
+  PROCESSING: { label: "Publishing", cls: "bg-[#fff0cf] text-[#7a5300]" },
+  PUBLISHED: { label: "Live", cls: "bg-[#dcf3e6] text-[#1d6b46]" },
   CANCELLED: { label: "Cancelled", cls: "bg-[#eee9f3] text-[#5d4b73]" },
-  FAILED: { label: "Couldn't deliver", cls: "bg-[#fdecf1] text-[#7a1738]" },
+  FAILED: { label: "Couldn't publish", cls: "bg-[#fdecf1] text-[#7a1738]" },
 };
 const card = "rounded-[1.75rem] bg-white/80 p-5 shadow-soft ring-1 ring-midnight/5 backdrop-blur sm:p-7";
 const btn = "rounded-full border border-midnight/20 bg-white/70 px-5 py-2.5 text-sm font-semibold text-midnight transition hover:bg-white focus-visible:outline-offset-4 disabled:opacity-60";
@@ -103,7 +104,7 @@ function Item({ s, monthsAhead, onChange, onPreview, onRefresh }: { s: Schedule;
   const st = STATUS[s.status];
   const editable = s.status === "SCHEDULED";
   const ev = evaluateWhen(when, now, monthsAhead);
-  const credit = s.status === "SCHEDULED" || s.status === "PROCESSING" ? `Reserved: 1 card${s.card.premium ? " and 1 premium credit" : ""}` : s.status === "CANCELLED" ? "Credit released" : s.status === "DELIVERED" ? "Credit used" : "No credit used";
+  const credit = s.status === "SCHEDULED" || s.status === "PROCESSING" ? `Reserved: 1 card${s.card.premium ? " and 1 premium credit" : ""}` : s.status === "CANCELLED" ? "Credit released" : s.status === "PUBLISHED" ? "Credit used" : "No credit used";
 
   async function save() {
     if (busy || ev.status !== "ready") return;
@@ -146,6 +147,18 @@ function Item({ s, monthsAhead, onChange, onPreview, onRefresh }: { s: Schedule;
         <div><dt className="font-semibold text-ink-soft">Delivery</dt><dd className="mt-1 text-midnight">{describeInstant(new Date(s.deliverAtUtc), s.timeZone)}</dd></div>
         <div><dt className="font-semibold text-ink-soft">Credits</dt><dd className="mt-1 text-midnight">{credit}</dd></div>
       </dl>
+
+      {s.status === "SCHEDULED" && mode === "view" && <p className="mt-4 text-sm text-ink-soft">{LINK_DELIVERY_NOTICE}</p>}
+      {s.status === "PUBLISHED" && s.link && (
+        <div className="mt-4 rounded-2xl bg-[#e9f7ef] p-4">
+          <p className="text-sm font-medium text-[#1d6b46]">{LINK_LIVE_NOTICE}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <a href={s.link} className="break-all text-sm font-semibold text-midnight underline underline-offset-4">{s.link}</a>
+            <CopyLink link={s.link} />
+          </div>
+        </div>
+      )}
+      {s.status === "FAILED" && s.failureNote && <p role="status" className="mt-4 rounded-2xl bg-[#fdecf1] p-4 text-sm text-[#7a1738]">{s.failureNote}</p>}
 
       {mode === "edit" && editable && (
         <div className="mt-5 rounded-2xl bg-[linear-gradient(135deg,#f7e6ef,#e9defb)] p-4">
@@ -198,4 +211,12 @@ function PreviewDialog({ s, onClose }: { s: Schedule; onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+function CopyLink({ link }: { link: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try { await navigator.clipboard.writeText(link); setCopied(true); window.setTimeout(() => setCopied(false), 2500); } catch { /* the link is selectable text above */ }
+  }
+  return <button type="button" className={btn} onClick={copy}>{copied ? "Copied" : "Copy link"}</button>;
 }

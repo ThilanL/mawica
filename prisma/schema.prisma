@@ -353,7 +353,7 @@ model WelcomeGrantTombstone {
 }
 
 // ============================ Scheduling (Phase 2C.1) ============================
-// Foundation only: nothing here delivers anything. A future worker (Phase 2C.2) moves SCHEDULED -> PROCESSING -> DELIVERED,
+// Phase 2C.1 built the foundation; Phase 2C.2 adds the LINK delivery engine (src/modules/delivery) that moves SCHEDULED -> PROCESSING -> PUBLISHED,
 // publishes the card and commits the reservation. Instants are timestamptz (UTC); the wall-clock the sender chose is kept as
 // text next to the IANA zone so a user-visible time is never reinterpreted.
 
@@ -367,7 +367,8 @@ enum DeliveryChannel {
 enum ScheduleStatus {
   SCHEDULED
   PROCESSING
-  DELIVERED
+  /// The card is live at its link (LINK channel). Nothing is sent to the recipient: the sender shares the link.
+  PUBLISHED
   CANCELLED
   FAILED
 }
@@ -377,6 +378,8 @@ enum AttemptStatus {
   SUCCEEDED
   FAILED
   UNCERTAIN
+  /// The worker's lease expired (crash or stall); the schedule was reconciled and returned to the queue.
+  ABANDONED
 }
 
 enum ConsentStatus {
@@ -437,7 +440,13 @@ model ScheduledDelivery {
   createdAt        DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime          @default(now()) @db.Timestamptz(3)
   cancelledAt      DateTime?         @db.Timestamptz(3)
-  deliveredAt      DateTime?         @db.Timestamptz(3)
+  publishedAt      DateTime?         @db.Timestamptz(3)
+  failedAt         DateTime?         @db.Timestamptz(3)
+  /// Queue lease. Set only while PROCESSING: leaseToken is the fencing token of the current claim; every worker write must match it.
+  leaseToken       String?           @db.Uuid
+  leaseOwner       String?           @db.VarChar(80)
+  leaseExpiresAt   DateTime?         @db.Timestamptz(3)
+  lastErrorCategory String?          @db.VarChar(40)
   attempts         DeliveryAttempt[]
 
   @@unique([ownerId, idempotencyKey])
@@ -455,6 +464,12 @@ model DeliveryAttempt {
   startedAt         DateTime          @default(now()) @db.Timestamptz(3)
   finishedAt        DateTime?         @db.Timestamptz(3)
   errorCode         String?           @db.VarChar(60)
+  workerId          String?           @db.VarChar(80)
+  /// Fencing token of the claim that made this attempt.
+  leaseToken        String?           @db.Uuid
+  errorCategory     String?           @db.VarChar(40)
+  retryable         Boolean?
+  retryAt           DateTime?         @db.Timestamptz(3)
   /// Provider reference for reconciliation (no message content, no addresses).
   providerRef       String?           @db.VarChar(120)
 

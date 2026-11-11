@@ -12,7 +12,8 @@
     "db:deploy": "prisma migrate deploy",
     "admin": "tsx scripts/admin.mts",
     "art:check": "tsx scripts/check-art.mts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "delivery:worker": "tsx --conditions=react-server scripts/delivery-worker.mts"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "1.7.19",

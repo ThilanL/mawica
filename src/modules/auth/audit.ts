@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { hashFor } from "@/modules/security/client-hash";
 
-export type AuditAction = "auth.user_created" | "auth.sign_in" | "auth.sign_out" | "account.profile_updated" | "schedule.created" | "schedule.rescheduled" | "schedule.cancelled";
+export type AuditAction = "auth.user_created" | "auth.sign_in" | "auth.sign_out" | "account.profile_updated" | "schedule.created" | "schedule.rescheduled" | "schedule.cancelled" | "delivery.published" | "delivery.retry_scheduled" | "delivery.failed" | "delivery.recovered" | "delivery.needs_review";
 
 /**
  * Best-effort audit trail: a failed write never blocks the user action. Never pass emails, codes, tokens or message

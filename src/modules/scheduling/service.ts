@@ -1,6 +1,7 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import { newSlug } from "@/modules/cards/slug";
 import { getTemplate, isAnyTemplateKey, templateTier } from "@/modules/templates/registry";
 import { recordAudit } from "@/modules/auth/audit";
@@ -29,7 +30,7 @@ export class ScheduleConflictError extends Error {
 
 export type ScheduleDto = {
   id: string;
-  status: "SCHEDULED" | "PROCESSING" | "DELIVERED" | "CANCELLED" | "FAILED";
+  status: "SCHEDULED" | "PROCESSING" | "PUBLISHED" | "CANCELLED" | "FAILED";
   channel: "LINK" | "EMAIL";
   deliverAtUtc: string;
   timeZone: string;
@@ -42,6 +43,9 @@ export type ScheduleDto = {
   recipient: { id: string; name: string } | null;
   /** Credits held for this schedule right now (0 once cancelled or finished). */
   creditsReserved: number;
+  /** The live link: present ONLY once the card has been published (never before). */
+  link: string | null;
+  failureNote: string | null;
 };
 
 type Row = Prisma.ScheduledDeliveryGetPayload<{ include: { card: true; recipient: { select: { id: true; name: true } } } }>;
@@ -53,6 +57,8 @@ const toDto = (r: Row): ScheduleDto => {
     card: { templateKey: r.card.templateKey, title: isAnyTemplateKey(r.card.templateKey) ? getTemplate(r.card.templateKey).title : "Card", premium, recipientName: r.card.recipientName, senderName: r.card.senderName, message: r.card.message },
     recipient: r.recipient ? { id: r.recipient.id, name: r.recipient.name } : null,
     creditsReserved: r.status === "SCHEDULED" || r.status === "PROCESSING" ? (premium ? 2 : 1) : 0,
+    link: r.status === "PUBLISHED" ? `${env.NEXT_PUBLIC_SITE_URL}/c/${r.card.slug}` : null,
+    failureNote: r.status === "FAILED" ? "We couldn't publish this card. Nothing was sent to anyone. Where it is safe to, your credit is returned; otherwise we review it." : null,
   };
 };
 const include = { card: true, recipient: { select: { id: true, name: true } } } as const;

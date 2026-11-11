@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { describeInstant } from "@/modules/scheduling/time";
+import { LINK_DELIVERY_NOTICE } from "@/modules/delivery/notices";
 import { WhenFields } from "./WhenFields";
 import { evaluateWhen, type When } from "./when";
 import { useBrowserZone } from "./useTimeZones";
@@ -55,6 +56,7 @@ export function SchedulePanel({ card, premium, cards, premiumCredits, monthsAhea
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Scheduled</p>
         <h2 className="mt-2 font-display text-3xl">It&rsquo;s on its way</h2>
         <p className="mt-3 text-ivory/90">Your card for {card.recipientName} will be delivered on {describeInstant(new Date(done.deliverAtUtc), done.timeZone)}.</p>
+        <p className="mt-3 text-sm text-ivory/90">{LINK_DELIVERY_NOTICE}</p>
         <p className="mt-3 text-sm text-ivory/75">Its link stays private until then. You have {done.cardsRemaining} card{done.cardsRemaining === 1 ? "" : "s"}{done.premium ? ` and ${done.premiumRemaining} premium credit${done.premiumRemaining === 1 ? "" : "s"}` : ""} left this month.</p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link href="/account/scheduled" className="inline-flex items-center justify-center rounded-full bg-ivory px-6 py-3 text-sm font-semibold text-midnight transition hover:bg-white focus-visible:outline-offset-4">View scheduled cards</Link>
@@ -69,7 +71,8 @@ export function SchedulePanel({ card, premium, cards, premiumCredits, monthsAhea
       <div className="rounded-[1.75rem] bg-[linear-gradient(135deg,#f7e6ef,#e9defb)] p-5 ring-1 ring-midnight/5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "#6c4fb5" }}>Schedule for later</p>
         <div className="mt-4"><WhenFields value={w} onChange={change} now={now} monthsAhead={monthsAhead} serverMessage={error} /></div>
-        <p className="mt-4 text-sm text-midnight">
+        <p className="mt-4 text-sm text-midnight">{LINK_DELIVERY_NOTICE}</p>
+        <p className="mt-3 text-sm text-midnight">
           Scheduling reserves <strong>1 card</strong>{premium && <> and <strong>1 premium credit</strong></>} now. Cancel before delivery and it&rsquo;s released while it is still within the allowance period it came from.
           {" "}You can schedule up to {monthsAhead} calendar month{monthsAhead === 1 ? "" : "s"} ahead.
         </p>

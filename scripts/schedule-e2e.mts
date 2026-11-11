@@ -151,7 +151,7 @@ let schedA: any;
   check("8b the credit is restored exactly once (10) and no extra card is created", (await wallet(c)).sends.remaining === 10 && sql(`select count(*) from "Card" where "ownerId"='${userId(mail("cancel"))}'`) === "1");
   check("8c the cancelled card is CANCELLED, still private, and cannot be edited", sql(`select c.status from "ScheduledDelivery" d join "Card" c on c.id=d."cardId" where d.id='${s.id}'`) === "CANCELLED" && (await fetch(`${BASE}/c/${slugOf(s.id)}`)).status === 404 && (await call(`/api/schedules/${s.id}`, { method: "PATCH", cookie: c, body: { ...inDays(5), version: 1 } })).json.code === "NOT_EDITABLE");
   const d = (await create(c, sched("in delivery"))).json.schedule;
-  sql(`update "ScheduledDelivery" set status='PROCESSING', "updatedAt"=now() where id='${d.id}'`);
+  sql(`update "ScheduledDelivery" set status='PROCESSING', "leaseToken"=gen_random_uuid(), "leaseOwner"='e2e', "leaseExpiresAt"=now()+interval '5 minutes', "attemptCount"="attemptCount"+1, "updatedAt"=now() where id='${d.id}'`);
   const blocked = await call(`/api/schedules/${d.id}`, { method: "DELETE", cookie: c });
   check("8d a schedule already in delivery cannot be cancelled (409) and keeps its credit", blocked.status === 409 && blocked.json.code === "NOT_CANCELLABLE" && (await wallet(c)).sends.remaining === 9);
   check("8e ledger reconciles after cancellations", drift() === "0");

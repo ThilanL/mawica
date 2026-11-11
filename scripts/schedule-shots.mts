@@ -266,6 +266,39 @@ try {
       note(`${w}px: My Scheduled Cards has no horizontal overflow`, !(await b.overflow()));
     } finally { b.c.close(); }
   }
+
+  // ---------- 6. the delivery worker publishes the card; the owner sees the live link (LINK wording: nothing is sent to the recipient) ----------
+  for (const vp of [{ name: "desktop", w: 1280, h: 900 }, { name: "mobile", w: 390, h: 844 }]) {
+    const b = await browser(vp);
+    const email = `live-${vp.name}+${stamp}@sshots.example.test`;
+    try {
+      await b.signIn(email);
+      await b.toPreview(); await b.ev(clickText("Schedule for later"));
+      await waitFor(b.ev, "!!document.querySelector('input[type=date]')");
+      note(`${vp.name}: the schedule form says what LINK delivery does`, await b.ev(`document.body.innerText.includes('Your card will become available at the scheduled time. You will need to share the link with your recipient.')`));
+      await b.ev(setVal("select", "Asia/Colombo")); await b.ev(setVal("input[type=date]", inDays(3))); await b.ev(setVal("input[type=time]", "09:00")); await sleep(300);
+      await b.ev(clickText("Schedule delivery")); await waitFor(b.ev, "!!document.querySelector('[role=alertdialog]')");
+      await b.ev(clickText("Confirm and schedule"));
+      note(`${vp.name}: the success screen repeats that the sender must share the link`, await waitFor(b.ev, "document.body.innerText.includes('on its way') && document.body.innerText.includes('You will need to share the link with your recipient.')", 20000));
+      await b.open("/account/scheduled");
+      note(`${vp.name}: a waiting card shows the LINK notice and no link`, await waitFor(b.ev, "document.body.innerText.includes('Scheduled') && document.body.innerText.includes('You will need to share the link') && !document.querySelector('a[href*=\"/c/\"]')"));
+      await sleep(400);
+      await b.shot(`scheduled-waiting-notice-${vp.name}`);
+      const uid = sql(`select id from "user" where email='${email.toLowerCase()}'`);
+      sql(`update "ScheduledDelivery" set "deliverAtUtc" = now() - interval '1 minute', "nextAttemptAt" = now() - interval '1 minute', "updatedAt" = now() where "ownerId" = '${uid}'`);
+      const out = execFileSync("npm", ["run", "-s", "delivery:worker", "--", "once"], { env: process.env, encoding: "utf8" });
+      note(`${vp.name}: the worker command publishes it`, /"published":1/.test(out), out.trim().slice(-90));
+      await b.open("/account/scheduled");
+      note(`${vp.name}: the card now shows Live with its link and a Copy link button`, await waitFor(b.ev, "document.body.innerText.includes('Live') && document.body.innerText.includes('Your card is now live. Share its link with your recipient.') && !!document.querySelector('a[href*=\"/c/\"]') && [...document.querySelectorAll('button')].some(x=>x.textContent.trim()==='Copy link')", 15000));
+      note(`${vp.name}: a live card can no longer be edited or cancelled`, await b.ev(`![...document.querySelectorAll('button')].some(x=>/Edit schedule|Cancel schedule/.test(x.textContent))`));
+      await sleep(400);
+      await b.shot(`scheduled-published-${vp.name}`);
+      const href = await b.ev(`document.querySelector('a[href*="/c/"]').href`);
+      await b.send("Page.navigate", { url: href }); await sleep(1500);
+      note(`${vp.name}: the link opens the public card (no sign-in)`, await b.ev(`location.pathname.startsWith('/c/') && document.body.innerText.includes('Nadia')`));
+      note(`${vp.name}: no horizontal overflow on the live state`, !(await b.overflow()));
+    } finally { b.c.close(); }
+  }
 } finally { cleanup(); }
 const failed = report.filter((r) => !r.ok);
 console.log(`\n${report.length - failed.length}/${report.length} passed`);
