@@ -39,6 +39,18 @@ One transaction: lock the delivery (fenced) -> verify owner/card/reservation lin
 | Graceful stop (SIGINT/SIGTERM) | in-flight jobs finish; unstarted claims are handed back and their attempt number is not consumed |
 | Cancel / reschedule racing delivery | both lock the same row; the loser sees the new state (cancel of a PROCESSING/PUBLISHED schedule is 409, reschedule likewise); the claim skips locked rows and re-checks state |
 
+## Retry budget and failed-delivery credit policy (Phase 2D.1)
+**Observation.** `attemptCount` never reset, so a card that had used 4 of 5 attempts and was then moved by its sender to a new day failed for good on its first attempt at the new time. A `FAILED` card cannot be rescheduled (only `SCHEDULED` ones can), so this only affects cards waiting between retries.
+
+**Policy (implemented, additive).**
+- A reschedule that changes the time records `attemptBase = attemptCount`. The budget `maxAttempts` counts attempts **since the last reschedule**, and the backoff restarts from the first step. An unchanged reschedule changes nothing.
+- A **lifetime cap** of `3 x maxAttempts` attempts per card stops repeated reschedules from keeping a failing card alive forever (tested: 6 attempts at `maxAttempts=2`).
+- Attempt history is never rewritten (attempt numbers keep increasing). No change to reservations: a reschedule still keeps the same reservation and never deducts again.
+
+**Credit treatment (unchanged rules, now visible).** Dead-lettered with a *certain* state: reservation released by the wallet's normal rule (restored only inside the original allowance period) and the card cancelled. Uncertain or corrupt state: credits untouched, flagged `delivery.needs_review`. The schedule DTO now carries `creditOutcome` (`returned` or `under_review`) and a precise `failureNote`; the UI shows the note.
+
+**Open decisions for the product owner.** (1) Whether a failed card should offer "try again" (a new schedule with a new reservation) with a support-visible link to the failure. (2) Whether the sender is notified by email on terminal failure (needs the `sender-notification` purpose to be approved). (3) The lifetime multiplier (3).
+
 ## Attempts and audit
 `DeliveryAttempt`: delivery, attempt number, start/finish, status (`STARTED/SUCCEEDED/FAILED/ABANDONED`), `errorCategory`, `retryable`, `retryAt`, `workerId`, `leaseToken`. System audit rows (`delivery.published|retry_scheduled|failed|recovered|needs_review`) carry only ids and categories, written in the same transaction as the change. Logs contain counts and ids only (tests assert no card text, names, addresses or tokens).
 
@@ -62,7 +74,7 @@ These come from a quiet local database with no network latency; do not extrapola
 ## Email notifications to recipients: design only
 - **Not enabled**: `EMAIL_DELIVERY_ENABLED` is off by default and `getEmailTransport()` returns nothing even when it is on, because no provider is implemented. The delivery worker has no dependency on the email module; schedules created today are LINK, and the service refuses `EMAIL`. A LINK schedule is never converted to EMAIL.
 - **Eligibility gate** (`checkEmailEligibility`): email enabled + transport configured + the schedule is an EMAIL schedule + the recipient has an address + the **sender attested** they may contact them + the **recipient's own consent is GRANTED** + the address is not suppressed. The sender's attestation is never a substitute for consent.
-- **Provider (primary candidate): Azure Communication Services Email.** Needs: an Azure Communication Services + Email Communication Service resource, a verified custom sending domain (SPF `TXT`, two DKIM `CNAME`s, DMARC `TXT` starting at `p=none` then tightened), sender usernames, a data-location decision (Australia is the target; confirm against current docs), pricing review and a deliverability test before launch. Not verified yet: provider-side idempotency (none is assumed).
+- **Provider (primary candidate): Azure Communication Services Email.** Needs: an Azure Communication Services + Email Communication Service resource, a verified custom sending domain (SPF `TXT`, two DKIM `CNAME`s, DMARC `TXT` starting at `p=none` then tightened), sender usernames, a data-location decision (Australia is the target; confirm against current docs), pricing review and a deliverability test before launch. Provider-side idempotency is **unconfirmed** (see [email.md](email.md)); none is assumed. Sign-in codes already use the separate transactional module described there; recipient email remains disabled.
 - **Delivery status callbacks** (Event Grid delivery reports): validate the subscription handshake, verify authenticity before parsing, treat events as at-least-once and unordered (idempotent by message id + status), and never act on an unverified event.
 - **Bounces and complaints**: a permanent bounce, a complaint or an unsubscribe suppresses the address immediately and permanently for that sender; the eligibility gate reads the suppression list.
 - **Unsubscribe**: footer link plus `List-Unsubscribe` and one-click `List-Unsubscribe-Post` headers (RFC 8058); honoured at once, no login required.

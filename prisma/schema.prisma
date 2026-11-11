@@ -435,6 +435,8 @@ model ScheduledDelivery {
   /// When a worker may next pick this up (equals deliverAtUtc until retries exist).
   nextAttemptAt    DateTime          @db.Timestamptz(3)
   attemptCount     Int               @default(0)
+  /// attemptCount at the sender's last reschedule (0 = never). The retry budget counts attempts since then, capped by a lifetime maximum (docs/delivery.md).
+  attemptBase      Int               @default(0)
   /// Optimistic concurrency token for reschedule.
   version          Int               @default(0)
   createdAt        DateTime          @default(now()) @db.Timestamptz(3)

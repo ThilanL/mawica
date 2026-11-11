@@ -46,9 +46,11 @@ export type ScheduleDto = {
   /** The live link: present ONLY once the card has been published (never before). */
   link: string | null;
   failureNote: string | null;
+  /** FAILED only: whether the held credit was released ("returned") or is being reviewed ("under_review"). Mirrors what the engine did; no credit rule changed. */
+  creditOutcome: "returned" | "under_review" | null;
 };
 
-type Row = Prisma.ScheduledDeliveryGetPayload<{ include: { card: true; recipient: { select: { id: true; name: true } } } }>;
+type Row = Prisma.ScheduledDeliveryGetPayload<{ include: { card: true; recipient: { select: { id: true; name: true } }; reservation: { select: { status: true } } } }>;
 const toDto = (r: Row): ScheduleDto => {
   const premium = r.card.tier === "PREMIUM";
   return {
@@ -58,10 +60,13 @@ const toDto = (r: Row): ScheduleDto => {
     recipient: r.recipient ? { id: r.recipient.id, name: r.recipient.name } : null,
     creditsReserved: r.status === "SCHEDULED" || r.status === "PROCESSING" ? (premium ? 2 : 1) : 0,
     link: r.status === "PUBLISHED" ? `${env.NEXT_PUBLIC_SITE_URL}/c/${r.card.slug}` : null,
-    failureNote: r.status === "FAILED" ? "We couldn't publish this card. Nothing was sent to anyone. Where it is safe to, your credit is returned; otherwise we review it." : null,
+    failureNote: r.status !== "FAILED" ? null
+      : r.reservation.status === "RELEASED" ? "We couldn't publish this card, and nothing was sent to anyone. The credit held for it was released."
+      : "We couldn't publish this card, and nothing was sent to anyone. We're reviewing it before releasing its credit.",
+    creditOutcome: r.status !== "FAILED" ? null : r.reservation.status === "RELEASED" ? "returned" : "under_review",
   };
 };
-const include = { card: true, recipient: { select: { id: true, name: true } } } as const;
+const include = { card: true, recipient: { select: { id: true, name: true } }, reservation: { select: { status: true } } } as const;
 
 const windowDetails = (w: Window, months: number) => ({ earliest: w.earliest.toISOString(), latest: w.latest.toISOString(), monthsAhead: months });
 
@@ -209,7 +214,8 @@ export async function rescheduleSchedule(user: Owner, id: string, input: Resched
     if (cur.deliverAtUtc.getTime() === when.instant.getTime() && cur.timeZone === input.timeZone && cur.localDate === input.localDate && cur.localTime === input.localTime) return { schedule: toDto(cur), changed: false };
     const upd = await tx.$executeRaw`
       UPDATE "ScheduledDelivery" SET "deliverAtUtc" = ${when.instant}, "nextAttemptAt" = ${when.instant}, "timeZone" = ${input.timeZone}, "localDate" = ${input.localDate}, "localTime" = ${input.localTime},
-             "utcOffsetMinutes" = ${when.offsetMinutes}, version = version + 1, "updatedAt" = ${now}
+             "utcOffsetMinutes" = ${when.offsetMinutes}, version = version + 1, "updatedAt" = ${now},
+             "attemptBase" = "attemptCount" -- a new time restarts the retry budget (lifetime cap still applies); see docs/delivery.md
        WHERE id = ${l.id}::uuid AND status = 'SCHEDULED' AND version = ${input.version}`;
     if (upd !== 1) throw new ScheduleConflictError("STALE_VERSION", "This schedule changed. Please refresh and try again.");
     await tx.$executeRaw`UPDATE "CreditReservation" SET "deliverAt" = ${when.instant} WHERE id = ${l.reservationId}::uuid AND status = 'HELD'`;

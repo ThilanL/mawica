@@ -21,6 +21,16 @@ const schema = z.object({
   WELCOME_PEPPER: z.string().min(32).optional(),
   /** File that the LOCAL mail transport appends one-time codes to. Dev/test only; unset in production = no mail is sent. */
   MAIL_LOCAL_OUTBOX: z.string().optional(),
+  /** Transactional email provider. Unset = local outbox in development/test, none in production (sending fails closed). */
+  EMAIL_PROVIDER: z.enum(["none", "local-outbox", "acs"]).optional(),
+  /** Marks a deliberate local run of a production build (with a loopback database). Never set it in staging or production. */
+  MAWICA_ENV: z.enum(["local"]).optional(),
+  ACS_EMAIL_ENDPOINT: z.string().optional(),
+  ACS_EMAIL_ACCESS_KEY: z.string().optional(),
+  /** Sender for account sign-in codes, e.g. DoNotReply@<verified domain>. */
+  EMAIL_FROM_AUTH: z.string().optional(),
+  /** "1" = no external provider is ever used (kill switch). */
+  MAWICA_DISABLE_EXTERNAL_EMAIL: z.enum(["0", "1"]).optional(),
 });
 
 const parsed = schema.safeParse(process.env);

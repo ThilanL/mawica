@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { db } from "@/lib/db";
 import { isAllowedOrigin, hasSessionCookie, normalizeEmail, parseOrigins, profileUpdateSchema, isValidTimeZone } from "@/modules/auth/request";
@@ -60,29 +59,6 @@ describe("profile update schema", () => {
     expect(isValidTimeZone("Asia/Colombo")).toBe(true);
     for (const bad of ["Not/AZone", "../etc/passwd", "UTC; DROP", "x".repeat(65)]) expect(isValidTimeZone(bad)).toBe(false);
     expect(profileUpdateSchema.parse({ displayName: null }).displayName).toBeNull();
-  });
-});
-
-describe("mail transport", () => {
-  beforeEach(() => vi.resetModules());
-  afterEach(() => vi.unstubAllEnvs());
-  it("writes the code only to the configured local outbox (mode 0600) and never logs it", async () => {
-    const file = path.join(mkdtempSync(path.join(tmpdir(), "mawica-mail-")), "box", "outbox.jsonl");
-    vi.stubEnv("MAIL_LOCAL_OUTBOX", file);
-    const spies = (["log", "info", "warn", "error"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
-    const { sendOtpEmail } = await import("@/modules/email/transport");
-    await sendOtpEmail({ to: "a@example.com", otp: "123456", purpose: "sign-in", expiresInMinutes: 5 });
-    expect(JSON.parse(read(file).trim())).toMatchObject({ to: "a@example.com", otp: "123456" });
-    expect(statSync(file).mode & 0o777).toBe(0o600);
-    for (const s of spies) expect(s).not.toHaveBeenCalled();
-    spies.forEach((s) => s.mockRestore());
-  });
-  it("fails closed in production when no outbox is explicitly configured", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("MAIL_LOCAL_OUTBOX", "");
-    const { sendOtpEmail, localOutboxPath } = await import("@/modules/email/transport");
-    expect(localOutboxPath()).toBeNull();
-    await expect(sendOtpEmail({ to: "a@example.com", otp: "123456", purpose: "sign-in", expiresInMinutes: 5 })).rejects.toThrow(/No mail transport/);
   });
 });
 

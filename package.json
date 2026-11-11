@@ -10,6 +10,7 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "email:check": "tsx scripts/email-check.mts",
     "admin": "tsx scripts/admin.mts",
     "art:check": "tsx scripts/check-art.mts",
     "test": "vitest run",

@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { recordAudit } from "@/modules/auth/audit";
 import { CLIENT_IP_HEADER, parseOrigins } from "@/modules/auth/request";
-import { sendOtpEmail } from "@/modules/email/transport";
+import { sendAuthCode } from "@/modules/email/auth-code";
+import { markEmailSendFailed } from "@/modules/email/send-signal";
 import { ensureWallet } from "@/modules/wallet/wallet";
 
 /**
@@ -89,7 +90,12 @@ export const auth = betterAuth({
       storeOTP: "hashed",
       async sendVerificationOTP({ email, otp, type }) {
         if (type !== "sign-in") return; // the route wrapper only lets "sign-in" through; belt and braces
-        await sendOtpEmail({ to: email, otp, purpose: "sign-in", expiresInMinutes: OTP_TTL_SECONDS / 60 });
+        const sent = await sendAuthCode(email, otp, OTP_TTL_SECONDS / 60);
+        if (!sent.ok) {
+          // No code reached the user: drop the stored one so it cannot be guessed later, and flag the request as failed (generic 503 from the route).
+          await db.verification.deleteMany({ where: { identifier: `sign-in-otp-${email}` } }).catch(() => {});
+          markEmailSendFailed(); // Better Auth swallows errors thrown from this hook, so the route wrapper reads this flag instead
+        }
       },
     }),
   ],

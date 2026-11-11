@@ -1,7 +1,7 @@
 // End-to-end checks for accounts against a running PRODUCTION-mode server and an isolated local database.
 // Dev tooling only (not part of `npm test`). Never point it at a shared, staging or production database.
 //
-//   DATABASE_URL=<mawica_test url> NEXT_PUBLIC_SITE_URL=http://localhost:3030 MAIL_LOCAL_OUTBOX=/tmp/outbox.jsonl \
+//   DATABASE_URL=<mawica_test url> NEXT_PUBLIC_SITE_URL=http://localhost:3030 MAIL_LOCAL_OUTBOX=/tmp/outbox.jsonl MAWICA_ENV=local \
 //     TRUSTED_PROXY_HOPS=1 PORT=3030 node --env-file=.env.local .next/standalone/server.js > /tmp/server.log &
 //   BASE=http://127.0.0.1:3030 ORIGIN=http://localhost:3030 OUTBOX=/tmp/outbox.jsonl SERVER_LOG=/tmp/server.log \
 //     DATABASE_URL=<same url> node scripts/auth-e2e.mjs

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { settleReservation, type Tx } from "@/modules/wallet/engine";
-import { retryDelayMs, type DeliveryPolicy } from "./config";
+import { hasAttemptsLeft, retryDelayMs, type DeliveryPolicy } from "./config";
 import { classify, DeliveryStateError, SimulatedCrash, StaleLeaseError, type FailureCategory } from "./errors";
 
 /**
@@ -32,7 +32,7 @@ export type Hooks = {
 export type Ctx = { policy: DeliveryPolicy; clock: () => Date; hooks?: Hooks };
 
 type Locked = {
-  deliveryId: string; status: string; ownerId: string; cardId: string; reservationId: string; leaseToken: string | null; attemptCount: number;
+  deliveryId: string; status: string; ownerId: string; cardId: string; reservationId: string; leaseToken: string | null; attemptCount: number; attemptBase: number;
   cardStatus: string; cardOwnerId: string | null; resStatus: string; accountId: string; resCardId: string | null; accountUserId: string | null;
 };
 const relationshipsOk = (l: Locked) => l.cardOwnerId === l.ownerId && l.accountUserId === l.ownerId && l.resCardId === l.cardId;
@@ -62,7 +62,7 @@ export async function claimDue(workerId: string, now: Date, opts: { limit: numbe
 // ----------------------------------------------------------------------------- shared reads / writes
 const SELECT_LOCKED = Prisma.sql`
   SELECT d.id::text AS "deliveryId", d.status::text AS status, d."ownerId"::text AS "ownerId", d."cardId"::text AS "cardId", d."reservationId"::text AS "reservationId",
-         d."leaseToken"::text AS "leaseToken", d."attemptCount" AS "attemptCount",
+         d."leaseToken"::text AS "leaseToken", d."attemptCount" AS "attemptCount", d."attemptBase" AS "attemptBase",
          c.status::text AS "cardStatus", c."ownerId"::text AS "cardOwnerId",
          r.status::text AS "resStatus", r."accountId"::text AS "accountId", r."cardId"::text AS "resCardId", a."userId"::text AS "accountUserId"
     FROM "ScheduledDelivery" d
@@ -73,7 +73,7 @@ const SELECT_LOCKED = Prisma.sql`
 /** Locks the delivery row ONLY if it is still PROCESSING under this claim's fencing token. */
 async function lockClaimed(tx: Tx, claim: Claim): Promise<Locked | null> {
   const rows = await tx.$queryRaw<Locked[]>`${SELECT_LOCKED} WHERE d.id = ${claim.deliveryId}::uuid AND d.status = 'PROCESSING' AND d."leaseToken" = ${claim.leaseToken}::uuid FOR UPDATE OF d`;
-  return rows[0] ? { ...rows[0], attemptCount: Number(rows[0].attemptCount) } : null;
+  return rows[0] ? { ...rows[0], attemptCount: Number(rows[0].attemptCount), attemptBase: Number(rows[0].attemptBase) } : null;
 }
 
 type AttemptEnd = "SUCCEEDED" | "FAILED" | "ABANDONED";
@@ -158,8 +158,8 @@ async function handleFailure(claim: Claim, err: unknown, ctx: Ctx): Promise<Outc
         const [cur] = await tx.$queryRaw<{ status: string }[]>`SELECT status::text AS status FROM "ScheduledDelivery" WHERE id = ${claim.deliveryId}::uuid`;
         return cur?.status === "PUBLISHED" ? ("PUBLISHED_REPLAY" as const) : ("STALE" as const);
       }
-      if (c.retryable && claim.attemptNo < ctx.policy.maxAttempts) {
-        const retryAt = new Date(now.getTime() + retryDelayMs(claim.attemptNo, ctx.policy));
+      if (c.retryable && hasAttemptsLeft(ctx.policy, claim.attemptNo, l.attemptBase)) {
+        const retryAt = new Date(now.getTime() + retryDelayMs(claim.attemptNo - l.attemptBase, ctx.policy));
         await tx.$executeRaw`
           UPDATE "ScheduledDelivery" SET status = 'SCHEDULED', "nextAttemptAt" = ${retryAt}, "leaseToken" = NULL, "leaseOwner" = NULL, "leaseExpiresAt" = NULL, "lastErrorCategory" = ${c.category}, "updatedAt" = ${now}
            WHERE id = ${l.deliveryId}::uuid AND status = 'PROCESSING' AND "leaseToken" = ${claim.leaseToken}::uuid`;
@@ -198,16 +198,16 @@ export async function recoverExpired(ctx: Ctx, limit = 50): Promise<{ recovered:
       await db.$transaction(async (tx) => {
         const rows = await tx.$queryRaw<Locked[]>`${SELECT_LOCKED} WHERE d.id = ${id}::uuid AND d.status = 'PROCESSING' AND d."leaseExpiresAt" < ${now} FOR UPDATE OF d SKIP LOCKED`;
         if (!rows[0]) return; // someone else recovered it, or the lease was renewed
-        const l = { ...rows[0], attemptCount: Number(rows[0].attemptCount) };
+        const l = { ...rows[0], attemptCount: Number(rows[0].attemptCount), attemptBase: Number(rows[0].attemptBase) };
         if (l.cardStatus === "PUBLISHED" && relationshipsOk(l) && l.resStatus !== "RELEASED") { await finalizeLive(tx, l, now, l.attemptCount, "recovery"); stats.published++; return; }
         const certain = l.cardStatus === "SCHEDULED" && l.resStatus === "HELD" && relationshipsOk(l);
         if (!certain) { await terminalFail(tx, l, now, l.attemptCount, "CORRUPT_RELATIONSHIP"); stats.failed++; return; }
-        if (l.attemptCount >= ctx.policy.maxAttempts) {
+        if (!hasAttemptsLeft(ctx.policy, l.attemptCount, l.attemptBase)) {
           await terminalFail(tx, l, now, l.attemptCount, "LEASE_EXPIRED");
           stats.failed++;
           return;
         }
-        const retryAt = new Date(now.getTime() + retryDelayMs(l.attemptCount, ctx.policy));
+        const retryAt = new Date(now.getTime() + retryDelayMs(l.attemptCount - l.attemptBase, ctx.policy));
         await tx.$executeRaw`
           UPDATE "ScheduledDelivery" SET status = 'SCHEDULED', "nextAttemptAt" = ${retryAt}, "leaseToken" = NULL, "leaseOwner" = NULL, "leaseExpiresAt" = NULL, "lastErrorCategory" = 'LEASE_EXPIRED', "updatedAt" = ${now}
            WHERE id = ${l.deliveryId}::uuid AND status = 'PROCESSING' AND "leaseToken" = ${l.leaseToken}::uuid`;

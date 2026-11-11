@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { CLIENT_IP_HEADER, normalizeEmail } from "@/modules/auth/request";
 import { recordAudit } from "@/modules/auth/audit";
 import { getRequestUser } from "@/modules/auth/session";
+import { trackEmailSend } from "@/modules/email/send-signal";
 import { clientIp, hashFor } from "@/modules/security/client-hash";
 import { hit } from "@/modules/security/rate-limit";
 
@@ -78,8 +79,14 @@ async function handle(req: Request, method: "GET" | "POST") {
   }
 
   const user = path === "/sign-out" ? await getRequestUser(req).catch(() => null) : null;
-  const res = await handlers.POST(forwarded(req, "POST", outgoing, ip));
+  const { result: res, failed: emailFailed } = await trackEmailSend(() => handlers.POST(forwarded(req, "POST", outgoing, ip)));
   if (path === "/sign-out" && res.ok && user) await recordAudit("auth.sign_out", { userId: user.id, ip });
+
+  // The code could not be emailed (provider off, throttled or failing): same generic answer for every address, no detail leaked.
+  if (path === "/email-otp/send-verification-otp" && (emailFailed || res.status >= 500)) {
+    await res.body?.cancel().catch(() => {});
+    return json({ error: "We couldn't send a sign-in code right now. Please try again in a few minutes." }, 503, { "Retry-After": "60" });
+  }
 
   const out = new Response(res.body, res);
   out.headers.set("Cache-Control", "no-store");

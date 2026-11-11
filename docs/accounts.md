@@ -21,7 +21,7 @@ Local-only: nothing here is deployed, no real email is sent, and the guest card 
 Reachable auth endpoints (everything else is 404): `GET /api/auth/ok`, `POST /api/auth/email-otp/send-verification-otp` (type `sign-in` only), `POST /api/auth/sign-in/email-otp`, `POST /api/auth/sign-out`.
 
 ## Configuration
-`BETTER_AUTH_SECRET` (>= 32 chars, required for auth routes; the guest flow never imports auth), `BETTER_AUTH_URL` (defaults to `NEXT_PUBLIC_SITE_URL`; **must be https outside localhost**, which also turns on `Secure` cookies and the `__Secure-` prefix), `AUTH_TRUSTED_ORIGINS` (dev ports only), `MAIL_LOCAL_OUTBOX` (local transport file; in production it must be set explicitly to be used, so with no real provider sign-in fails closed). See `.env.example`.
+`BETTER_AUTH_SECRET` (>= 32 chars, required for auth routes; the guest flow never imports auth), `BETTER_AUTH_URL` (defaults to `NEXT_PUBLIC_SITE_URL`; **must be https outside localhost**, which also turns on `Secure` cookies and the `__Secure-` prefix), `AUTH_TRUSTED_ORIGINS` (dev ports only), email settings (`EMAIL_PROVIDER`, `MAIL_LOCAL_OUTBOX`, `MAWICA_ENV`, ACS_*): see [docs/email.md](email.md); with no usable provider in production, sign-in fails closed with a generic 503. See `.env.example`.
 Client IP comes from Mawica's own `pickClientIp` (`TRUSTED_PROXY_HOPS`); the wrapper deletes any client-supplied `x-mawica-client-ip` and sets its own. **The correct hop count on Azure is still unverified** (`docs/security.md`). Do not guess it.
 
 ## Behaviour decisions made here

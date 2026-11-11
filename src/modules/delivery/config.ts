@@ -45,3 +45,13 @@ export function retryDelayMs(attemptNo: number, policy: DeliveryPolicy, rand: ()
   const spread = capped * (1 + policy.jitter * (rand() * 2 - 1));
   return Math.round(clamp(spread, policy.backoffBaseMs, policy.backoffCapMs));
 }
+
+/** A reschedule restarts the per-schedule budget (see docs/delivery.md), but never beyond this many attempts in total, so a card cannot be retried forever. */
+export const lifetimeMaxAttempts = (policy: DeliveryPolicy) => policy.maxAttempts * 3;
+
+/**
+ * May attempt number `attemptNo` (the one that just failed) be followed by another? `attemptBase` is the attempt counter at the user's
+ * last reschedule (0 if never): the per-schedule budget counts only attempts since then; the lifetime cap counts all of them.
+ */
+export const hasAttemptsLeft = (policy: DeliveryPolicy, attemptNo: number, attemptBase = 0) =>
+  attemptNo - attemptBase < policy.maxAttempts && attemptNo < lifetimeMaxAttempts(policy);

@@ -6,7 +6,7 @@ import { getPublishedCard } from "@/modules/cards/service";
 import { balances, reconcile, reserveCredits, type Tx } from "@/modules/wallet/engine";
 import { ensureWallet, welcomeHash } from "@/modules/wallet/wallet";
 import { cancelSchedule, createSchedule, listSchedules, rescheduleSchedule } from "@/modules/scheduling/service";
-import { DEFAULT_POLICY, retryDelayMs, loadPolicy, type DeliveryPolicy } from "@/modules/delivery/config";
+import { DEFAULT_POLICY, hasAttemptsLeft, lifetimeMaxAttempts, retryDelayMs, loadPolicy, type DeliveryPolicy } from "@/modules/delivery/config";
 import { claimDue, processClaim, recoverExpired, releaseClaim, runOnce, type Ctx } from "@/modules/delivery/queue";
 import { findAnomalies } from "@/modules/delivery/reconcile";
 import { SimulatedCrash, classify } from "@/modules/delivery/errors";
@@ -361,6 +361,11 @@ describe("failures, retries and the dead-letter state", () => {
     expect(await db.ledgerEntry.count({ where: { reservationId: (await row(corrupt)).reservationId, kind: "RELEASE" } })).toBe(0);
     expect(await db.ledgerEntry.count({ where: { reservationId: rr.reservationId, kind: "RELEASE" } })).toBe(1); // only the manual one
     expect((await db.$transaction((tx) => reconcile(tx)))).toEqual([]);
+    // what the sender is told mirrors what the engine did (no credit rule changed)
+    const dto = await listSchedules(a.id);
+    expect(dto.find((x) => x.id === corrupt)).toMatchObject({ status: "FAILED", creditOutcome: "under_review", link: null });
+    expect(dto.find((x) => x.id === corrupt)?.failureNote).toMatch(/reviewing/);
+    expect(dto.find((x) => x.id === released)).toMatchObject({ creditOutcome: "returned" });
   });
   it("an already-published card is reconciled (idempotent replay): the delivery completes and credits are spent exactly once", async () => {
     const u = await mkUser();
@@ -379,6 +384,74 @@ describe("failures, retries and the dead-letter state", () => {
       expect(await db.ledgerEntry.count({ where: { reservationId: r.reservationId, kind: "COMMIT" } })).toBe(1);
     }
     expect((await balOf(u)).total).toBe(8);
+    expect(await clean()).toEqual([]);
+  });
+});
+
+describe("retry budget after the sender reschedules (policy: docs/delivery.md)", () => {
+  const boom = { beforeCommit: () => { throw Object.assign(new Error("db down"), { code: "P1001" }); } };
+  const outcome = (s: { retried: number; failedReleased: number; claimed: number }) => (s.retried ? "retry" : s.failedReleased ? "failed" : s.claimed ? "other" : "idle");
+  const failOnce = async (id: string, at: Date, pol: Partial<DeliveryPolicy>) => outcome(await runOnce({ ...ctx({ at, hooks: boom, pol }), workerId: "w-budget" }));
+
+  it("pure rules: per-schedule budget counts from the last reschedule, a lifetime cap bounds the total", () => {
+    const p = policy({ maxAttempts: 3 });
+    expect(lifetimeMaxAttempts(p)).toBe(9);
+    expect([1, 2, 3].map((n) => hasAttemptsLeft(p, n))).toEqual([true, true, false]); // unchanged for a never-rescheduled card
+    expect([3, 4, 5].map((n) => hasAttemptsLeft(p, n, 2))).toEqual([true, true, false]);
+    expect(hasAttemptsLeft(p, 8, 7)).toBe(true);
+    expect(hasAttemptsLeft(p, 9, 8)).toBe(false); // lifetime cap
+  });
+
+  it("a reschedule restarts the budget: two failed attempts, then a new time gives a fresh set of attempts; the credit is held throughout", async () => {
+    const pol = { maxAttempts: 3 };
+    const u = await mkUser();
+    const id = await schedule(u);
+    let at = AFTER;
+    for (let i = 0; i < 2; i++) { expect(await failOnce(id, at, pol)).toBe("retry"); at = new Date((await row(id)).nextAttemptAt.getTime() + 1); }
+    const before = await row(id);
+    expect(before).toMatchObject({ status: "SCHEDULED", attemptCount: 2, attemptBase: 0, reservation: { status: "HELD" } });
+    // without the policy the next failure would be terminal (3 of 3). The sender moves it to a new time instead:
+    const moved = await rescheduleSchedule(u, id, { localDate: "2026-11-20", localTime: "10:00", timeZone: "UTC", version: before.version }, AFTER);
+    expect(moved.changed).toBe(true);
+    expect(await row(id)).toMatchObject({ attemptCount: 2, attemptBase: 2, status: "SCHEDULED" });
+    at = new Date("2026-11-20T10:00:30.000Z");
+    const outcomes: string[] = [];
+    for (let i = 0; i < 3; i++) { outcomes.push(await failOnce(id, at, pol)); at = new Date((await row(id)).nextAttemptAt.getTime() + 1); }
+    expect(outcomes).toEqual(["retry", "retry", "failed"]); // 3 fresh attempts (attempt numbers 3, 4, 5), then dead-letter
+    const r = await row(id);
+    expect(r).toMatchObject({ status: "FAILED", attemptCount: 5, reservation: { status: "RELEASED" }, card: { status: "CANCELLED" } });
+    expect(r.attempts.map((a) => a.attemptNo)).toEqual([1, 2, 3, 4, 5]); // history is never rewritten
+    expect((await listSchedules(u.id)).find((x) => x.id === id)).toMatchObject({ status: "FAILED", creditOutcome: "returned" });
+    expect(await clean()).toEqual([]);
+  });
+
+  it("a rescheduled-but-unchanged request does not reset the budget", async () => {
+    const u = await mkUser();
+    const id = await schedule(u);
+    expect(await failOnce(id, AFTER, { maxAttempts: 3 })).toBe("retry");
+    const cur = await row(id);
+    const same = await rescheduleSchedule(u, id, { localDate: "2026-11-15", localTime: "09:00", timeZone: "UTC", version: cur.version }, T0);
+    expect(same.changed).toBe(false);
+    expect((await row(id)).attemptBase).toBe(0);
+  });
+
+  it("repeated reschedules cannot keep a failing card alive forever: the lifetime cap ends it, certainly unpublished and released", async () => {
+    const pol = { maxAttempts: 2 }; // lifetime cap 6
+    const u = await mkUser();
+    const id = await schedule(u);
+    const seen: string[] = [];
+    let day = 16;
+    let at = AFTER;
+    for (let i = 0; i < 6; i++) {
+      seen.push(await failOnce(id, at, pol));
+      const cur = await row(id);
+      if (cur.status === "FAILED") break;
+      const date = `2026-11-${String(day++).padStart(2, "0")}`;
+      await rescheduleSchedule(u, id, { localDate: date, localTime: "09:00", timeZone: "UTC", version: cur.version }, AFTER);
+      at = new Date(`${date}T09:00:30.000Z`);
+    }
+    expect(seen).toEqual(["retry", "retry", "retry", "retry", "retry", "failed"]);
+    expect(await row(id)).toMatchObject({ status: "FAILED", attemptCount: 6, reservation: { status: "RELEASED" } });
     expect(await clean()).toEqual([]);
   });
 });
