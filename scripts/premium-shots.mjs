@@ -42,7 +42,11 @@ mkdirSync(OUT, { recursive: true });
 const stamp = Date.now();
 const report = [];
 const note = (name, ok, detail = "") => { report.push({ name, ok }); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? "  -> " + detail : ""}`); };
-const cardsBefore = sql(`select count(*) from "Card" where "templateKey" = 'lumis-wish'`);
+// Cards made by THIS run's accounts only (other scripts and earlier runs may leave unrelated rows in the test database).
+const mine = () => sql(`select count(*) from "Card" c join "user" u on u.id = c."ownerId" where u.email like '%+${stamp}@premium.example.test' and c."templateKey" = 'lumis-wish'`);
+const cardsBefore = "0";
+const globalPremium = () => sql(`select count(*) from "Card" where "templateKey" = 'lumis-wish' and "createdAt" >= now() - interval '10 minutes'`);
+const globalBefore = globalPremium();
 
 async function view(vp, n, { reduced = false } = {}) {
   const c = await launch(); const { send, ev } = c;
@@ -76,7 +80,7 @@ async function view(vp, n, { reduced = false } = {}) {
       await sleep(9500);
       await shot(`create-preview-${vp.name}`);
       const posted = await ev(`performance.getEntriesByType('resource').filter(r=>r.name.includes('/api/cards')).length`);
-      note(`${vp.name}: previewing makes no publish request and creates no card`, posted === 0 && sql(`select count(*) from "Card" where "templateKey"='lumis-wish'`) === cardsBefore, `requests: ${posted}`);
+      note(`${vp.name}: previewing makes no publish request and creates no card`, posted === 0 && globalPremium() === globalBefore, `requests: ${posted}`);
       note(`${vp.name}: a guest is asked to sign in to publish (no credit wording that implies it is free)`, await ev(`document.body.innerText.includes('Sign in to publish this premium card') && !!([...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Sign in to publish'))`));
       const m = await ev(`({overflow: document.documentElement.scrollWidth > innerWidth})`);
       note(`${vp.name}: no horizontal overflow in the premium preview`, !m.overflow);
@@ -113,7 +117,7 @@ let slug;
     await shot("create-publish-before-mobile");
     await ev(clickText("Publish with 1 premium credit"));
     note("a confirmation step appears before anything is spent", await waitFor(ev, "!!document.querySelector('[role=alertdialog]')"));
-    note("nothing has been spent yet", sql(`select count(*) from "Card" where "templateKey"='lumis-wish' and "createdAt" >= now() - interval '5 minutes'`) === cardsBefore);
+    note("nothing has been spent yet", mine() === cardsBefore);
     await ev(`document.getElementById('premium-publish').scrollIntoView({block:'end'})`); await sleep(300);
     await shot("create-publish-confirm-mobile");
     await ev(clickText("Confirm and publish"));

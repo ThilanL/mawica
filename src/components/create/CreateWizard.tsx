@@ -11,6 +11,12 @@ import { LIMITS } from "@/modules/cards/schema";
 import { hasTemporaryArtwork } from "@/content/artwork";
 import { ALL_TEMPLATE_KEYS, getTemplate, isAnyTemplateKey, isPremiumTemplateKey, premiumTemplates, templates, type AnyTemplateKey, type TemplateKey } from "@/modules/templates/registry";
 
+// Scheduling UI (time-zone engine + form) is only needed after "Schedule for later" is chosen: keep it out of the first /create bundle.
+const SchedulePanel = dynamic(() => import("@/components/schedule/SchedulePanel").then((m) => m.SchedulePanel), {
+  ssr: false,
+  loading: () => <p role="status" className="mx-auto mt-8 max-w-md rounded-[1.5rem] bg-white/70 p-5 text-center text-ink-soft">Loading scheduling…</p>,
+});
+
 // Loaded on demand: the scene code is not part of the first /create bundle.
 const CardPlayer = dynamic(() => import("@/components/cards/CardPlayer").then((m) => m.CardPlayer), {
   ssr: false,
@@ -28,7 +34,7 @@ const STEPS: { id: Exclude<Step, "published">; label: string }[] = [
 ];
 
 /** What the wizard knows about the visitor's wallet. Display only: the server enforces everything on publish. */
-type Member = { state: "unknown" } | { state: "guest" } | { state: "member"; cards: number; premium: number };
+type Member = { state: "unknown" } | { state: "guest" } | { state: "member"; cards: number; premium: number; monthsAhead: number };
 const DRAFT_KEY = "mawica.draft";
 
 const inputCls = "mt-2 block w-full rounded-2xl border border-midnight/25 bg-white px-4 py-3 text-base text-midnight shadow-sm placeholder:text-midnight/45";
@@ -43,6 +49,7 @@ export function CreateWizard() {
   const [published, setPublished] = useState<{ slug: string; url: string; premiumRemaining?: number } | null>(null);
   const [member, setMember] = useState<Member>({ state: "unknown" });
   const [confirming, setConfirming] = useState(false);
+  const [mode, setMode] = useState<"now" | "later">("now");
   const premium = isPremiumTemplateKey(templateKey);
   const honeypot = useRef<HTMLInputElement>(null);
   const idemKey = useRef<string | null>(null);
@@ -64,7 +71,7 @@ export function CreateWizard() {
         const w = await fetch("/api/wallet", { cache: "no-store", credentials: "same-origin" });
         if (!w.ok) return;
         const j = await w.json();
-        if (live) setMember({ state: "member", cards: j.wallet.sends.remaining, premium: j.wallet.premium.remaining });
+        if (live) setMember({ state: "member", cards: j.wallet.sends.remaining, premium: j.wallet.premium.remaining, monthsAhead: j.wallet.schedulingMonthsAhead ?? 1 });
       } catch { /* hints are optional: the server decides */ }
     })();
     return () => { live = false; };
@@ -77,12 +84,13 @@ export function CreateWizard() {
         const raw = window.sessionStorage.getItem(DRAFT_KEY);
         if (!raw) return;
         window.sessionStorage.removeItem(DRAFT_KEY);
-        const d = JSON.parse(raw) as { templateKey?: string; fields?: Partial<Fields> };
+        const d = JSON.parse(raw) as { templateKey?: string; fields?: Partial<Fields>; mode?: string };
         if (!d.templateKey || !isAnyTemplateKey(d.templateKey) || !d.fields) return;
         const f = d.fields;
         if ([f.recipientName, f.senderName, f.message].some((v) => typeof v !== "string")) return;
         setTemplateKey(d.templateKey);
         setFields({ recipientName: f.recipientName!.slice(0, LIMITS.name), senderName: f.senderName!.slice(0, LIMITS.name), message: f.message!.slice(0, LIMITS.message) });
+        if (d.mode === "later") setMode("later");
         setStep("preview");
       } catch { /* storage unavailable or malformed: start fresh */ }
     }, 0);
@@ -90,7 +98,7 @@ export function CreateWizard() {
   }, []);
 
   function signInToPublish() {
-    try { window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ templateKey, fields })); } catch { /* the draft is a convenience only */ }
+    try { window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ templateKey, fields, mode })); } catch { /* the draft is a convenience only */ }
     router.push("/sign-in?next=/create");
   }
 
@@ -241,7 +249,18 @@ export function CreateWizard() {
           <div className="mx-auto mt-8 aspect-[9/16] max-h-[70dvh] w-auto overflow-hidden rounded-[2.2rem] bg-midnight shadow-lift ring-8 ring-midnight" style={{ maxWidth: "min(100%, 24rem)" }}>
             <CardPlayer compact card={{ templateKey, ...fields }} />
           </div>
-          {premium ? (
+          <DeliveryChoice mode={mode} onChange={(m) => { setConfirming(false); setMode(m); }} />
+          {mode === "later" ? (
+            member.state === "member" ? (
+              <SchedulePanel card={{ templateKey, ...fields }} premium={premium} cards={member.cards} premiumCredits={member.premium} monthsAhead={member.monthsAhead} onEditCard={() => setStep("personalise")} />
+            ) : (
+              <div className="mx-auto mt-8 max-w-md rounded-[1.5rem] bg-[linear-gradient(135deg,#f7e6ef,#e9defb)] p-5 text-left ring-1 ring-midnight/5">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: ink }}>Schedule for later</p>
+                <p className="mt-2 text-midnight">{member.state === "unknown" ? "Checking your account…" : <>Scheduling needs an account, so we can keep your card private until it&rsquo;s delivered. Scheduling reserves <strong>1 card</strong>{premium && <> and <strong>1 premium credit</strong></>}.</>}</p>
+                {member.state === "guest" && <div className="mt-4 flex flex-wrap gap-3"><Button onClick={signInToPublish}>Sign in to schedule</Button><Button variant="secondary" onClick={() => setStep("personalise")}>Edit</Button></div>}
+              </div>
+            )
+          ) : premium ? (
             <PremiumPublish member={member} busy={busy} confirming={confirming} recipient={fields.recipientName} onEdit={() => { setConfirming(false); setStep("personalise"); }} onAsk={() => setConfirming(true)} onCancel={() => setConfirming(false)} onPublish={publish} onSignIn={signInToPublish} />
           ) : (
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -372,6 +391,19 @@ function PremiumPublish({ member, busy, confirming, recipient, onEdit, onAsk, on
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function DeliveryChoice({ mode, onChange }: { mode: "now" | "later"; onChange: (m: "now" | "later") => void }) {
+  const opt = (m: "now" | "later", label: string) => (
+    <button type="button" role="radio" aria-checked={mode === m} onClick={() => onChange(m)}
+      className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${mode === m ? "bg-midnight text-ivory shadow-soft" : "text-midnight/80 hover:bg-white"}`}>{label}</button>
+  );
+  return (
+    <div role="radiogroup" aria-label="When to send" className="mx-auto mt-8 flex w-fit gap-1 rounded-full bg-white/70 p-1 ring-1 ring-midnight/10">
+      {opt("now", "Send now")}
+      {opt("later", "Schedule for later")}
     </div>
   );
 }

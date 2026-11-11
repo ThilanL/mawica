@@ -4,6 +4,8 @@ Local only: nothing is deployed, there are no payments, no scheduling worker and
 
 > The first premium card built on this wallet is documented in docs/premium-lumis-wish.md.
 
+> Scheduled sends reserve credits through this same engine: see docs/scheduling.md.
+
 ## What exists
 | Area | Where |
 |---|---|

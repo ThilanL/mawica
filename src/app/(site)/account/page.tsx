@@ -31,6 +31,13 @@ export default async function AccountPage() {
           </span>
           <span aria-hidden className="text-2xl">&rarr;</span>
         </Link>
+        <Link href="/account/scheduled" className="mt-4 flex items-center justify-between gap-4 rounded-[1.75rem] bg-white/80 p-6 shadow-soft ring-1 ring-midnight/5 transition hover:-translate-y-0.5 focus-visible:outline-offset-4">
+          <span>
+            <span className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-soft">Scheduled cards</span>
+            <span className="mt-1 block font-display text-2xl">Cards waiting to be delivered</span>
+          </span>
+          <span aria-hidden className="text-2xl">&rarr;</span>
+        </Link>
         <div className="mt-6">
           <AccountSettings initial={{ email: user.email, emailVerified: user.emailVerified, displayName: profile.displayName, timeZone: profile.timeZone }} />
         </div>

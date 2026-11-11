@@ -10,6 +10,10 @@ datasource db {
 enum CardStatus {
   PUBLISHED
   REMOVED
+  /// Created through scheduling and not yet delivered: never publicly visible (every public guard requires PUBLISHED).
+  SCHEDULED
+  /// A scheduled card whose schedule was cancelled before delivery: never visible, never published.
+  CANCELLED
 }
 
 enum ReportReason {
@@ -40,6 +44,7 @@ model Card {
   /// Resolved on the server from the template registry at publish time (never from the client); a snapshot, so
   /// reclassifying a template later does not rewrite history. Every existing card is STANDARD.
   tier          CardTier   @default(STANDARD)
+  scheduledDelivery ScheduledDelivery?
 
   @@index([status, createdAt])
   @@index([ownerId])
@@ -88,6 +93,9 @@ model User {
   cards         Card[]
   auditLogs     AuditLog[]
   creditAccount CreditAccount?
+  recipients    Recipient[]
+  scheduledDeliveries ScheduledDelivery[]
+  reminderPreference ReminderPreference?
 
   @@unique([email])
   @@map("user")
@@ -313,6 +321,7 @@ model CreditReservation {
   createdAt      DateTime          @default(now()) @db.Timestamptz(3)
   settledAt      DateTime?         @db.Timestamptz(3)
   ledger         LedgerEntry[]
+  scheduledDelivery ScheduledDelivery?
 
   @@unique([accountId, idempotencyKey])
   @@index([accountId, createdAt])
@@ -341,4 +350,123 @@ model LedgerEntry {
 model WelcomeGrantTombstone {
   emailHash String   @id @db.VarChar(64)
   grantedAt DateTime @default(now()) @db.Timestamptz(3)
+}
+
+// ============================ Scheduling (Phase 2C.1) ============================
+// Foundation only: nothing here delivers anything. A future worker (Phase 2C.2) moves SCHEDULED -> PROCESSING -> DELIVERED,
+// publishes the card and commits the reservation. Instants are timestamptz (UTC); the wall-clock the sender chose is kept as
+// text next to the IANA zone so a user-visible time is never reinterpreted.
+
+enum DeliveryChannel {
+  /// The card becomes reachable at its private link at delivery time. The only channel implemented.
+  LINK
+  /// Reserved for a later phase (needs a provider, recipient consent handling and an unsubscribe path). Refused by the service today.
+  EMAIL
+}
+
+enum ScheduleStatus {
+  SCHEDULED
+  PROCESSING
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+enum AttemptStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+  UNCERTAIN
+}
+
+enum ConsentStatus {
+  NONE
+  REQUESTED
+  GRANTED
+  WITHDRAWN
+}
+
+/// A person the owner sends cards to. Minimal on purpose: a name and a time zone; email is optional and unused until email delivery exists.
+/// senderAttestedAt records what the SENDER says (they may contact this person). consentStatus is the RECIPIENT's own consent. They are
+/// different facts and never interchangeable: only consentStatus = GRANTED may ever enable recipient-directed email.
+model Recipient {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId          String         @db.Uuid
+  owner            User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name             String         @db.VarChar(40)
+  email            String?        @db.VarChar(254)
+  timeZone         String         @default("UTC") @db.VarChar(64)
+  senderAttestedAt DateTime?      @db.Timestamptz(3)
+  consentStatus    ConsentStatus  @default(NONE)
+  consentUpdatedAt DateTime?      @db.Timestamptz(3)
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime       @updatedAt @db.Timestamptz(3)
+  deliveries       ScheduledDelivery[]
+
+  @@unique([ownerId, email])
+  @@index([ownerId, createdAt])
+}
+
+model ScheduledDelivery {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Cascade: deleting an account removes its schedules. Held reservations must be released first (releaseAllHeld).
+  ownerId          String            @db.Uuid
+  owner            User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  cardId           String            @unique @db.Uuid
+  card             Card              @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  recipientId      String?           @db.Uuid
+  recipient        Recipient?        @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  channel          DeliveryChannel   @default(LINK)
+  status           ScheduleStatus    @default(SCHEDULED)
+  /// The actual instant (UTC).
+  deliverAtUtc     DateTime          @db.Timestamptz(3)
+  /// IANA zone the sender chose, with the local date/time they intended ("YYYY-MM-DD", "HH:mm") and the UTC offset that resolved it.
+  timeZone         String            @db.VarChar(64)
+  localDate        String            @db.VarChar(10)
+  localTime        String            @db.VarChar(5)
+  utcOffsetMinutes Int
+  reservationId    String            @unique @db.Uuid
+  reservation      CreditReservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  idempotencyKey   String            @db.VarChar(64)
+  requestHash      String            @db.VarChar(64)
+  /// When a worker may next pick this up (equals deliverAtUtc until retries exist).
+  nextAttemptAt    DateTime          @db.Timestamptz(3)
+  attemptCount     Int               @default(0)
+  /// Optimistic concurrency token for reschedule.
+  version          Int               @default(0)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @default(now()) @db.Timestamptz(3)
+  cancelledAt      DateTime?         @db.Timestamptz(3)
+  deliveredAt      DateTime?         @db.Timestamptz(3)
+  attempts         DeliveryAttempt[]
+
+  @@unique([ownerId, idempotencyKey])
+  @@index([ownerId, status, deliverAtUtc])
+}
+
+/// Schema only in this phase: written by the future delivery worker.
+model DeliveryAttempt {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  deliveryId        String            @db.Uuid
+  delivery          ScheduledDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  attemptNo         Int
+  channel           DeliveryChannel
+  status            AttemptStatus     @default(STARTED)
+  startedAt         DateTime          @default(now()) @db.Timestamptz(3)
+  finishedAt        DateTime?         @db.Timestamptz(3)
+  errorCode         String?           @db.VarChar(60)
+  /// Provider reference for reconciliation (no message content, no addresses).
+  providerRef       String?           @db.VarChar(120)
+
+  @@unique([deliveryId, attemptNo])
+}
+
+/// Schema only: no reminder is sent in this phase.
+model ReminderPreference {
+  userId    String   @id @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled   Boolean  @default(true)
+  leadHours Int      @default(24)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 }

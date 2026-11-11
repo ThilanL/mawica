@@ -379,10 +379,14 @@ describe("plans can only change through the internal server operation", () => {
     expect(await drift(acc)).toEqual([]);
     await expect(run((tx) => assignPlan(tx, acc.id, "no-such-plan", t0))).rejects.toThrow(UnsupportedPlanError);
   });
-  it("no route, page or component can set a plan: only the wallet module calls assignPlan", async () => {
+  it("no route, page or component can set a plan: assignPlan lives only in the wallet module, planKey is only read elsewhere", async () => {
     const { execFileSync } = await import("node:child_process");
-    const hits = execFileSync("grep", ["-rln", "assignPlan\\|planKey", "src", "--include=*.ts", "--include=*.tsx"], { encoding: "utf8" }).split("\n").filter(Boolean).filter((f) => !f.includes("generated"));
-    expect(hits.sort()).toEqual(["src/modules/wallet/engine.ts", "src/modules/wallet/entitlements.ts", "src/modules/wallet/wallet.ts"].sort());
+    const grep = (pat: string) => execFileSync("grep", ["-rln", pat, "src", "--include=*.ts", "--include=*.tsx"], { encoding: "utf8" }).split("\n").filter(Boolean).filter((f) => !f.includes("generated")).sort();
+    expect(grep("assignPlan")).toEqual(["src/modules/wallet/wallet.ts"]);
+    // planKey: the wallet engine owns it; the scheduling service only reads it (a type field) to find the account's horizon.
+    expect(grep("planKey")).toEqual(["src/modules/scheduling/service.ts", "src/modules/wallet/engine.ts", "src/modules/wallet/entitlements.ts", "src/modules/wallet/wallet.ts"]);
+    const svc = (await import("node:fs")).readFileSync("src/modules/scheduling/service.ts", "utf8");
+    expect(svc).not.toMatch(/planKey\s*[:=]\s*["'`]|SET "planKey"|data:\s*\{[^}]*planKey/);
   });
 });
 

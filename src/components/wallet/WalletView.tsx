@@ -101,7 +101,7 @@ export function WalletView() {
                   <p className="font-medium">{label(a)}</p>
                   <p className="text-sm text-ink-soft">{date(a.at, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}{a.premium && a.type !== "welcome_gift" ? " · Premium" : ""}</p>
                 </div>
-                {a.card && a.type !== "card_cancelled" && <Link href={`/c/${a.card.slug}`} className="shrink-0 rounded-full border border-midnight/20 px-4 py-2 text-sm font-semibold transition hover:bg-white focus-visible:outline-offset-4">View card</Link>}
+                {a.card && a.type === "card_published" && <Link href={`/c/${a.card.slug}`} className="shrink-0 rounded-full border border-midnight/20 px-4 py-2 text-sm font-semibold transition hover:bg-white focus-visible:outline-offset-4">View card</Link>}
               </li>
             ))}
           </ul>
