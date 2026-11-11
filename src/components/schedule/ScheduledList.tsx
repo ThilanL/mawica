@@ -12,7 +12,7 @@ const CardPlayer = dynamic(() => import("@/components/cards/CardPlayer").then((m
 
 type Schedule = {
   id: string; status: "SCHEDULED" | "PROCESSING" | "PUBLISHED" | "CANCELLED" | "FAILED"; deliverAtUtc: string; timeZone: string; localDate: string; localTime: string; version: number;
-  card: { templateKey: string; title: string; premium: boolean; recipientName: string; senderName: string; message: string };
+  card: { templateKey: string; title: string; premium: boolean; recipientName: string; senderName: string; message: string; media?: { src: string; width: number; height: number } | null };
   recipient: { id: string; name: string } | null; creditsReserved: number; link: string | null; failureNote: string | null;
 };
 type State = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok"; items: Schedule[]; monthsAhead: number };
@@ -205,7 +205,7 @@ function PreviewDialog({ s, onClose }: { s: Schedule; onClose: () => void }) {
     <div className="fixed inset-0 z-[60] grid place-items-center bg-midnight/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label={`Preview of ${s.card.title}`} className="relative w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
         <div className="mx-auto aspect-[9/16] max-h-[78dvh] w-auto overflow-hidden rounded-[2.2rem] bg-midnight shadow-lift ring-8 ring-midnight" style={{ maxWidth: "min(100%, 22rem)" }}>
-          <CardPlayer compact card={{ templateKey: s.card.templateKey as never, recipientName: s.card.recipientName, senderName: s.card.senderName, message: s.card.message }} />
+          <CardPlayer compact card={{ templateKey: s.card.templateKey as never, recipientName: s.card.recipientName, senderName: s.card.senderName, message: s.card.message, media: s.card.media ? { kind: "image", ...s.card.media } : null }} />
         </div>
         <div className="mt-4 text-center"><button ref={closeRef} type="button" onClick={onClose} className="rounded-full bg-ivory px-6 py-3 text-sm font-semibold text-midnight shadow-soft focus-visible:outline-offset-4">Close preview</button></div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -9,7 +9,7 @@ import { CardArt } from "@/components/landing/CardArt";
 import { Button } from "@/components/ui/Button";
 import { LIMITS } from "@/modules/cards/schema";
 import { hasTemporaryArtwork } from "@/content/artwork";
-import { ALL_TEMPLATE_KEYS, getTemplate, isAnyTemplateKey, isPremiumTemplateKey, premiumTemplates, templates, type AnyTemplateKey, type TemplateKey } from "@/modules/templates/registry";
+import { ALL_TEMPLATE_KEYS, getTemplate, isAnyTemplateKey, isPremiumTemplateKey, premiumTemplates, templateAllowsMedia, templates, type AnyTemplateKey, type PremiumTemplateKey, type TemplateKey } from "@/modules/templates/registry";
 
 // Scheduling UI (time-zone engine + form) is only needed after "Schedule for later" is chosen: keep it out of the first /create bundle.
 const SchedulePanel = dynamic(() => import("@/components/schedule/SchedulePanel").then((m) => m.SchedulePanel), {
@@ -51,11 +51,14 @@ export function CreateWizard() {
   const [confirming, setConfirming] = useState(false);
   const [mode, setMode] = useState<"now" | "later">("now");
   const premium = isPremiumTemplateKey(templateKey);
+  const photo = usePhoto(member.state === "member");
+  const mediaAllowed = templateAllowsMedia(templateKey);
   const honeypot = useRef<HTMLInputElement>(null);
   const idemKey = useRef<string | null>(null);
 
   // Switching template swaps in that template's default message only if the user has not edited the current one.
   function chooseTemplate(key: AnyTemplateKey) {
+    if (!templateAllowsMedia(key)) photo.remove(); // a photo only belongs to the card that can carry it: drop (and delete) it when switching away
     setTemplateKey(key);
     setConfirming(false);
     setFields((f) => (f.message === getTemplate(templateKey).defaultMessage || !f.message.trim() ? { ...f, message: getTemplate(key).defaultMessage } : f));
@@ -142,7 +145,7 @@ export function CreateWizard() {
       const res = await fetch("/api/cards", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": idemKey.current },
-        body: JSON.stringify({ templateKey, ...fields, website: honeypot.current?.value ?? "" }),
+        body: JSON.stringify({ templateKey, ...fields, ...(mediaAllowed && photo.mediaId ? { mediaId: photo.mediaId } : {}), website: honeypot.current?.value ?? "" }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 201 || res.status === 200) {
@@ -212,9 +215,10 @@ export function CreateWizard() {
                 </div>
               </button>
             ))}
-            <PremiumChoice selected={premium} onChoose={() => chooseTemplate("lumis-wish")} member={member} />
+            <PremiumChoice tkey="lumis-wish-cinema" selected={templateKey === "lumis-wish-cinema"} onChoose={() => chooseTemplate("lumis-wish-cinema")} member={member} badge="3D · New" />
+            <PremiumChoice tkey="lumis-wish" selected={templateKey === "lumis-wish"} onChoose={() => chooseTemplate("lumis-wish")} member={member} />
           </div>
-          <div className="mt-10 flex justify-center"><Button onClick={() => setStep("personalise")}>{premium ? "Continue with Lumi's Wish" : "Continue"}</Button></div>
+          <div className="mt-10 flex justify-center"><Button onClick={() => setStep("personalise")}>{premium ? `Continue with ${premiumTemplates[templateKey as PremiumTemplateKey].title}` : "Continue"}</Button></div>
         </section>
       )}
 
@@ -232,6 +236,7 @@ export function CreateWizard() {
             <Field label="Your message" error={errors.message} count={fields.message.length} max={LIMITS.message}>
               {(p) => <textarea {...p} value={fields.message} onChange={set("message")} maxLength={LIMITS.message} rows={6} className={inputCls} />}
             </Field>
+            {mediaAllowed && <PhotoField photo={photo} member={member} onSignIn={signInToPublish} />}
             <div aria-hidden className="absolute -left-[9999px]"><label>Website<input ref={honeypot} tabIndex={-1} autoComplete="off" name="website" /></label></div>
           </div>
           <div className="mt-10 flex justify-between gap-3">
@@ -247,12 +252,12 @@ export function CreateWizard() {
           <p className="mt-3 text-ink-soft">This is what {fields.recipientName} will see.</p>
           {!premium && hasTemporaryArtwork(templateKey as TemplateKey) && <p className="mt-1 text-sm text-ink-soft/80">Illustration is temporary while final artwork is produced.</p>}
           <div className="mx-auto mt-8 aspect-[9/16] max-h-[70dvh] w-auto overflow-hidden rounded-[2.2rem] bg-midnight shadow-lift ring-8 ring-midnight" style={{ maxWidth: "min(100%, 24rem)" }}>
-            <CardPlayer compact card={{ templateKey, ...fields }} />
+            <CardPlayer compact card={{ templateKey, ...fields, media: mediaAllowed ? photo.preview : null }} />
           </div>
           <DeliveryChoice mode={mode} onChange={(m) => { setConfirming(false); setMode(m); }} />
           {mode === "later" ? (
             member.state === "member" ? (
-              <SchedulePanel card={{ templateKey, ...fields }} premium={premium} cards={member.cards} premiumCredits={member.premium} monthsAhead={member.monthsAhead} onEditCard={() => setStep("personalise")} />
+              <SchedulePanel card={{ templateKey, ...fields, ...(mediaAllowed && photo.mediaId ? { mediaId: photo.mediaId } : {}) }} premium={premium} cards={member.cards} premiumCredits={member.premium} monthsAhead={member.monthsAhead} onEditCard={() => setStep("personalise")} />
             ) : (
               <div className="mx-auto mt-8 max-w-md rounded-[1.5rem] bg-[linear-gradient(135deg,#f7e6ef,#e9defb)] p-5 text-left ring-1 ring-midnight/5">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: ink }}>Schedule for later</p>
@@ -331,21 +336,21 @@ function Published({ slug, url, recipient, premiumRemaining, onAnother }: { slug
 
 const ink = "#6c4fb5";
 
-function PremiumChoice({ selected, onChoose, member }: { selected: boolean; onChoose: () => void; member: Member }) {
-  const t = premiumTemplates["lumis-wish"];
+function PremiumChoice({ tkey, selected, onChoose, member, badge }: { tkey: PremiumTemplateKey; selected: boolean; onChoose: () => void; member: Member; badge?: string }) {
+  const t = premiumTemplates[tkey];
   const note =
     member.state === "member"
       ? member.premium > 0 ? `You have ${member.premium} premium credit${member.premium === 1 ? "" : "s"}.` : "You have no premium credits left. You can still preview it."
       : member.state === "guest" ? "Sign in to publish. Previewing is free." : "Sign in to publish. Previewing is free.";
   return (
-    <button type="button" role="radio" aria-checked={selected} tabIndex={selected ? 0 : -1} data-key="lumis-wish" onClick={onChoose}
+    <button type="button" role="radio" aria-checked={selected} tabIndex={selected ? 0 : -1} data-key={tkey} onClick={onChoose}
       className={`group relative overflow-hidden rounded-[1.5rem] bg-[linear-gradient(135deg,#3a2556,#2a1b3d_60%,#22152f)] text-left text-ivory shadow-lift ring-2 transition sm:col-span-2 lg:col-span-3 ${selected ? "ring-gold" : "ring-transparent hover:ring-white/30"}`}>
       <div aria-hidden className="pointer-events-none absolute -right-10 -top-16 size-56 rounded-full bg-lavender/30 blur-3xl" />
       <div aria-hidden className="pointer-events-none absolute -bottom-20 left-10 size-48 rounded-full bg-rose/25 blur-3xl" />
       <div className="relative flex flex-col items-center gap-5 p-6 sm:flex-row sm:p-8">
         <div className="relative size-36 shrink-0 sm:size-40"><Image src="/art/lumi/lumi-awake.webp" alt="" fill sizes="160px" className="object-contain drop-shadow-[0_10px_24px_rgba(244,195,113,0.45)]" /></div>
         <div className="text-center sm:text-left">
-          <p className="inline-flex items-center gap-2 rounded-full bg-gold/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-gold ring-1 ring-gold/40"><span aria-hidden>★</span> Premium · {t.occasion}</p>
+          <p className="inline-flex items-center gap-2 rounded-full bg-gold/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-gold ring-1 ring-gold/40"><span aria-hidden>★</span> Premium · {t.occasion}{badge ? ` · ${badge}` : ""}</p>
           <p className="mt-3 font-display text-3xl">{t.title}</p>
           <p className="mt-2 max-w-md text-ivory/85">{t.description}</p>
           <p className="mt-3 text-sm text-ivory/75">Publishing uses 1 card and 1 premium credit. {note}</p>
@@ -404,6 +409,71 @@ function DeliveryChoice({ mode, onChange }: { mode: "now" | "later"; onChange: (
     <div role="radiogroup" aria-label="When to send" className="mx-auto mt-8 flex w-fit gap-1 rounded-full bg-white/70 p-1 ring-1 ring-midnight/10">
       {opt("now", "Send now")}
       {opt("later", "Schedule for later")}
+    </div>
+  );
+}
+
+/** The optional personal photo (premium cinematic card). Uploaded as soon as it is chosen, so the preview matches what will be published. */
+type PhotoState = { status: "idle" | "uploading" | "ready" | "error"; error: string | null; mediaId: string | null; preview: { kind: "image"; src: string; width: number; height: number } | null };
+const PHOTO_IDLE: PhotoState = { status: "idle", error: null, mediaId: null, preview: null };
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+function usePhoto(signedIn: boolean) {
+  const [state, setState] = useState<PhotoState>(PHOTO_IDLE);
+  const mediaRef = useRef<string | null>(null);
+  const urlRef = useRef<string | null>(null);
+
+  const clear = useCallback(() => {
+    if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+    const id = mediaRef.current;
+    mediaRef.current = null;
+    if (id) void fetch(`/api/media/${id}`, { method: "DELETE", credentials: "same-origin" }).catch(() => {}); // an unclaimed upload is also purged server-side after 24 h
+  }, []);
+  const remove = useCallback(() => { clear(); setState(PHOTO_IDLE); }, [clear]);
+  useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
+
+  const choose = useCallback(async (file: File) => {
+    if (!signedIn) return;
+    if (!PHOTO_TYPES.includes(file.type)) { setState((s) => ({ ...s, status: "error", error: "Use a JPEG, PNG or WebP photo." })); return; }
+    if (file.size > 8 * 1024 * 1024) { setState((s) => ({ ...s, status: "error", error: "That photo is too large. Choose one under 8 MB." })); return; }
+    clear();
+    const url = URL.createObjectURL(file);
+    urlRef.current = url;
+    setState({ status: "uploading", error: null, mediaId: null, preview: null });
+    try {
+      const dims = await new Promise<{ w: number; h: number }>((res, rej) => { const i = new window.Image(); i.onload = () => res({ w: i.naturalWidth, h: i.naturalHeight }); i.onerror = () => rej(new Error("decode")); i.src = url; });
+      const r = await fetch("/api/media", { method: "POST", credentials: "same-origin", headers: { "Content-Type": file.type }, body: file });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof j.error === "string" ? j.error : "We couldn't add that photo.");
+      mediaRef.current = j.id;
+      setState({ status: "ready", error: null, mediaId: j.id, preview: { kind: "image", src: url, width: dims.w, height: dims.h } });
+    } catch (e) {
+      if (urlRef.current === url) { URL.revokeObjectURL(url); urlRef.current = null; }
+      setState({ ...PHOTO_IDLE, status: "error", error: e instanceof Error && e.message !== "decode" ? e.message : "We couldn't read that photo. Try a different one." });
+    }
+  }, [signedIn, clear]);
+
+  return { ...state, choose, remove };
+}
+
+function PhotoField({ photo, member, onSignIn }: { photo: ReturnType<typeof usePhoto>; member: Member; onSignIn: () => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div className="rounded-[1.5rem] bg-[linear-gradient(135deg,#f7e6ef,#e9defb)] p-5 ring-1 ring-midnight/5">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: ink }}>Add a photo (optional)</p>
+      <p className="mt-2 text-sm text-midnight">It floats beside Lumi in a golden frame. Your photo stays private until the card is published, and is never shared anywhere else.</p>
+      {member.state !== "member" ? (
+        <p className="mt-3 text-sm text-midnight">{member.state === "unknown" ? "Checking your account…" : <>Sign in to add a photo. <button type="button" onClick={onSignIn} className="font-semibold underline underline-offset-4">Sign in</button></>}</p>
+      ) : (
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          {photo.preview && <span className="relative block size-20 overflow-hidden rounded-xl ring-2 ring-white shadow-soft"><span className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${photo.preview.src})` }} role="img" aria-label="Your chosen photo" /></span>}
+          <input ref={input} id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void photo.choose(f); e.target.value = ""; }} />
+          <label htmlFor="photo-input" className="inline-flex min-h-[44px] cursor-pointer items-center rounded-full bg-midnight px-5 text-sm font-semibold text-ivory shadow-soft focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#6c4fb5]">{photo.preview ? "Choose a different photo" : "Choose a photo"}</label>
+          {photo.preview && <button type="button" onClick={photo.remove} className="min-h-[44px] rounded-full px-4 text-sm font-semibold text-midnight underline underline-offset-4">Remove</button>}
+          <p role="status" aria-live="polite" className="basis-full text-sm text-midnight">{photo.status === "uploading" ? "Adding your photo…" : photo.status === "ready" ? "Photo added." : ""}</p>
+          {photo.error && <p role="alert" className="basis-full text-sm font-medium text-[#8a1c3d]">{photo.error}</p>}
+        </div>
+      )}
     </div>
   );
 }

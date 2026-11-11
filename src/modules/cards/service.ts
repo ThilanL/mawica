@@ -31,7 +31,7 @@ export async function getPublishedCard(slug: string) {
   if (!SLUG_RE.test(slug)) return null;
   return db.card.findFirst({
     where: { slug, status: "PUBLISHED" },
-    select: { slug: true, templateKey: true, recipientName: true, senderName: true, message: true },
+    select: { slug: true, templateKey: true, recipientName: true, senderName: true, message: true, media: { select: { id: true, width: true, height: true } } },
   });
 }
 

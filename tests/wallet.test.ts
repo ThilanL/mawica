@@ -95,7 +95,7 @@ describe("plans are data", () => {
   it("the six launch cards are STANDARD; unknown templates throw; tier is never an input", () => {
     for (const k of TEMPLATE_KEYS) expect(templateTier(k)).toBe("STANDARD");
     expect(() => templateTier("nope")).toThrow();
-    expect([...PREMIUM_TEMPLATE_KEYS]).toEqual(["lumis-wish"]);
+    expect([...PREMIUM_TEMPLATE_KEYS]).toEqual(["lumis-wish", "lumis-wish-cinema"]);
     expect(templateTier("lumis-wish")).toBe("PREMIUM");
   });
 });

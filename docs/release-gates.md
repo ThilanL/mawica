@@ -21,6 +21,12 @@ A gate passes only when every item is demonstrably done. Items marked **(owner)*
 - [ ] Privacy notice names the email processor and region; log retention decided **(owner)**
 - [ ] Real-device pass: iOS Safari, Android Chrome (sign-in, code paste, cookies, 503 message, resend cooldown)
 
+### Photo uploads (cinematic card) before any beta
+- [ ] Privacy policy and terms cover personal photos: what is stored (a re-encoded WebP, no metadata), who can see it (the owner; everyone once the card is published), retention (unclaimed uploads purged after 24 h; deleted with the card or account), processor/region **(legal)**
+- [ ] Image moderation decision: **there is no automated content scanning**; published photos rely on the existing Report flow and `admin remove` **(owner/legal)**
+- [ ] A staging upload on a Linux build (sharp binaries) and on a real iPhone (HEIC photos are converted by iOS Safari when the input restricts types; direct HEIC is refused)
+- [ ] Video stays off until a safe transcoder exists (see docs/premium-cinematic-card.md)
+
 ## C. Ready for controlled beta
 - [ ] Two weeks of sign-in email with a failure rate under 1% and no unexplained 503s
 - [ ] **Account deletion implemented** (currently not), including cards, sessions, audit rows, and the wallet anonymisation already designed

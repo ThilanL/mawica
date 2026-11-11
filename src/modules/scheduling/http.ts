@@ -6,6 +6,7 @@ import { getRequestUser, type SessionUser } from "@/modules/auth/session";
 import { hashFor } from "@/modules/security/client-hash";
 import { hit } from "@/modules/security/rate-limit";
 import { IdempotencyKeyReuseError, InsufficientCreditsError } from "@/modules/wallet/engine";
+import { MediaError } from "@/modules/media/validate";
 import { ScheduleConflictError, ScheduleNotFoundError, ScheduleValidationError } from "./service";
 
 const noStore = { "Cache-Control": "no-store" };
@@ -43,6 +44,7 @@ export function errorResponse(e: unknown): Response {
   if (e instanceof InsufficientCreditsError) return json({ error: e.unit === "PREMIUM" ? "You don't have a premium credit available." : "You've used all your cards for this month.", code: e.unit === "PREMIUM" ? "INSUFFICIENT_PREMIUM_CREDITS" : "INSUFFICIENT_CREDITS" }, 402);
   if (e instanceof IdempotencyKeyReuseError) return json({ error: "That request key was already used for a different request.", code: "IDEMPOTENCY_KEY_REUSED" }, 422);
   if (e instanceof ScheduleNotFoundError) return json({ error: "Not found" }, 404);
+  if (e instanceof MediaError) return json({ error: e.message, code: e.code }, e.status);
   if (e instanceof ScheduleConflictError) return json({ error: e.message, code: e.code, details: e.details }, 409);
   console.error("scheduling request failed"); // generic on purpose: no identifiers or content in logs
   return json({ error: "Something went wrong. Please try again." }, 500);

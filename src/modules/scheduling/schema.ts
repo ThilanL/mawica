@@ -13,6 +13,8 @@ export const scheduleWhenSchema = z.object({
 }).strict();
 
 export const createScheduleSchema = createCardSchema.pick({ templateKey: true, recipientName: true, senderName: true, message: true }).extend({
+  /** A photo the owner uploaded earlier (premium cinematic card only). */
+  mediaId: z.uuid().optional(),
   /** An existing saved recipient of THIS account. */
   recipientId: z.uuid().optional(),
   /** When no recipientId is given, remember the card's recipient (name + time zone only) for next time. */

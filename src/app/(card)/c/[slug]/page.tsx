@@ -25,7 +25,7 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
 
   return (
     <div className="relative h-dvh bg-midnight">
-      <CardPlayer card={{ ...card, templateKey: card.templateKey }} />
+      <CardPlayer card={{ templateKey: card.templateKey, recipientName: card.recipientName, senderName: card.senderName, message: card.message, media: card.media ? { kind: "image", src: `/api/media/${card.media.id}`, width: card.media.width, height: card.media.height } : null }} />
       <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex items-center justify-center gap-4 pb-[env(safe-area-inset-bottom)]">
         <Link href="/create" className="pointer-events-auto text-sm text-ivory/70 underline underline-offset-4 hover:text-ivory">Make your own</Link>
         <span className="pointer-events-auto"><ReportCard slug={card.slug} /></span>

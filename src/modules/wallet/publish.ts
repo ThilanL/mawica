@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import type { CreateCardInput } from "@/modules/cards/schema";
 import { newSlug } from "@/modules/cards/slug";
+import { attachMedia } from "@/modules/media/service";
 import { templateTier } from "@/modules/templates/registry";
 import { expireGrants, reserveCredits, settleReservation, balances } from "./engine";
 import { ensureWallet } from "./wallet";
@@ -19,12 +20,13 @@ export const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_-]{16,64}$/;
  * the original card instead of creating a second one; the same key with a different request throws IdempotencyKeyReuseError.
  */
 export async function publishOwnedCard(
-  input: Pick<CreateCardInput, "templateKey" | "recipientName" | "senderName" | "message">,
+  input: Pick<CreateCardInput, "templateKey" | "recipientName" | "senderName" | "message"> & { mediaId?: string },
   user: { id: string; email: string; emailVerified: boolean },
   opts: { idempotencyKey: string; now?: Date; slugFn?: () => string },
 ): Promise<PublishOwnedResult> {
   const tier = templateTier(input.templateKey);
-  const request = { templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message };
+  // mediaId joins the idempotency fingerprint only when present, so every existing request keeps its fingerprint.
+  const request = { templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message, ...(input.mediaId ? { mediaId: input.mediaId } : {}) };
   const now = opts.now ?? new Date();
   const slugFn = opts.slugFn ?? newSlug;
 
@@ -44,6 +46,8 @@ export async function publishOwnedCard(
           data: { slug: slugFn(), templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message, ownerId: user.id, tier },
           select: { id: true, slug: true },
         });
+        // The photo is claimed in the same transaction as the credit spend: if it is not the caller's, or already used, everything rolls back.
+        if (input.mediaId) await attachMedia(tx, { mediaId: input.mediaId, ownerId: user.id, cardId: card.id, templateKey: input.templateKey, now });
         await settleReservation(tx, account.id, r.reservationId, "COMMIT", { now, cardId: card.id });
         const b = await balances(tx, account.id, now);
         return { slug: card.slug, replay: false, remaining: b.total, premiumRemaining: b.premium };

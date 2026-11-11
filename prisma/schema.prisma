@@ -45,6 +45,7 @@ model Card {
   /// reclassifying a template later does not rewrite history. Every existing card is STANDARD.
   tier          CardTier   @default(STANDARD)
   scheduledDelivery ScheduledDelivery?
+  media         CardMedia?
 
   @@index([status, createdAt])
   @@index([ownerId])
@@ -96,6 +97,7 @@ model User {
   recipients    Recipient[]
   scheduledDeliveries ScheduledDelivery[]
   reminderPreference ReminderPreference?
+  cardMedia     CardMedia[]
 
   @@unique([email])
   @@map("user")
@@ -486,4 +488,36 @@ model ReminderPreference {
   leadHours Int      @default(24)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+
+/// Personal photo for a premium cinematic card (Phase 2E). Private by construction: the bytes are only ever served by /api/media/[id], which
+/// checks ownership and the card's status. Metadata here; bytes in CardMediaBlob (so a blob store can replace it without touching this table).
+enum MediaKind {
+  IMAGE
+}
+
+model CardMedia {
+  id          String    @id @default(uuid()) @db.Uuid
+  ownerId     String    @db.Uuid
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Null until the card is created in the same transaction that spends the credit; unattached rows are purged after 24 h.
+  cardId      String?   @unique @db.Uuid
+  card        Card?     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  kind        MediaKind @default(IMAGE)
+  contentType String    @db.VarChar(40)
+  width       Int
+  height      Int
+  byteSize    Int
+  sha256      String    @db.VarChar(64)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  attachedAt  DateTime? @db.Timestamptz(3)
+  blob        CardMediaBlob?
+
+  @@index([ownerId, createdAt])
+}
+
+model CardMediaBlob {
+  mediaId String    @id @db.Uuid
+  media   CardMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  data    Bytes
 }

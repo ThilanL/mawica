@@ -20,6 +20,8 @@ export const scenes: Record<TemplateKey, ComponentType<SceneProps>> = {
 /** Premium scenes, separate from the six launch scenes (their map above is untouched). Also one lazy chunk per scene. */
 export const premiumScenes: Record<PremiumTemplateKey, ComponentType<SceneProps>> = {
   "lumis-wish": dynamic(() => import("./LumisWishScene").then((m) => m.LumisWishScene)),
+  // 3D cinematic version: its own lazy chunk; three.js / react-three-fiber load only inside it (never on the homepage).
+  "lumis-wish-cinema": dynamic(() => import("../premium3d/CinematicScene").then((m) => m.CinematicScene)),
 };
 
 export const sceneFor = (key: AnyTemplateKey): ComponentType<SceneProps> => (isPremiumTemplateKey(key) ? premiumScenes[key] : scenes[key]);

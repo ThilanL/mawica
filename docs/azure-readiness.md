@@ -33,6 +33,7 @@ az network dns zone list --query "[].name" -o tsv
 2. **No connection-pool limits**: set `max` explicitly (see 5) before more than one process connects.
 3. **No production email provider** (section email-provider-assessment).
 4. **Trusted-proxy hop count unverified** (section 4).
+5. **Photo processing uses `sharp` (native libvips binaries, Phase 2E).** The standalone build only contains the binaries of the machine that built it: build the release on Linux x64 (CI) so `@img/sharp-linux-x64` is traced into the artifact, or the upload route fails on App Service. Verify with one real upload on the staging slot before enabling the photo field.
 
 ## 3. ACS compatibility findings
 See [email-provider-assessment.md](email-provider-assessment.md). Summary: the adapter targets a current REST version (2025-09-01) but the **service itself is retiring on 30 September 2028**; recommendation is to migrate before staging. I did not replace the adapter.

@@ -1,4 +1,5 @@
 import "server-only";
+import { attachMedia } from "@/modules/media/service";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -39,7 +40,7 @@ export type ScheduleDto = {
   utcOffsetMinutes: number;
   version: number;
   createdAt: string;
-  card: { templateKey: string; title: string; premium: boolean; recipientName: string; senderName: string; message: string };
+  card: { templateKey: string; title: string; premium: boolean; recipientName: string; senderName: string; message: string; /** Owner-only preview URL of the attached photo, if any. */ media: { src: string; width: number; height: number } | null };
   recipient: { id: string; name: string } | null;
   /** Credits held for this schedule right now (0 once cancelled or finished). */
   creditsReserved: number;
@@ -50,13 +51,13 @@ export type ScheduleDto = {
   creditOutcome: "returned" | "under_review" | null;
 };
 
-type Row = Prisma.ScheduledDeliveryGetPayload<{ include: { card: true; recipient: { select: { id: true; name: true } }; reservation: { select: { status: true } } } }>;
+type Row = Prisma.ScheduledDeliveryGetPayload<{ include: { card: { include: { media: { select: { id: true; width: true; height: true } } } }; recipient: { select: { id: true; name: true } }; reservation: { select: { status: true } } } }>;
 const toDto = (r: Row): ScheduleDto => {
   const premium = r.card.tier === "PREMIUM";
   return {
     id: r.id, status: r.status, channel: r.channel, deliverAtUtc: r.deliverAtUtc.toISOString(), timeZone: r.timeZone, localDate: r.localDate, localTime: r.localTime,
     utcOffsetMinutes: r.utcOffsetMinutes, version: r.version, createdAt: r.createdAt.toISOString(),
-    card: { templateKey: r.card.templateKey, title: isAnyTemplateKey(r.card.templateKey) ? getTemplate(r.card.templateKey).title : "Card", premium, recipientName: r.card.recipientName, senderName: r.card.senderName, message: r.card.message },
+    card: { templateKey: r.card.templateKey, title: isAnyTemplateKey(r.card.templateKey) ? getTemplate(r.card.templateKey).title : "Card", premium, recipientName: r.card.recipientName, senderName: r.card.senderName, message: r.card.message, media: r.card.media ? { src: `/api/media/${r.card.media.id}`, width: r.card.media.width, height: r.card.media.height } : null },
     recipient: r.recipient ? { id: r.recipient.id, name: r.recipient.name } : null,
     creditsReserved: r.status === "SCHEDULED" || r.status === "PROCESSING" ? (premium ? 2 : 1) : 0,
     link: r.status === "PUBLISHED" ? `${env.NEXT_PUBLIC_SITE_URL}/c/${r.card.slug}` : null,
@@ -66,7 +67,7 @@ const toDto = (r: Row): ScheduleDto => {
     creditOutcome: r.status !== "FAILED" ? null : r.reservation.status === "RELEASED" ? "returned" : "under_review",
   };
 };
-const include = { card: true, recipient: { select: { id: true, name: true } }, reservation: { select: { status: true } } } as const;
+const include = { card: { include: { media: { select: { id: true, width: true, height: true } } } }, recipient: { select: { id: true, name: true } }, reservation: { select: { status: true } } } as const;
 
 const windowDetails = (w: Window, months: number) => ({ earliest: w.earliest.toISOString(), latest: w.latest.toISOString(), monthsAhead: months });
 
@@ -109,6 +110,7 @@ export async function createSchedule(
     templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message,
     recipientId: input.recipientId ?? null, saveRecipient: input.saveRecipient, recipientEmail: input.recipientEmail ?? null, channel: input.channel,
     schedule: { localDate: input.schedule.localDate, localTime: input.schedule.localTime, timeZone: input.schedule.timeZone, ambiguity: input.schedule.ambiguity ?? null },
+    ...(input.mediaId ? { mediaId: input.mediaId } : {}), // only when present: existing fingerprints are unchanged
   };
   const hash = requestHash(fingerprint);
 
@@ -143,6 +145,7 @@ export async function createSchedule(
           data: { slug: newSlug(), templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message, ownerId: user.id, tier, status: "SCHEDULED" },
           select: { id: true },
         });
+        if (input.mediaId) await attachMedia(tx, { mediaId: input.mediaId, ownerId: user.id, cardId: card.id, templateKey: input.templateKey, now }); // same transaction as the reservation: all or nothing
         // Link the held reservation to its card (allowed while HELD) so the wallet can show it.
         await tx.$executeRaw`UPDATE "CreditReservation" SET "cardId" = ${card.id}::uuid WHERE id = ${res.reservationId}::uuid AND status = 'HELD'`;
         const row = await tx.scheduledDelivery.create({

@@ -180,7 +180,7 @@ describe("premium card: Lumi's Wish", () => {
     const j = await (await post(prem, { cookie: true, key: "view-key-0000001" })).json();
     const { getPublishedCard } = await import("@/modules/cards/service");
     const card = await getPublishedCard(j.slug);
-    expect(card).toEqual({ slug: j.slug, templateKey: "lumis-wish", recipientName: "RouteTest", senderName: "Sam", message: "Hello" });
+    expect(card).toEqual({ slug: j.slug, templateKey: "lumis-wish", recipientName: "RouteTest", senderName: "Sam", message: "Hello", media: null });
     expect(JSON.stringify(card)).not.toMatch(/owner|tier|credit|wallet|email|userId/i);
   });
 });

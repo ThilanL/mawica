@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { createCardSchema } from "@/modules/cards/schema";
 import { createCard } from "@/modules/cards/service";
 import { hasSessionCookie } from "@/modules/auth/request";
+import { MediaError } from "@/modules/media/validate";
 import { templateTier } from "@/modules/templates/registry";
 import { clientIp, hashFor } from "@/modules/security/client-hash";
 import { hit } from "@/modules/security/rate-limit";
@@ -56,6 +57,8 @@ export async function POST(request: Request) {
     if (user) return publishSignedIn(request, user, parsed.data);
   }
 
+  if (parsed.data.mediaId) return NextResponse.json({ error: "Sign in to add a photo.", code: "SIGN_IN_REQUIRED" }, { status: 401, headers: { "Cache-Control": "no-store" } }); // photos belong to an account
+
   // Premium cards are never published anonymously (preview is client-side and free). The tier comes from the server registry.
   if (templateTier(parsed.data.templateKey) === "PREMIUM") {
     return NextResponse.json({ error: "Sign in to publish a premium card. Previews are always free.", code: "SIGN_IN_REQUIRED" }, { status: 401, headers: { "Cache-Control": "no-store" } });
@@ -74,7 +77,7 @@ export async function POST(request: Request) {
 }
 
 /** Wallet-metered, account-owned publishing. Quotas are enforced here on the server, in the same transaction as the card insert. */
-async function publishSignedIn(request: Request, user: { id: string; email: string; emailVerified: boolean }, data: { templateKey: string; recipientName: string; senderName: string; message: string }) {
+async function publishSignedIn(request: Request, user: { id: string; email: string; emailVerified: boolean }, data: { templateKey: string; recipientName: string; senderName: string; message: string; mediaId?: string }) {
   const { publishOwnedCard, IDEMPOTENCY_KEY_RE } = await import("@/modules/wallet/publish");
   const { InsufficientCreditsError, IdempotencyKeyReuseError } = await import("@/modules/wallet/engine");
   const headerKey = request.headers.get("idempotency-key");
@@ -93,6 +96,7 @@ async function publishSignedIn(request: Request, user: { id: string; email: stri
       return NextResponse.json({ error: e.unit === "PREMIUM" ? "You don't have a premium credit available." : "You've used all your cards for this month.", code: e.unit === "PREMIUM" ? "INSUFFICIENT_PREMIUM_CREDITS" : "INSUFFICIENT_CREDITS", resetsAt }, { status: 402, headers: { "Cache-Control": "no-store" } });
     }
     if (e instanceof IdempotencyKeyReuseError) return NextResponse.json({ error: "That request key was already used for a different card.", code: "IDEMPOTENCY_KEY_REUSED" }, { status: 422 });
+    if (e instanceof MediaError) return NextResponse.json({ error: e.message, code: e.code }, { status: e.status, headers: { "Cache-Control": "no-store" } });
     console.error("signed-in publish failed"); // generic on purpose
     return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }

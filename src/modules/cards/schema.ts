@@ -22,6 +22,8 @@ export const createCardSchema = z.object({
     .string({ error: "Message is required" })
     .transform(clean(true))
     .pipe(z.string().min(1, "Message is required").max(LIMITS.message, `Message must be ${LIMITS.message} characters or fewer`)),
+  /** A photo the signed-in owner uploaded earlier (premium cinematic card only; checked on the server inside the publish transaction). */
+  mediaId: z.uuid().optional(),
   /** Honeypot: real users never fill this */
   website: z.string().max(200).optional().default(""),
 });

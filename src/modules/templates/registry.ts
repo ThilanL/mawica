@@ -64,7 +64,7 @@ export const isTemplateKey = (v: string): v is TemplateKey => (TEMPLATE_KEYS as 
  * signed-in account and consumes 1 total + 1 premium credit from the wallet. The tier is resolved HERE, on the server,
  * from the template key. A client-supplied tier is never read.
  */
-export const PREMIUM_TEMPLATE_KEYS = ["lumis-wish"] as const;
+export const PREMIUM_TEMPLATE_KEYS = ["lumis-wish", "lumis-wish-cinema"] as const;
 export type PremiumTemplateKey = (typeof PREMIUM_TEMPLATE_KEYS)[number];
 export type AnyTemplateKey = TemplateKey | PremiumTemplateKey;
 export const ALL_TEMPLATE_KEYS = [...TEMPLATE_KEYS, ...PREMIUM_TEMPLATE_KEYS] as const;
@@ -78,7 +78,17 @@ export const premiumTemplates: Record<PremiumTemplateKey, PremiumCardTemplate> =
     greeting: "Lumi made a wish for you",
     defaultMessage: "Lumi travelled a long way to bring you this wish: may your days be full of warmth, wonder and everything that makes you smile.",
   },
+  "lumis-wish-cinema": {
+    key: "lumis-wish-cinema", title: "Lumi's Wish: Cinematic", occasion: "Any occasion",
+    description: "A floating envelope arrives through a magical storm, opens in golden light and Lumi, in 3D, delivers your wish. Add a photo of your own.",
+    greeting: "Lumi made a wish for you",
+    defaultMessage: "Lumi travelled a long way to bring you this wish: may your days be full of warmth, wonder and everything that makes you smile.",
+  },
 };
+
+/** Premium templates that can carry one personal photo (private until the card is published). */
+export const MEDIA_TEMPLATE_KEYS: readonly AnyTemplateKey[] = ["lumis-wish-cinema"];
+export const templateAllowsMedia = (key: string) => (MEDIA_TEMPLATE_KEYS as readonly string[]).includes(key);
 
 export const isPremiumTemplateKey = (v: string): v is PremiumTemplateKey => (PREMIUM_TEMPLATE_KEYS as readonly string[]).includes(v);
 export const isAnyTemplateKey = (v: string): v is AnyTemplateKey => isTemplateKey(v) || isPremiumTemplateKey(v);

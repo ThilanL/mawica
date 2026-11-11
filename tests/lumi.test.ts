@@ -44,8 +44,8 @@ describe("Lumi isolation (experimental code stays off the public site)", () => {
   const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => { const p = join(dir, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
   const files = walk(join(process.cwd(), "src")).filter((f) => /\.(tsx?|css)$/.test(f));
   it("only the Lumi modules import three or react-three-fiber", () => {
-    const offenders = files.filter((f) => /from "(three|three\/[a-z/.]+|@react-three\/[a-z-]+)"/.test(readFileSync(f, "utf8")) && !f.includes("/components/lumi/"));
-    expect(offenders).toEqual([]);
+    const offenders = files.filter((f) => /from "(three|three\/[a-z/.]+|@react-three\/[a-z-]+)"/.test(readFileSync(f, "utf8")) && !f.includes("/components/lumi/") && !f.includes("/components/cards/premium3d/"));
+    expect(offenders).toEqual([]); // the homepage Lumi and the cinematic card are the only 3D code, each in its own folder
   });
   it("nothing outside the lab imports the lab components", () => {
     const offenders = files.filter((f) => /components\/lab\//.test(readFileSync(f, "utf8")) && !f.includes("/components/lab/") && !f.includes("/(lab)/"));

@@ -68,7 +68,7 @@ async function view(vp, n, { reduced = false } = {}) {
       await sleep(800);
       note(`${vp.name}: Lumi's Wish is discoverable in /create with a Premium badge and the credit cost`, await ev(`(()=>{const t=document.querySelector('[data-key="lumis-wish"]').innerText;return /Premium/i.test(t)&&/1 card and 1 premium credit/.test(t)&&/Previewing is free/.test(t)})()`));
       note(`${vp.name}: it is never labelled free`, !(await ev(`/free/i.test(document.querySelector('[data-key="lumis-wish"]').innerText.replace(/Previewing is free/i,''))`)));
-      note(`${vp.name}: the six standard cards are still all there`, (await ev(`document.querySelectorAll('[role=radio]').length`)) === 7);
+      note(`${vp.name}: the six standard cards are still all there`, (await ev(`document.querySelectorAll('[role=radio]').length`)) === 8);
       await ev(`document.querySelector('[data-key="lumis-wish"]').scrollIntoView({block:'center'})`); await sleep(300);
       await shot(`create-choose-${vp.name}`);
       await ev(`document.querySelector('[data-key="lumis-wish"]').click()`); await sleep(200);

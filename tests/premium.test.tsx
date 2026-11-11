@@ -21,8 +21,8 @@ describe("premium registry: the six launch cards are untouched", () => {
     for (const k of TEMPLATE_KEYS) { expect(templateTier(k)).toBe("STANDARD"); expect(isPremiumTemplateKey(k)).toBe(false); }
   });
   it("Lumi's Wish is a separate PREMIUM template, resolved only on the server registry", () => {
-    expect([...PREMIUM_TEMPLATE_KEYS]).toEqual(["lumis-wish"]);
-    expect([...ALL_TEMPLATE_KEYS]).toEqual([...TEMPLATE_KEYS, "lumis-wish"]);
+    expect([...PREMIUM_TEMPLATE_KEYS]).toEqual(["lumis-wish", "lumis-wish-cinema"]);
+    expect([...ALL_TEMPLATE_KEYS]).toEqual([...TEMPLATE_KEYS, "lumis-wish", "lumis-wish-cinema"]);
     expect(templateTier("lumis-wish")).toBe("PREMIUM");
     expect(isTemplateKey("lumis-wish")).toBe(false); // standard-only helpers do not see it
     expect(isAnyTemplateKey("lumis-wish")).toBe(true);
@@ -38,7 +38,7 @@ describe("premium registry: the six launch cards are untouched", () => {
     expect(createCardSchema.safeParse({ templateKey: "lumis-wish-pro", recipientName: "Ava", senderName: "Sam", message: "x" }).success).toBe(false);
   });
   it("the premium scene is registered in its own lazy map and the six-scene map source is untouched in form", () => {
-    expect(Object.keys(premiumScenes)).toEqual(["lumis-wish"]);
+    expect(Object.keys(premiumScenes)).toEqual(["lumis-wish", "lumis-wish-cinema"]);
     const src = read("src/components/cards/scenes/index.ts");
     for (const k of TEMPLATE_KEYS) expect(src).toContain(`"${k}": dynamic(`);
     expect(src).toContain(`"lumis-wish": dynamic(() => import("./LumisWishScene")`);

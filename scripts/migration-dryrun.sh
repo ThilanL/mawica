@@ -34,14 +34,18 @@ P -c "$tables order by 1" > /tmp/mawica-dryrun-before.txt
 rows=$(awk -F'|' '{s+=$2} END{print s}' /tmp/mawica-dryrun-before.txt)
 echo "restored $(wc -l < /tmp/mawica-dryrun-before.txt | tr -d ' ') tables, $rows rows"
 # rewind exactly one migration (the dump already contains it): drop its column and forget it
-P -c 'ALTER TABLE "ScheduledDelivery" DROP COLUMN "attemptBase"' -c "DELETE FROM _prisma_migrations WHERE migration_name = '$LAST'"
+case "$LAST" in
+  *_card_media) P -c 'DROP TABLE "CardMediaBlob"' -c 'DROP TABLE "CardMedia"' -c 'DROP TYPE "MediaKind"' -c "DELETE FROM _prisma_migrations WHERE migration_name = '$LAST'" ;;
+  *_attempt_base) P -c 'ALTER TABLE "ScheduledDelivery" DROP COLUMN "attemptBase"' -c "DELETE FROM _prisma_migrations WHERE migration_name = '$LAST'" ;;
+  *) echo "no rewind recipe for $LAST: add one to this script"; exit 1 ;;
+esac
 COLS="select table_name||'.'||column_name||':'||data_type||':'||is_nullable from information_schema.columns where table_schema='public' order by 1"
 P -c "$COLS" > /tmp/mawica-dryrun-cols-before.txt
 $PRISMA_SCRATCH npx prisma migrate deploy 2>&1 | tail -2
 P -c "$COLS" > /tmp/mawica-dryrun-cols-after.txt
 P -c "$tables order by 1" > /tmp/mawica-dryrun-after.txt
 diff /tmp/mawica-dryrun-before.txt /tmp/mawica-dryrun-after.txt && echo "row counts identical in every table"
-echo "existing rows defaulted: $(P -c 'select count(*) filter (where "attemptBase" = 0), count(*) from "ScheduledDelivery"')  (zero-defaulted / total)"
+echo "existing rows kept: $(P -c 'select count(*) from "ScheduledDelivery"') schedules, $(P -c 'select count(*) from "Card"') cards"
 $PRISMA_SCRATCH npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code && echo "no drift after upgrade"
 
 echo "== 4. compatibility with the previous application version (expand-only change)"
