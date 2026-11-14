@@ -306,6 +306,8 @@ describe("scheduled cards keep their photo private until published", () => {
     const m = await up(u, await photo(100, 100));
     const r = await sched(u, m.id);
     await cancelSchedule(u, r.schedule.id, T0);
+    // The purge below uses the real clock, so cancel "now" in the database too (T0 is a fixed date that ages out of the grace period).
+    await db.scheduledDelivery.updateMany({ where: { id: r.schedule.id }, data: { cancelledAt: new Date() } });
     expect(await readMedia(m.id, null)).toBeNull();
     expect(await purgeOrphanMedia(new Date())).toMatchObject({ cancelled: expect.any(Number) });
     expect(await db.cardMedia.count({ where: { id: m.id } })).toBe(1); // not yet: inside the grace period

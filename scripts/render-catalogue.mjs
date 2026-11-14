@@ -16,9 +16,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 mkdirSync(OUT, { recursive: true });
 // aspect keys match CardArt's `ratio` prop; width x height are the CSS size of the render viewport; outputs are the delivered widths
 const RATIOS = { "16x10": { w: 1280, h: 800, out: [640, 1280] }, "4x5": { w: 960, h: 1200, out: [480, 960] }, "9x17": { w: 720, h: 1360, out: [360, 720] } };
-const HERO = { "christmas-tree": 8.4, "special-gift": 6.9, "warm-wishes": 8.6, "new-year-2027": 8.9, "new-year-celebration": 5.7 };
+const HERO = { "christmas-tree": 8.6, "special-gift": 7.6, "warm-wishes": 8.6, "new-year-2027": 9.3, "new-year-celebration": 4.95 };
 // camera zoom per card and aspect (the fitted camera frames the whole card with room for the message sheet; thumbnails want the subject larger)
-const ZOOM = { "christmas-tree": { "16x10": 0.76, "4x5": 0.88, "9x17": 0.94 }, "special-gift": { "16x10": 0.94, "4x5": 0.86, "9x17": 0.93 }, "warm-wishes": { "16x10": 0.6, "4x5": 0.78, "9x17": 0.86 }, "new-year-2027": { "16x10": 1.1, "4x5": 1.22, "9x17": 1.32 }, "new-year-celebration": { "16x10": 0.58, "4x5": 0.74, "9x17": 0.84 } };
+const ZOOM = { "christmas-tree": { "16x10": 1.0, "4x5": 0.95, "9x17": 0.95 }, "special-gift": { "16x10": 0.94, "4x5": 0.86, "9x17": 0.93 }, "warm-wishes": { "16x10": 0.97, "4x5": 0.92, "9x17": 0.84 }, "new-year-2027": { "16x10": 1.08, "4x5": 0.98, "9x17": 0.92 }, "new-year-celebration": { "16x10": 0.9, "4x5": 0.9, "9x17": 0.94 } };
 
 const save = async (img, key, ratio) => {
   for (const w of RATIOS[ratio].out) {
@@ -45,7 +45,7 @@ if (!only || only === "snow-globe") {
 // ---- the five 3D scenes ----
 const port = 9960 + Math.floor(Math.random() * 30);
 const dir = mkdtempSync(join(tmpdir(), "render-"));
-const chrome = spawn(CHROME, ["--headless=new", "--no-first-run", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, "about:blank"], { stdio: "ignore" });
+const chrome = spawn(CHROME, ["--headless=new", "--no-first-run", ...(process.env.GPU ? ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"] : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]), `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, "about:blank"], { stdio: "ignore" });
 let page; for (let i = 0; i < 60 && !page; i++) { try { page = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find((t) => t.type === "page"); } catch { /* */ } if (!page) await sleep(250); }
 const ws = new WebSocket(page.webSocketDebuggerUrl); await new Promise((r) => (ws.onopen = r));
 let id = 0; const pending = new Map(); ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && pending.has(d.id)) pending.get(d.id)(d.result ?? d.error); };

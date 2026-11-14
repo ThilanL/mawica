@@ -43,3 +43,87 @@ Gift, Warm Wishes and Celebration were not re-measured after the final run. Thei
 
 ## Tests
 `tests/stage.test.tsx` (24: saved-card compatibility, no three.js in the catalogue or landing bundles, thumbnails exist for every card/ratio/size with the right aspect and sizes, camera sanity and smoothness for each scene on phone and desktop aspects, SSR message and ending for every card, fallbacks, reduced motion, resource release) plus the existing suites. Visual review: `docs/screenshots/catalogue/review/` (side-by-side per card and for the catalogue), `before/` and `after/` raw captures.
+
+---
+
+# Phase 2E.3: visual polish
+
+Baseline `945f022`. No card IDs, routes, layout, wallet, scheduling or shared-stage behaviour changed. The snow globe is untouched.
+
+## A real-device defect found and fixed
+
+All light effects (star halo, candle and bulb glow, the gift's golden light, fireworks, gold dust) are drawn additively. The canvas used to be transparent over a CSS gradient. A software renderer shows additive colour over transparent pixels; a real GPU compositor drops it. Phase 2E.2 was only ever looked at through software WebGL, so on real hardware those effects were missing wherever they fell outside solid geometry. The scene now paints its own backdrop (`scene.background`, built from the same `STAGE_BACKDROP` definition as the CSS gradient), so the canvas is opaque and the effects render the same everywhere. Review and thumbnails are now rendered on the GPU (`GPU=1` on the scripts).
+
+## Material and geometry changes
+
+| Card | Geometry | Materials and light |
+|---|---|---|
+| Warm Christmas Wishes | Rebuilt. Arched opening 4.6 wide by 5.4 high in a wall with a 0.75 deep plaster reveal, recessed sash with glazing bars and a fan, outer casing, deep sill with apron. Outside: sky, crescent moon, two snowy mountain ridges, a snowfield, 30 instanced snow-laden pines (flanks and a far treeline), snowfall at three depths. Inside: four candles in brass holders, pine garland with berries, string lights draped around the arch on a wire, velvet curtains on a brass rod (desktop). | Frost only at the pane edges; faint additive reflection layer on the glass that strengthens as the room warms; cool moonlight through the opening against warm candle and room light; wall light pooled around the window; soft shadows under the sill, candles and beside the curtains (baked gradients, not shadow maps). |
+| New Year Celebration | New tulip flute profile (spline lathe): thin foot, slender stem, bowl that narrows to the rim; separate thin rim ring; liquid follows the bowl. | Fresnel glass shader: nearly clear face-on, brighter at the silhouette, highlights survive transparency. Golden translucent champagne, fine bubbles rising in threads. The rims meet exactly (gap derived from the geometry), a small glint and 18 short sparks; confetti cut from 150 to 64 pieces, smaller, mostly gold. |
+| A Special Gift | Box is now four walls and a floor (a real interior). Bow rebuilt from ribbon strips: two large and two small loops, knot, two tails. | Satin ribbon (low metalness, sheen) instead of mirror gold; the bands slacken, slip and fade; the lid stirs, rises and tips back without intersecting the box and carries the bow; interior gradient glow and a softer light column (about half the previous intensity). Second, tighter contact shadow that reacts to the float. |
+| Magical Christmas Tree | Tiered cones and 3,600 identical needle cones replaced by about 900 boughs (two crossed serrated drooping blades each) in 21 whorls with per-bough length, pitch, roll and colour, plus side shoots; dark core cone. | Vertex shading dark at the trunk to bright at the tips (shadow between boughs); metallic clear-coated ornaments with gold caps; star with halo plus a rayed flare and a stronger light on the top boughs; camera starts low and rises. |
+| New Year 2027 | Deeper bevel (8 segments), slightly deeper numerals. | Two golds (polished faces, deeper sides); fireworks are now a pure function of time (seekable, so thumbnails show the real show) at depths from 3 to 11 units, with a rising rocket, twinkle-out, a bloom of light per burst and a light that tints the numerals; the reveal flash is softer; low camera. |
+| Snow Globe | None. | None. |
+
+## Can procedural geometry reach the required standard?
+
+Partly. Stated plainly, card by card:
+
+- **Glasses, 2027, gift:** hard-surface objects. Procedural geometry with PBR materials is adequate; what separates them from a product render is ray-traced refraction and caustics (glasses) and micro-surface detail (ribbon weave, paper grain). Those need either an offline render or baked textures.
+- **Tree:** much better, still visibly stylised: boughs are blades, not needles. A sculpted GLB tree (about 60-100k triangles with baked normal and ambient-occlusion maps) would be the real fix.
+- **Warm Christmas Wishes:** the outdoor view is illustrated (painted textures on planes plus simple pines); it reads as a storybook scene, not a photograph. To match the snow globe it needs either an approved pre-rendered backdrop plate for the view through the window (the 3D window, candles, lights and snow would stay live), or sculpted pines and a displaced terrain.
+- **None of the five is photorealistic.** The snow globe remains the only card at that standard because it is pre-rendered art.
+
+Assets that would lift the set: GLB tree, GLB pine (window), pre-rendered or painted landscape plate (window), baked normal/roughness textures for ribbon and wood, an HDR studio environment in place of the generated room environment.
+
+## Performance (re-measured after the polish, production build)
+
+Two sets, both headless Chrome. **No iPhone or Android device was tested, so real mobile performance is unverified.**
+
+GPU (this Mac's GPU through Metal; "mobile" is a 390x844 viewport with 4x CPU throttling, not a phone GPU):
+
+| Card | Desktop | Mobile viewport | Draw calls | Triangles (desktop / mobile) |
+|---|---|---|---|---|
+| Christmas Tree | 60 fps | 60 fps | 30 | 94.8k / 48.5k |
+| Special Gift | 60 fps | 60 fps | 26-28 | 8.6k / 6.0k |
+| Warm Wishes | 60 fps | 60 fps | 93 / 78 | 26.9k / 18.8k |
+| New Year 2027 | 60 fps | 60 fps | 9-16 | 16.3k |
+| Celebration | 60 fps | 60 fps | 17 | 44.4k / 27.8k |
+
+First contentful paint 0.11-0.20 s, first 3D frame 1.6-1.8 s. All five drop to about 30 fps while reading and stop rendering after rest.
+
+Software WebGL (SwiftShader, mobile viewport, 4x CPU throttle, performance guard bypassed): a floor for devices with no usable GPU.
+
+| Card | During the animation | Reading |
+|---|---|---|
+| Christmas Tree | 10-21 fps | 20 fps |
+| Special Gift | 27-36 fps | 30 fps |
+| Warm Wishes | 14-21 fps | 20 fps |
+| New Year 2027 | 30-58 fps | 30 fps |
+| Celebration | 41-55 fps | 30 fps |
+
+The tree and the window are the heaviest. The production guard is unchanged (below 14 fps the card switches to the CSS scene), so the tree's opening seconds on a software-only device would trigger the fallback. The tree's desktop triangle count roughly doubled (50.6k to 94.8k); the mobile count rose from 38k to 48.5k.
+
+Bundles: `/` 613.2 KB raw / 191.9 KB gzip, `/create` 722.0 / 222.4, `/sign-in` 595.2 / 185.5: identical to Phase 2E.2. No three.js in catalogue or landing bundles. Card page JS 464-468 KB encoded, of which the 3D chunk is 233.5 KB. Heap 10-24 MB (the window is the largest because of its textures).
+
+## Regression results
+
+Unit and integration 425/425 (two new), saved-card compatibility 35/35, auth 66/66, wallet 51/51, scheduling 47/47, delivery worker 25/25, load and crash 20/20, premium card 47/47, cinematic journey 33/33, scheduling browser 83/83, account browser 27/27. TypeScript and ESLint clean.
+
+`tests/media.test.ts` has a two-line fix for a calendar-dependent test (it cancelled at a fixed date and purged against the real clock); the same fix is on `chore/github-ci`.
+
+## Review material
+
+- `docs/screenshots/catalogue/review/`: before/after catalogue (desktop, mobile) and one sheet per card.
+- `docs/screenshots/catalogue/recordings/`: real-time playback of all six cards, desktop and mobile, as animated WebP (6 fps capture, heavily compressed, so they look blockier and less smooth than the live card).
+- `docs/screenshots/catalogue/after/`: opening, main, greeting and ending stills. The small stats line in the corner is the development overlay.
+
+## Remaining visual limitations
+
+- Nothing here is photorealistic; only the snow globe is. See "Can procedural geometry reach the required standard?".
+- Window: mountains and pines are illustrated; the curtains are desktop-only (phones frame the window alone); shadows are baked gradients.
+- Glasses: no refraction (the champagne is not distorted through the glass); the liquid surface tilts with the flute instead of staying level.
+- Gift: the ribbon bands slip and fade rather than untie; no cloth simulation.
+- Tree: boughs are serrated blades, not needles; no self-shadowing beyond vertex shading.
+- 2027: numerals are built from arcs and bars, not a typeface.
+- Reduced motion and the CSS fallback were re-checked by the compatibility suite, not re-reviewed by eye for every card.
