@@ -44,7 +44,11 @@ describe("AR-1a: AR model and files", () => {
   });
   it("AR code stays out of the card, catalogue and homepage bundles until a later phase loads it on demand", () => {
     const importers = walk(path.join(root, "src")).filter((f) => /\.(tsx?|mjs)$/.test(f) && !f.includes(`${path.sep}lab${path.sep}`) && !f.includes(`${path.sep}ar${path.sep}`));
-    for (const f of importers) expect(readFileSync(f, "utf8"), f).not.toMatch(/premium3d\/ar\/|exporters\/(GLTF|USDZ)Exporter/);
+    for (const f of importers) {
+      const src = readFileSync(f, "utf8").replace(/import type [^;]+;/g, ""); // type-only imports are erased from the bundle
+      const allowed = f.endsWith(`${path.sep}ArButton.tsx`) ? src.replace(/await import\("\.\/premium3d\/ar\/webxr"\)/, "") : src; // the one on-tap dynamic import
+      expect(allowed, f).not.toMatch(/premium3d\/ar\/|exporters\/(GLTF|USDZ)Exporter/);
+    }
   });
   it("the AR lab exists only in development (404 in production unless ENABLE_LAB=1)", () => {
     expect(read("src/app/(lab)/lab/ar/page.tsx")).toMatch(/NODE_ENV === "production" && process\.env\.ENABLE_LAB !== "1"\) notFound\(\)/);

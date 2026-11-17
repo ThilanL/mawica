@@ -159,3 +159,66 @@ All within the budget (GLB ≤ 1.5 MB, USDZ ≤ 3 MB). The USDZ is larger becaus
 
 ### How to regenerate
 Run the dev server, then `node scripts/ar-export.mjs` (writes `public/ar/`). Preview at `/lab/ar` (`?t=4.6` freezes a moment).
+
+---
+
+## AR-1b results (2026-11-17): Android WebXR
+
+**Done, but not yet run on a phone.** The full Android flow is built and its parts are checked on the desktop. A real WebXR AR session needs an ARCore Android phone, which I don't have here.
+
+### Recipient flow
+1. On a published **A Special Gift** card, a **View in AR** button appears beside Replay, but only if `navigator.xr.isSessionSupported("immersive-ar")` is true. Everywhere else (iPhone, desktop, Firefox, unsupported Android) nothing renders, so the card is exactly as before.
+2. Tapping it downloads the AR code (2 chunks) and asks for the AR session at once, while the tap still counts as user activation. The scene is built only after the session starts.
+3. "Move your phone slowly to find the floor" → a gold ring follows the floor (hit-test) → "Tap the floor to place your gift".
+4. The gift appears facing the viewer with a soft contact shadow. It plays the same opening as the AR files, with a real golden light inside the box.
+5. Once the lid has tipped back (~4.9 s after placing), the wish card rises out of the box and turns to face the viewer. It shows "For name", the greeting, the message (capped at 220 characters / 7 lines), "With love, sender" and the Mawica wordmark.
+6. A bottom sheet then shows the full message (scrollable), the ending ("mawica. Send your feelings to others.") and **Create your own card**. **Close** is always available and ends the session, returning to the card.
+
+### Privacy
+- The wish is drawn on the phone from the text already on the published card page. Nothing is uploaded, no file is created, and the drawing exists only in that tab's memory. A test asserts the button makes no network calls.
+- The button is only on `/c/[slug]`, which already returns 404 unless the card is `PUBLISHED`. The create-flow preview, scheduled and cancelled cards never get it. The private photo is not used.
+
+### Text
+`ar/wish.ts`, unit-tested:
+- Text is cut by grapheme, so it never splits an emoji, family emoji, flag or accented letter. It prefers a word boundary when cutting.
+- Text wraps to the panel width, keeps the sender's line breaks, and breaks words longer than a line.
+- Names are capped to one line with an ellipsis.
+- Hebrew and Arabic messages are drawn right-to-left; the labels and wordmark stay left-to-right.
+- Markup-like text such as `<b>` and `&` is drawn as plain characters on a canvas, never parsed.
+- The phone's own fonts draw the text, so emoji come from the system font.
+
+### Reduced motion
+The gift appears already open with the wish card in place, and the sheet shows at once with no slide-in.
+
+### Errors
+- **Permission refused:** "AR needs your permission to use the camera. Tap View in AR to try again."
+- **Any other failure:** "AR couldn't start on this phone."
+- **No surface tracking:** the session ends with a message.
+
+### Checks run (desktop, headless Chrome)
+- **Real Chrome:** the button does not appear, because desktop Chrome has no `immersive-ar`.
+- **Simulated AR-capable browser** (fake `navigator.xr` that refuses the session):
+  - the button appears beside Replay;
+  - tapping loads 2 new chunks and calls `requestSession` once;
+  - the permission message shows, and Close hides the overlay.
+  
+  Screenshot: `docs/screenshots/ar/ar-button-and-permission-error.webp`.
+- **Scene without WebXR** at `/lab/ar?live=1` (`&t=`, `&name=`, `&msg=`, `&from=`, `&reduced=1`): checked the default wish, a 40-character name with a long emoji message (clipped, full text in the sheet), and a Hebrew message. Screenshot: `docs/screenshots/ar/android-scene-lab-preview.webp`.
+- **Bundles:**
+  - `/`, `/create` and `/sign-in` are unchanged (191.9 / 222.4 / 185.5 KB gzip).
+  - The card page grows by 1.1 KB gzip (179.0 → 180.1), which is the button and overlay. The AR scene, three.js scene code and WebXR loader download only on tap.
+- **Tests:** 441/441 (9 new across `tests/ar-wish.test.ts` and `tests/ar-gift.test.ts`). TypeScript and ESLint clean.
+
+### Not verified (needs an ARCore Android phone)
+- That the session starts with the site's current `Permissions-Policy`. `camera=()` is set and `xr-spatial-tracking` is not listed. I have not changed the header yet; if AR fails to start on a device, adding `xr-spatial-tracking=(self)` is the first fix.
+- Hit-test placement, real-world scale, facing direction, lighting on real floors, frame rate, heat and memory.
+- That taps on the overlay controls don't also place the gift (`beforexrselect` is handled in code but untested on a device).
+- Whether the scene reads well outdoors and in bright rooms (no light estimation in the MVP).
+
+### How to test on your Android phone
+1. Use Chrome on an ARCore-supported phone, on the same Wi-Fi as the Mac.
+2. WebXR needs HTTPS, or `localhost` through USB port forwarding:
+   - connect by USB;
+   - open `chrome://inspect` on the Mac → Port forwarding → `3010` → `localhost:3010`;
+   - on the phone, open `http://localhost:3010/c/<slug of a published special-gift card>`.
+3. Tap **View in AR**.
