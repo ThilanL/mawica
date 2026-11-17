@@ -9,6 +9,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { AR_LENGTH, buildGiftAR } from "@/components/cards/premium3d/ar/gift-ar";
 import { createGiftArScene, type GiftArScene } from "@/components/cards/premium3d/ar/scene";
+import type { WishText } from "@/components/cards/premium3d/ar/wish";
 
 type Exported = { glb: ArrayBuffer; usdz: ArrayBuffer; usdzStatic: ArrayBuffer; glbStatic: ArrayBuffer };
 
@@ -18,9 +19,11 @@ async function exportAll(): Promise<Exported> {
   try {
     const gltf = new GLTFExporter(), usdz = new USDZExporter();
     const glb = (await gltf.parseAsync(gift.scene, { binary: true, animations: [clip], maxTextureSize: 1024 })) as ArrayBuffer;
+    gift.scene.updateMatrixWorld(true); // USDZExporter uses stored matrices: never rely on another exporter having refreshed them
     const usdzAnim = await usdz.parseAsync(gift.scene, { animations: [clip], animationFrameRate: 30, quickLookCompatible: true });
     gift.pose(AR_LENGTH); // opened, at rest
     const glbStatic = (await gltf.parseAsync(gift.scene, { binary: true, maxTextureSize: 1024 })) as ArrayBuffer;
+    gift.scene.updateMatrixWorld(true);
     const usdzStatic = await usdz.parseAsync(gift.scene, { quickLookCompatible: true });
     return { glb, usdz: usdzAnim.buffer as ArrayBuffer, usdzStatic: usdzStatic.buffer as ArrayBuffer, glbStatic };
   } finally { gift.dispose(); }
@@ -66,6 +69,12 @@ export function ArLab() {
       (window as unknown as { __arReport?: unknown }).__arReport = report;
       return x;
     });
+    // iPhone path: the personalised USDZ exactly as the card page builds it (for usdchecker / usdrecord checks)
+    (window as unknown as { __arQuickLook?: (w: WishText, reduced: boolean) => Promise<{ b64: string; ms: number; bytes: number; clipped: boolean }> }).__arQuickLook = async (w, reduced) => {
+      const { exportGiftUSDZ } = await import("@/components/cards/premium3d/ar/quicklook");
+      const r = await exportGiftUSDZ(w, { reduced });
+      return { b64: b64(await r.blob.arrayBuffer()), ms: r.ms, bytes: r.bytes, clipped: r.clipped };
+    };
     (window as unknown as { __arExport?: () => Promise<Record<string, string>> }).__arExport = async () => { const x = await exporting; return { glb: b64(x.glb), glbStatic: b64(x.glbStatic), usdz: b64(x.usdz), usdzStatic: b64(x.usdzStatic) }; };
 
     const t0 = performance.now();

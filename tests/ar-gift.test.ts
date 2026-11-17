@@ -46,7 +46,7 @@ describe("AR-1a: AR model and files", () => {
     const importers = walk(path.join(root, "src")).filter((f) => /\.(tsx?|mjs)$/.test(f) && !f.includes(`${path.sep}lab${path.sep}`) && !f.includes(`${path.sep}ar${path.sep}`));
     for (const f of importers) {
       const src = readFileSync(f, "utf8").replace(/import type [^;]+;/g, ""); // type-only imports are erased from the bundle
-      const allowed = f.endsWith(`${path.sep}ArButton.tsx`) ? src.replace(/await import\("\.\/premium3d\/ar\/webxr"\)/, "") : src; // the one on-tap dynamic import
+      const allowed = f.endsWith(`${path.sep}ArButton.tsx`) ? src.replace(/await import\("\.\/premium3d\/ar\/(webxr|quicklook)"\)/g, "") : src; // the one on-tap dynamic import
       expect(allowed, f).not.toMatch(/premium3d\/ar\/|exporters\/(GLTF|USDZ)Exporter/);
     }
   });

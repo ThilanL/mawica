@@ -222,3 +222,74 @@ The gift appears already open with the wish card in place, and the sheet shows a
    - open `chrome://inspect` on the Mac → Port forwarding → `3010` → `localhost:3010`;
    - on the phone, open `http://localhost:3010/c/<slug of a published special-gift card>`.
 3. Tap **View in AR**.
+
+---
+
+## AR-1c results (2026-11-18): iPhone AR Quick Look
+
+**Done, but not yet opened on an iPhone.** The personalised file is built and checked with Apple's own USD tools on this Mac. Quick Look itself only runs on iOS.
+
+### Recipient flow
+1. On a published **A Special Gift** card in Safari (or another iOS browser where `<a rel="ar">` is supported), **View in AR** appears beside Replay. Android with WebXR still takes the AR-1b path. Other browsers see nothing.
+2. Tapping it shows "Preparing your gift…" and loads the AR code. The phone then builds a USDZ: the same gift and opening as `public/ar/special-gift.usdz`, plus the personal wish card. The card rises out of the box once the lid has tipped back.
+3. The file opens in AR Quick Look from a `blob:` URL. Quick Look's banner shows "mawica. / Send your feelings to others" with a **Create your own** button, which takes the recipient to `/create`.
+4. Closing Quick Look returns to the card page, where the full message is.
+
+### iPhone-specific design
+- **The wish card faces the front of the gift.** Quick Look cannot turn it towards the viewer, and it places models facing the camera.
+- **It grows from inside the box.** Quick Look cannot fade, so the card scales up from inside the box instead.
+- **It has a plain paper back**, so walking around it never shows a hole.
+- **Long messages are shortened.** The card shows up to 220 characters / 7 lines, then adds "Read the full message on your card", because there is no overlay inside Quick Look.
+- **Reduced motion:** a separate file with no animation, showing the gift open and the wish card in place.
+- **The banner text is fixed** and contains no personal data.
+
+### Privacy
+- The USDZ is built in the recipient's browser from the text already on the published card page. It is passed to Quick Look as an in-memory `blob:` URL.
+- It is never uploaded, stored or given a public URL.
+- The URL is revoked on the next view or when the page closes. Tests assert there are no network calls.
+
+### Defect found and fixed
+`USDZExporter` writes each object's stored transform without refreshing it. As a result:
+- the wish card's paper back sat on top of its front, so the card looked blank;
+- the reduced-motion file showed the box closed.
+
+The fix refreshes transforms before every export, including in the lab exporter. The generic `public/ar/*.usdz` were re-exported as a precaution and still render correctly.
+
+### Checks
+- **Personalised files exported in the browser** (desktop Chrome, software WebGL):
+
+  | Case | Size | Export time | Clipped |
+  |---|---|---|---|
+  | default message | 2.8 MB | 0.21 s | no |
+  | 500-char message, 40-char name, emoji/accents and `<b>&amp;</b>` in the sender | 2.9 MB | 0.56 s | yes |
+  | reduced motion | 2.0 MB | 0.15 s | no |
+- **Apple `usdchecker --arkit`:** passes on all three.
+- **Apple `usdrecord`** frames at 0, 4, 5.5 and 7 s plus the reduced-motion still:
+  - the gift is closed, the lid tips back with sparkles, then the wish card rises with the real text and the note;
+  - the reduced-motion still is open with the card in place.
+  
+  See `docs/screenshots/ar/iphone-personalised-usdz-frames.webp`. `usdrecord` crops the top of the frame and has no environment light, so the gold looks brown.
+- **Bundles:**
+  - `/`, `/create` and `/sign-in` are unchanged.
+  - The card page is 180.4 KB gzip (+0.3 KB over AR-1b) for the iPhone detection and the "Preparing" hint.
+  - The exporter loads only on tap.
+- **Tests:** 443/443. TypeScript and ESLint clean. `/lab/ar` returns 404 in production.
+
+### Not verified (needs an iPhone)
+- That Quick Look opens a `blob:` URL that has the banner fragment (`#checkoutTitle=…`) appended. If the banner or the file fails, the first fix is dropping the fragment, which loses the branded banner.
+- That the AR launch still counts as user-initiated after the ~0.2–0.6 s export.
+- **Export time and memory on real iPhones.** Desktop Chrome took 0.15–0.56 s; older iPhones will be slower.
+- How Quick Look actually looks:
+  - real-world scale;
+  - placement facing the viewer;
+  - lighting of gold and satin (sheen is not supported);
+  - the clip looping, which snaps the lid shut after each play;
+  - legibility of the wish card text at arm's length.
+- In-app browsers (WhatsApp, Instagram): probably no `rel="ar"` support, so the button would not appear. That is AR-1d.
+
+### How to test on your iPhone
+Quick Look needs the page over HTTPS or on `localhost`, so a plain LAN address (`http://192.168…`) won't offer AR. Options:
+- **Safari Web Inspector** with the dev server reachable over HTTPS (for example `next dev --experimental-https`, trusting the certificate on the phone).
+- **A temporary HTTPS tunnel.** This is a deployment-like step I won't take without your approval.
+
+Then open `/c/kzatf7gteagc` and tap **View in AR**.

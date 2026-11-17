@@ -8,7 +8,7 @@ import { layoutWish, type WishText } from "./wish";
  * (a real golden light inside the box, and the personal wish panel drawn on the phone). Everything personal is built here in memory and never
  * leaves the page.
  */
-const PANEL_W = 0.28, PANEL_H = 0.36; // metres: a greeting card held above a 30 cm box
+export const PANEL_W = 0.28, PANEL_H = 0.36; // metres: a greeting card held above a 30 cm box
 const TEX_W = 768, TEX_H = Math.round((TEX_W * PANEL_H) / PANEL_W);
 /** Moments of the AR clip (seconds after placing). The wish rises once the lid has tipped back. */
 export const WISH_RISE = 7.5 - AR_FROM, WISH_IN = 1.6, WISH_DONE = WISH_RISE + WISH_IN;
@@ -20,7 +20,8 @@ function fonts() {
 }
 
 /** Draws the wish card: ivory paper, gold edge, "For name", greeting, message excerpt, "With love, sender" and the Mawica wordmark. */
-export function wishTexture(w: WishText) {
+/** `note`: a line shown under a shortened message where no overlay can show the rest (iPhone Quick Look). */
+export function wishTexture(w: WishText, opts: { note?: string } = {}) {
   const c = document.createElement("canvas"); c.width = TEX_W; c.height = TEX_H;
   const x = c.getContext("2d")!, f = fonts(), pad = 56, width = TEX_W - pad * 2;
   const font = { small: `600 34px ${f.sans}`, title: `600 64px ${f.serif}`, body: `400 42px ${f.sans}` };
@@ -37,6 +38,7 @@ export function wishTexture(w: WishText) {
   y += 6; x.fillStyle = "#d9a64e"; x.fillRect(TEX_W / 2 - 50, y - 24, 100, 4); y += 40;
   x.font = font.body; x.fillStyle = "#3d2f45"; x.direction = l.rtl ? "rtl" : "ltr"; for (const line of l.message) { x.fillText(line, TEX_W / 2, y); y += 56; }
   x.direction = "ltr"; // only the message follows its own script direction; labels and the wordmark stay left-to-right
+  if (l.clipped && opts.note) { x.font = `500 26px ${f.sans}`; x.fillStyle = "#9a7a5a"; x.fillText(opts.note, TEX_W / 2, y + 6); y += 40; }
   y = Math.max(y + 24, TEX_H - pad - 104);
   x.font = `italic ${font.small}`; x.fillStyle = "#6a4a7a"; x.fillText(l.from, TEX_W / 2, y);
   x.font = `700 40px ${f.serif}`; x.fillStyle = "#8a5fa0"; x.fillText("mawica.", TEX_W / 2, TEX_H - pad + 8);

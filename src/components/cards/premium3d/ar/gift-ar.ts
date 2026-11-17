@@ -37,7 +37,9 @@ function twoSided(g: THREE.BufferGeometry) {
 
 type Spark ={ mesh: THREE.Mesh; at: number; ang: number; rad: number; top: number; turn: number };
 
-export type GiftAR = { scene: THREE.Group; anchor: THREE.Object3D; pose(time: number): void; clip(): THREE.AnimationClip; dispose(): void };
+/** Extra animated nodes (the personal wish on iPhone) sampled into the same clip. Node names must be unique. */
+export type ClipExtra = { nodes: THREE.Object3D[]; pose(time: number): void };
+export type GiftAR = { scene: THREE.Group; anchor: THREE.Object3D; pose(time: number): void; clip(extra?: ClipExtra): THREE.AnimationClip; dispose(): void };
 
 /** Builds the AR gift. `pose(time)` sets the model at a moment of the AR clip (seconds from its start); `clip()` samples it into keyframes. */
 export function buildGiftAR(): GiftAR {
@@ -83,12 +85,12 @@ export function buildGiftAR(): GiftAR {
     }
   }
 
-  function clip() {
-    const nodes = [parts.ribbon, parts.lid, parts.bow, ...sparks.map((k) => k.mesh)];
+  function clip(extra?: ClipExtra) {
+    const nodes = [parts.ribbon, parts.lid, parts.bow, ...sparks.map((k) => k.mesh), ...(extra?.nodes ?? [])];
     const n = Math.round(AR_LENGTH * AR_FPS) + 1, times = new Float32Array(n);
     const pos = nodes.map(() => new Float32Array(n * 3)), quat = nodes.map(() => new Float32Array(n * 4)), scl = nodes.map(() => new Float32Array(n * 3));
     for (let i = 0; i < n; i++) {
-      const time = i / AR_FPS; times[i] = time; pose(time);
+      const time = i / AR_FPS; times[i] = time; pose(time); extra?.pose(time);
       nodes.forEach((o, j) => { o.position.toArray(pos[j], i * 3); o.quaternion.toArray(quat[j], i * 4); o.scale.toArray(scl[j], i * 3); });
     }
     const tracks = nodes.flatMap((o, j) => [
@@ -96,7 +98,7 @@ export function buildGiftAR(): GiftAR {
       new THREE.QuaternionKeyframeTrack(`${o.name}.quaternion`, times, quat[j]),
       new THREE.VectorKeyframeTrack(`${o.name}.scale`, times, scl[j]),
     ]);
-    pose(0);
+    pose(0); extra?.pose(0);
     return new THREE.AnimationClip("open", AR_LENGTH, tracks);
   }
 

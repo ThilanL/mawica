@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));
 import { capText, clampLines, graphemes, isRtl, layoutWish, PANEL_MESSAGE_LINES, wrapLines } from "@/components/cards/premium3d/ar/wish";
 
 const mono = (s: string) => graphemes(s).length * 10; // 10 px per grapheme
@@ -74,5 +76,26 @@ describe("AR-1b: View in AR button and card page", () => {
     expect(xr).toMatch(/requiredFeatures: \["hit-test"\]/);
     expect(xr.indexOf("requestSession")).toBeLessThan(xr.indexOf("new THREE.WebGLRenderer")); // ask while the tap still counts as user activation
     for (const f of ["CardPlayer.tsx", "scenes.ts", "scenes.tsx"].map((n) => `src/components/cards/${n}`)) { try { expect(readFileSync(f, "utf8")).not.toMatch(/ArButton|premium3d\/ar/); } catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; } }
+  });
+});
+
+describe("AR-1c: iPhone Quick Look", () => {
+  it("builds the personal file on the phone, refreshes transforms before export, and hands Quick Look an in-memory blob", async () => {
+    const { readFileSync } = await import("node:fs");
+    const ql = readFileSync("src/components/cards/premium3d/ar/quicklook.ts", "utf8");
+    expect(ql).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon/);
+    expect(ql.match(/updateMatrixWorld\(true\)/g)?.length).toBeGreaterThanOrEqual(2); // USDZExporter writes stored matrices
+    expect(ql).toMatch(/quickLookCompatible: true/);
+    expect(ql).toMatch(/a\.rel = "ar"/);
+    expect(ql).toMatch(/checkoutTitle: "mawica\.", checkoutSubtitle: "Send your feelings to others", callToAction: "Create your own"/); // fixed banner, no personal text
+    const btn = readFileSync("src/components/cards/ArButton.tsx", "utf8");
+    expect(btn).toMatch(/URL\.createObjectURL\(blob\)/);
+    expect(btn).toMatch(/URL\.revokeObjectURL/);
+    expect(btn).toMatch(/relList\.supports\("ar"\)/);
+    expect(btn).toMatch(/setMode\(xr \? "webxr" : quickLook\(\) \? "quicklook" : null\)/); // Android WebXR first, Quick Look second, otherwise nothing
+  });
+  it("a shortened message on the iPhone card points to the full text on the card page", async () => {
+    const { QL_NOTE } = await import("@/components/cards/premium3d/ar/quicklook");
+    expect(QL_NOTE).toBe("Read the full message on your card");
   });
 });
