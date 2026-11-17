@@ -63,7 +63,7 @@ describe("AR-1b: View in AR button and card page", () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { createElement } = await import("react");
     const { ArButton } = await import("@/components/cards/ArButton");
-    expect(renderToStaticMarkup(createElement(ArButton, { wish: { name: "Anna", greeting: "Hi", message: "m", sender: "Sam" } }))).toBe("");
+    expect(renderToStaticMarkup(createElement(ArButton, { wish: { name: "Anna", greeting: "Hi", message: "m", sender: "Sam" }, slug: "abc123def456" }))).toBe("");
   });
   it("only the published-card page offers AR, only for A Special Gift, and the wish comes from the page's own data", async () => {
     const { readFileSync } = await import("node:fs");
@@ -92,7 +92,7 @@ describe("AR-1c: iPhone Quick Look", () => {
     expect(btn).toMatch(/URL\.createObjectURL\(blob\)/);
     expect(btn).toMatch(/URL\.revokeObjectURL/);
     expect(btn).toMatch(/relList\.supports\("ar"\)/);
-    expect(btn).toMatch(/setMode\(xr \? "webxr" : quickLook\(\) \? "quicklook" : null\)/); // Android WebXR first, Quick Look second, otherwise nothing
+    expect(btn).toMatch(/setMode\(chooseArRoute\(\{ webxr: xr, quickLook: quickLook\(\)/); // order and fallbacks: tests/ar-support.test.ts
   });
   it("a shortened message on the iPhone card points to the full text on the card page", async () => {
     const { QL_NOTE } = await import("@/components/cards/premium3d/ar/quicklook");

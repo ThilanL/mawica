@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
+import { chooseArRoute, chromeIntent, inAppBrowser, isAndroid, type ArRoute } from "./arSupport";
 import type { ArHandle, ArState } from "./premium3d/ar/webxr";
 import type { WishText } from "./premium3d/ar/wish";
 
@@ -18,13 +19,17 @@ const HINT: Partial<Record<UiState, string>> = {
 
 /**
  * "View in AR" for the recipient. Android Chrome with ARCore: a live WebXR session (AR-1b). iPhone: AR Quick Look with a USDZ built on the phone
- * (AR-1c). Shown only where one of these works; everywhere else it renders nothing and the card is exactly as before. The AR code is fetched only
- * when the button is tapped. The personal wish is built on the phone from text already on this page; nothing is uploaded or stored.
+ * (AR-1c). A computer gets the card's QR code to open it on a phone, and a phone's in-app browser (Instagram, Facebook…) gets "open in Safari /
+ * Chrome" help (AR-1d). Any other phone or tablet gets no button, and the card is exactly as before. The AR code is fetched only when the button
+ * is tapped. The personal wish is built on the phone from text already on this page; nothing is uploaded or stored.
  */
-export function ArButton({ wish }: { wish: WishText }) {
+export function ArButton({ wish, slug }: { wish: WishText; slug: string }) {
   const reduced = usePrefersReducedMotion();
   const router = useRouter();
-  const [mode, setMode] = useState<"webxr" | "quicklook" | null>(null);
+  const [mode, setMode] = useState<ArRoute>(null);
+  const [help, setHelp] = useState<"desktop" | "in-app" | null>(null);
+  const [copied, setCopied] = useState(false);
+  const helpRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
   const [state, setState] = useState<UiState | null>(null);
   const [clipped, setClipped] = useState(false);
@@ -38,7 +43,7 @@ export function ArButton({ wish }: { wish: WishText }) {
     let live = true;
     const quickLook = () => { try { return document.createElement("a").relList.supports("ar"); } catch { return false; } };
     (navigator.xr ? navigator.xr.isSessionSupported("immersive-ar").catch(() => false) : Promise.resolve(false))
-      .then((xr) => { if (live) setMode(xr ? "webxr" : quickLook() ? "quicklook" : null); });
+      .then((xr) => { if (live) setMode(chooseArRoute({ webxr: xr, quickLook: quickLook(), ua: navigator.userAgent, touchPoints: navigator.maxTouchPoints })); });
     return () => { live = false; handle.current?.end(); dropQuick(); };
   }, []);
 
@@ -67,7 +72,21 @@ export function ArButton({ wish }: { wish: WishText }) {
     }
   }
 
+  // The help dialog: focus moves into it, Escape closes it.
+  useEffect(() => {
+    if (!help) return;
+    helpRef.current?.querySelector<HTMLElement>("button, a")?.focus();
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setHelp(null); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [help]);
+
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(window.location.href); setCopied(true); } catch { setCopied(false); }
+  }
+
   async function start() {
+    if (mode === "desktop" || mode === "in-app") { setCopied(false); setHelp(mode); return; }
     if (mode === "quicklook") return startQuickLook();
     setError(null); setClipped(false);
     flushSync(() => { setActive(true); setState("starting"); }); // the overlay root must be in the page before the session asks for it
@@ -114,6 +133,30 @@ export function ArButton({ wish }: { wish: WishText }) {
           </section>
         )}
       </div>
+      {help && (
+        <div className="ar-dialog-wrap" onClick={(e) => { if (e.target === e.currentTarget) setHelp(null); }}>
+          <div ref={helpRef} role="dialog" aria-modal="true" aria-labelledby="ar-help-title" className="ar-dialog">
+            {help === "desktop" ? (
+              <>
+                <h2 id="ar-help-title" className="ar-dialog-title">See this gift in your room</h2>
+                <p className="ar-dialog-text">Scan the code with an iPhone or an Android phone, then tap <strong>View in AR</strong>.</p>
+                {/* eslint-disable-next-line @next/next/no-img-element -- generated per card by our own QR route; loaded only when this dialog opens */}
+                <img src={`/c/${slug}/qr.png`} alt="QR code that opens this card" width={200} height={200} className="ar-qr" />
+                <p className="ar-dialog-small">AR works in Safari on iPhone and in Chrome on most Android phones.</p>
+              </>
+            ) : (
+              <>
+                <h2 id="ar-help-title" className="ar-dialog-title">Open in your browser for AR</h2>
+                <p className="ar-dialog-text">{inAppBrowser(navigator.userAgent) === "an app" ? "This app's" : `${inAppBrowser(navigator.userAgent)}'s`} built-in browser can&apos;t show AR. Open this card in {isAndroid(navigator.userAgent) ? "Chrome" : "Safari"} and tap <strong>View in AR</strong> there.</p>
+                {isAndroid(navigator.userAgent) && <a href={chromeIntent(window.location.href)} className="cin-pill cin-pill-primary">Open in Chrome</a>}
+                <button type="button" onClick={copyLink} className="cin-pill">{copied ? "Link copied" : "Copy link"}</button>
+                {!isAndroid(navigator.userAgent) && <p className="ar-dialog-small">Or use the app&apos;s menu (••• or the share icon) and choose <strong>Open in Safari</strong>.</p>}
+              </>
+            )}
+            <button type="button" onClick={() => setHelp(null)} className="ar-dialog-close">Close</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

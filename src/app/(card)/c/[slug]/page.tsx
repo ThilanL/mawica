@@ -28,9 +28,9 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
     <div className="relative h-dvh bg-midnight">
       <CardPlayer card={{ templateKey: card.templateKey, recipientName: card.recipientName, senderName: card.senderName, message: card.message, media: card.media ? { kind: "image", src: `/api/media/${card.media.id}`, width: card.media.width, height: card.media.height } : null }} />
       {card.templateKey === "special-gift" && (
-        // Beside Replay. Renders nothing unless the browser can start AR (Phase AR-1b: Android WebXR); the AR code loads only on tap.
+        // Beside Replay. AR on Android (WebXR) and iPhone (Quick Look), a QR hand-off on computers, help in in-app browsers; nothing on other phones. AR code loads only on tap.
         <div className="absolute right-[6.75rem] top-3 z-20">
-          <ArButton wish={{ name: card.recipientName, greeting: getTemplate(card.templateKey).greeting, message: card.message, sender: card.senderName }} />
+          <ArButton wish={{ name: card.recipientName, greeting: getTemplate(card.templateKey).greeting, message: card.message, sender: card.senderName }} slug={card.slug} />
         </div>
       )}
       <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex items-center justify-center gap-4 pb-[env(safe-area-inset-bottom)]">

@@ -293,3 +293,46 @@ Quick Look needs the page over HTTPS or on `localhost`, so a plain LAN address (
 - **A temporary HTTPS tunnel.** This is a deployment-like step I won't take without your approval.
 
 Then open `/c/kzatf7gteagc` and tap **View in AR**.
+
+---
+
+## AR-1d results (2026-11-18): button, detection and fallbacks
+
+### Who sees what
+The decision is made by `src/components/cards/arSupport.ts` (pure and unit-tested), checked in this order on a published **A Special Gift** card:
+
+| Browser | Gets |
+|---|---|
+| Android Chrome with ARCore (`immersive-ar` supported) | Live WebXR AR (AR-1b) |
+| iPhone / iPad browser that opens `rel="ar"` | AR Quick Look with the personal file (AR-1c) |
+| Phone in-app browser that can do neither (Instagram, Facebook, Messenger, WhatsApp, Snapchat, TikTok, LINE, WeChat, LinkedIn, Pinterest, X, Google app, any Android WebView) | **View in AR** opens "Open in your browser for AR". Android gets **Open in Chrome** (an intent link that falls back to the page) and **Copy link**. iPhone gets **Copy link** and "use the app's menu → Open in Safari". |
+| Computer | **View in AR** opens "See this gift in your room" with the card's QR code (the existing `/c/[slug]/qr.png`, loaded only when the dialog opens) |
+| Any other phone or tablet (Firefox, Android without ARCore, iPad without AR) | No button; the card is exactly as before |
+
+The dialogs close with Close, Escape or a tap outside, and focus moves into them on open.
+
+### Checks
+- **Headless Chrome, all four routes:**
+  - **Desktop:** QR dialog; the QR is fetched only after the tap.
+  - **Instagram on Android** (simulated user agent, no WebXR): "Instagram's built-in browser can't show AR… Chrome", with Open in Chrome and Copy link.
+  - **Facebook on iPhone** (simulated user agent): the Safari wording with Copy link.
+  - **Firefox on Android:** no button.
+  
+  Screenshot: `docs/screenshots/ar/ar-fallback-dialogs.webp`.
+- **`tests/ar-support.test.ts`:** 12 real-world user agents, route order, the Chrome intent link.
+- **New bundle guard, `scripts/bundle-budget.mjs`.** It runs against a production server and fails if a page's initial JavaScript exceeds its budget, or if any AR-only code (USDZ export, WebXR hit-test, wish panel) appears in an initial script.
+
+  | Page | Initial JS (gzip) | Budget | Result |
+  |---|---|---|---|
+  | `/` | 191.9 KB | 193 | ok |
+  | `/create` | 222.4 KB | 223.5 | ok |
+  | `/sign-in` | 185.5 KB | 186.5 | ok |
+  | card page | 181.5 KB | 182.5 | ok, no AR code |
+
+  Across AR-1, the card page grew by 2.5 KB gzip (179.0 → 181.5) for the button, route detection, overlay and dialogs. Homepage and catalogue are unchanged.
+- Tests 447/447, TypeScript and ESLint clean, `/lab/ar` 404 in production.
+- **Browser regression suites** (production build, isolated test database): saved-card compatibility 35/35, auth 66/66, wallet 51/51, scheduling 47/47, premium card 47/47, cinematic journey 33/33.
+
+### Not verified
+- **Real in-app browsers.** User agents change, and whether Chrome intent links work inside each app needs a real phone. Some apps (notably WhatsApp on iPhone) open links in Safari's own view, where Quick Look may already work. Those take the Quick Look route automatically, because support is detected before the user agent is consulted.
+- **Clipboard:** copying the link can be refused inside some in-app browsers. The button then stays "Copy link".
