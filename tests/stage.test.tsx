@@ -4,7 +4,7 @@ import sharp from "sharp";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { STAGE_DURATION } from "@/components/cards/premium3d/stage/Stage";
-import { STAGE_BG, STAGE_LOADERS } from "@/components/cards/premium3d/stage/loaders";
+import { STAGE_BACKDROP, STAGE_BG, STAGE_LOADERS } from "@/components/cards/premium3d/stage/loaders";
 import { scenes } from "@/components/cards/scenes";
 import { createCardSchema } from "@/modules/cards/schema";
 import { TEMPLATE_KEYS, templateTier } from "@/modules/templates/registry";
@@ -136,6 +136,18 @@ describe("shell: message, ending, fallback and motion", () => {
     const sheet = html.indexOf('class="stg-panel'), end = html.indexOf('class="cin-end');
     expect(sheet).toBeGreaterThan(-1); expect(end).toBeGreaterThan(sheet);
     expect(html.slice(sheet, end)).not.toContain("Create your own card");
+  });
+  it("the 3D scene paints its own opaque backdrop (additive light is lost over a transparent canvas on real GPUs), from the same definition as the CSS one", () => {
+    const canvas = readFileSync(path.join(process.cwd(), "src/components/cards/premium3d/stage/StageCanvas.tsx"), "utf8");
+    expect(canvas).toMatch(/scene\.background = backdropTexture\(STAGE_BACKDROP\[sceneKey\]\)/);
+    for (const key of Object.keys(entries)) { expect(STAGE_BACKDROP[key].stops.length).toBeGreaterThanOrEqual(2); expect(STAGE_BG[key]).toContain(STAGE_BACKDROP[key].stops[0][0]); }
+  });
+  it("visual-polish guards: the celebration rims meet exactly, the gift lid clears the box, fireworks are seekable", () => {
+    const src = (f: string) => readFileSync(path.join(process.cwd(), "src/components/cards/premium3d/stage/cards", f), "utf8");
+    expect(src("glasses.tsx")).toMatch(/touchGap\(TOUCH_TILT\)/); // the gap at the clink is derived from the flute's geometry, not tuned by eye
+    expect(src("newyear.tsx")).toMatch(/function burstAt\(slot: number, round: number\)/); // pure function of time: thumbnails and seeks show the real show
+    expect(src("newyear.tsx")).not.toMatch(/fwVel/); // no integrated state left
+    expect(src("window.tsx")).toMatch(/mountainTexture/); expect(src("window.tsx")).toMatch(/moonTexture/); expect(src("window.tsx")).toMatch(/pineGeometry/);
   });
   it("the snow globe keeps its artwork and gains the same ending, hidden until Continue", () => {
     const html = renderToStaticMarkup(<Globe {...props} />);

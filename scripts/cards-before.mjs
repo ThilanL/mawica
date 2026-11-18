@@ -15,7 +15,7 @@ const KEYS = ["snow-globe", "christmas-tree", "special-gift", "warm-wishes", "ne
 const MOMENTS = JSON.parse(process.env.MOMENTS || (process.env.FINAL ? '{"1-opening":2.0,"2-main":5.5,"3-greeting":13}' : '{"1-opening":2.0,"2-main":5.5,"3-greeting":11,"4-final":16}'));
 const port = 9800 + Math.floor(Math.random() * 100);
 const dir = mkdtempSync(join(tmpdir(), "cards-"));
-const chrome = spawn(CHROME, ["--headless=new", "--no-first-run", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, "about:blank"], { stdio: "ignore" });
+const chrome = spawn(CHROME, ["--headless=new", "--no-first-run", ...(process.env.GPU ? ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"] : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]), `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, "about:blank"], { stdio: "ignore" });
 let page; for (let i = 0; i < 60 && !page; i++) { try { page = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find((t) => t.type === "page"); } catch { /* */ } if (!page) await sleep(250); }
 const ws = new WebSocket(page.webSocketDebuggerUrl); await new Promise((r) => (ws.onopen = r));
 let id = 0; const pending = new Map(); ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && pending.has(d.id)) pending.get(d.id)(d.result ?? d.error); };
@@ -23,6 +23,7 @@ const send = (method, params = {}) => new Promise((r) => { const i = ++id; pendi
 const shot = async (name) => { for (let i = 0; i < 4; i++) { const r = await send("Page.captureScreenshot", { format: "webp", quality: 85 }); if (r?.data) { writeFileSync(join(OUT, `${name}.webp`), Buffer.from(r.data, "base64")); return; } await sleep(1500); } console.log("no screenshot for", name); };
 try {
   await send("Page.enable");
+  await send("Page.addScriptToEvaluateOnNewDocument", { source: "document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = 'nextjs-portal{display:none!important}'; document.head.appendChild(s); });" }); // hide the dev-server badge
   for (const [vpName, vp] of [["desktop", { width: 1280, height: 800, mobile: false, dsf: 1 }], ["mobile", { width: 390, height: 844, mobile: true, dsf: 2 }]]) {
     await send("Emulation.setDeviceMetricsOverride", { width: vp.width, height: vp.height, deviceScaleFactor: vp.dsf, mobile: vp.mobile });
     if (!only || process.env.CATALOGUE) {

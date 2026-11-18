@@ -10,7 +10,7 @@ const BASE = process.env.BASE ?? "http://127.0.0.1:3030";
 const ORIGIN = process.env.ORIGIN ?? "http://localhost:3030";
 const OUTBOX = process.env.OUTBOX, SERVER_LOG = process.env.SERVER_LOG;
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
-if (!OUTBOX || dbUrl.pathname !== "/mawica_test" || dbUrl.port !== "5433") throw new Error("Refusing to run: needs OUTBOX and DATABASE_URL pointing at mawica_test on port 5433");
+if (!OUTBOX || dbUrl.pathname !== "/mawica_test" || dbUrl.port !== (process.env.MAWICA_PG_PORT ?? "5433")) throw new Error("Refusing to run: needs OUTBOX and DATABASE_URL pointing at mawica_test on port 5433");
 const sql = (q: string) => execFileSync("psql", ["-h", dbUrl.hostname, "-p", dbUrl.port, "-U", dbUrl.username, "-d", "mawica_test", "-tA", "-c", q], { env: { ...process.env, PGPASSWORD: decodeURIComponent(dbUrl.password) } }).toString().trim();
 const lastOtp = (email: string) => { try { return readFileSync(OUTBOX, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((m) => m.to === email).at(-1)?.otp as string | undefined; } catch { return undefined; } };
 

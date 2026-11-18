@@ -9,7 +9,7 @@ import type { TemplateKey } from "@/modules/templates/registry";
 import type { CanvasStats, CinemaEvents } from "../CinematicCanvas";
 import type { Shared } from "../rig";
 import { easeInOutCubic, seg } from "../timeline";
-import { STAGE_LOADERS } from "./loaders";
+import { STAGE_BACKDROP, STAGE_LOADERS, type Backdrop } from "./loaders";
 import type { StageSceneModule } from "./types";
 
 function Environment({ intensity }: { intensity: number }) {
@@ -102,6 +102,19 @@ function Meter({ onStats, publish }: { onStats?: (s: CanvasStats) => void; publi
   return null;
 }
 
+/** The card's backdrop as a texture (same gradient and glow as the CSS one behind the canvas). */
+function backdropTexture(b: Backdrop | undefined) {
+  const c = document.createElement("canvas"); c.width = 256; c.height = 512; const x = c.getContext("2d")!;
+  if (b) {
+    const g = x.createLinearGradient(0, 0, 0, 512); b.stops.forEach(([col, p]) => g.addColorStop(p / 100, col)); x.fillStyle = g; x.fillRect(0, 0, 256, 512);
+    const cx = (b.glow.x / 100) * 256, cy = (b.glow.y / 100) * 512, rx = (b.glow.w / 100) * 256, ry = (b.glow.h / 100) * 512;
+    x.save(); x.translate(cx, cy); x.scale(rx, ry);
+    const r = x.createRadialGradient(0, 0, 0, 0, 0, 1); r.addColorStop(0, `rgba(${b.glow.rgb.join(",")},${b.glow.a})`); r.addColorStop(0.7, `rgba(${b.glow.rgb.join(",")},0)`);
+    x.fillStyle = r; x.fillRect(-1, -1, 2, 2); x.restore();
+  } else { x.fillStyle = "#1a1028"; x.fillRect(0, 0, 256, 512); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 export default function StageCanvas({ sceneKey, shared, mode, enabled, mobile, events, publishStats, bare = false, zoom = 1 }: {
   sceneKey: TemplateKey; shared: { current: Shared }; mode: "play" | "static"; enabled: boolean; mobile: boolean; events: React.MutableRefObject<CinemaEvents>; publishStats: boolean; bare?: boolean; zoom?: number;
 }) {
@@ -122,6 +135,10 @@ export default function StageCanvas({ sceneKey, shared, mode, enabled, mobile, e
       gl={{ alpha: true, antialias: !mobile, powerPreference: "default" }}
       style={{ touchAction: "pan-y" }}
       onCreated={({ gl, scene }) => {
+        if (process.env.NODE_ENV !== "production") (window as unknown as { __stageScene?: THREE.Scene }).__stageScene = scene; // dev: lets the lab inspect the live scene
+        // The backdrop is painted inside the scene, so the canvas is opaque. Light effects are additive, and a real GPU compositor
+        // drops additive colour drawn over transparent canvas pixels (only a software renderer shows it).
+        scene.background = backdropTexture(STAGE_BACKDROP[sceneKey]);
         const f = def.fog ?? ["#1a1028", 16, 60];
         scene.fog = new THREE.Fog(new THREE.Color(f[0]), f[1], f[2]);
         gl.toneMapping = THREE.ACESFilmicToneMapping; gl.toneMappingExposure = 1.05;

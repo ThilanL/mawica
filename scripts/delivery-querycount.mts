@@ -5,7 +5,7 @@ try { process.loadEnvFile(".env.local"); } catch { /* real environment */ }
 import pg from "pg";
 
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
-if (dbUrl.pathname !== "/mawica_test" || dbUrl.port !== "5433") throw new Error("Refusing to run: DATABASE_URL must point at mawica_test on port 5433");
+if (dbUrl.pathname !== "/mawica_test" || dbUrl.port !== (process.env.MAWICA_PG_PORT ?? "5433")) throw new Error("Refusing to run: DATABASE_URL must point at mawica_test on port 5433");
 let counting = false; const counts = { statements: 0, begin: 0, commit: 0 };
 const orig = (pg.Client.prototype as any).query;
 (pg.Client.prototype as any).query = function (...args: any[]) {
