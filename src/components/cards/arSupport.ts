@@ -1,3 +1,8 @@
+/** The cards that have an AR version (each has an AR model, loaded only when the recipient taps View in AR). */
+export const AR_KEYS = ["special-gift", "christmas-tree"] as const;
+export type ArKey = (typeof AR_KEYS)[number];
+export const isArKey = (k: string): k is ArKey => (AR_KEYS as readonly string[]).includes(k);
+
 /**
  * Which "View in AR" experience this browser gets (pure, unit-tested; no three.js). Order matters:
  * 1. "webxr"     Android Chrome with ARCore: the live WebXR scene (AR-1b).

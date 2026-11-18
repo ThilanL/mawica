@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import { rng } from "../stage/gfx";
-import { easeInOutSine, easeOutCubic, seg } from "../timeline";
+import { easeInOutCubic, easeInOutSine, easeOutCubic, seg } from "../timeline";
 import { BODY_H, buildGift, giftPose, giftResources, type GiftResources } from "../stage/cards/gift-model";
+import { ALL, AR_FPS, PANEL_H, sampleClip, twoSided, type ArModel, type ClipExtra } from "./model";
+
+export { AR_FPS };
 
 /**
  * "A Special Gift" as a self-contained AR model (Phase AR-1a): the same box, ribbons, bow and opening timeline as the 3D card, adapted to what
@@ -19,27 +22,12 @@ import { BODY_H, buildGift, giftPose, giftResources, type GiftResources } from "
 export const AR_SCALE = 0.15; // 2.0 units -> 0.30 m
 /** The AR clip plays the card's timeline from just before the ribbon loosens to the lid at rest, then holds. */
 export const AR_FROM = 2.6, AR_OPEN = 7.6, AR_HOLD = 9; // a long hold so the wish card can be read before Quick Look loops
-export const AR_LENGTH = AR_OPEN - AR_FROM + AR_HOLD; // 7.4 s
-export const AR_FPS = 20; // keyframes are interpolated; 20 per second keeps the longer clip within the file-size budget
+export const AR_LENGTH = AR_OPEN - AR_FROM + AR_HOLD; // 14 s
 const SPARKS = 16;
-
-/** A sheet with its back faces added as real triangles (reversed winding, flipped normals, nudged 1 mm out along them so they never z-fight). */
-function twoSided(g: THREE.BufferGeometry) {
-  const pos = g.attributes.position as THREE.BufferAttribute, nor = g.attributes.normal as THREE.BufferAttribute, idx = g.index!, n = pos.count;
-  const p = new Float32Array(n * 6), q = new Float32Array(n * 6), ix: number[] = [];
-  for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) {
-    const v = pos.getComponent(i, c), m = nor.getComponent(i, c);
-    p[i * 3 + c] = v + m * 0.007; q[i * 3 + c] = m; p[(n + i) * 3 + c] = v - m * 0.007; q[(n + i) * 3 + c] = -m;
-  }
-  for (let i = 0; i < idx.count; i += 3) { const a = idx.getX(i), b = idx.getX(i + 1), c = idx.getX(i + 2); ix.push(a, b, c, n + a, n + c, n + b); }
-  const out = new THREE.BufferGeometry(); out.setAttribute("position", new THREE.BufferAttribute(p, 3)); out.setAttribute("normal", new THREE.BufferAttribute(q, 3)); out.setIndex(ix); return out;
-}
 
 type Spark ={ mesh: THREE.Mesh; at: number; ang: number; rad: number; top: number; turn: number };
 
-/** Extra animated nodes (the personal wish on iPhone) sampled into the same clip. Node names must be unique. */
-export type ClipExtra = { nodes: THREE.Object3D[]; pose(time: number): void };
-export type GiftAR = { scene: THREE.Group; anchor: THREE.Object3D; pose(time: number): void; clip(extra?: ClipExtra): THREE.AnimationClip; dispose(): void };
+export type GiftAR = ArModel & { anchor: THREE.Object3D };
 
 /** Builds the AR gift. `pose(time)` sets the model at a moment of the AR clip (seconds from its start); `clip()` samples it into keyframes. */
 export function buildGiftAR(): GiftAR {
@@ -86,27 +74,18 @@ export function buildGiftAR(): GiftAR {
   }
 
   function clip(extra?: ClipExtra) {
-    const nodes = [parts.ribbon, parts.lid, parts.bow, ...sparks.map((k) => k.mesh), ...(extra?.nodes ?? [])];
-    const n = Math.round(AR_LENGTH * AR_FPS) + 1, times = new Float32Array(n);
-    const pos = nodes.map(() => new Float32Array(n * 3)), quat = nodes.map(() => new Float32Array(n * 4)), scl = nodes.map(() => new Float32Array(n * 3));
-    for (let i = 0; i < n; i++) {
-      const time = i / AR_FPS; times[i] = time; pose(time); extra?.pose(time);
-      nodes.forEach((o, j) => { o.position.toArray(pos[j], i * 3); o.quaternion.toArray(quat[j], i * 4); o.scale.toArray(scl[j], i * 3); });
-    }
-    const tracks = nodes.flatMap((o, j) => [
-      new THREE.VectorKeyframeTrack(`${o.name}.position`, times, pos[j]),
-      new THREE.QuaternionKeyframeTrack(`${o.name}.quaternion`, times, quat[j]),
-      new THREE.VectorKeyframeTrack(`${o.name}.scale`, times, scl[j]),
-    ]);
-    pose(0); extra?.pose(0);
-    return new THREE.AnimationClip("open", AR_LENGTH, tracks);
+    const nodes = [parts.ribbon, parts.lid, parts.bow, ...sparks.map((k) => k.mesh), ...(extra?.nodes ?? [])].map((o) => ({ o, props: ALL }));
+    return sampleClip(nodes, (time) => { pose(time); extra?.pose(time); }, AR_LENGTH, "open");
   }
 
   pose(0);
   scene.updateMatrixWorld(true);
   parts.root.position.y = -new THREE.Box3().setFromObject(parts.root).min.y / AR_SCALE; // rest exactly on the floor (the gold base trim dips a few mm below 0)
+  // the wish card rises out of the open box once the lid has tipped back, to just above and in front of it
+  const wish = { from: new THREE.Vector3(0, 0.22, 0), to: anchor.position.clone().multiplyScalar(AR_SCALE).add(new THREE.Vector3(0, PANEL_H / 2 + 0.05, 0.1)), at: 7.5 - AR_FROM };
+  const light = { pos: new THREE.Vector3(0, 0.2, 0), color: "#ffc66a", range: 0.9, level: (time: number) => easeInOutCubic(seg(AR_FROM + time, 5.0, 7.6)) }; // golden light from inside the box
   return {
-    scene, anchor, pose, clip,
+    scene, anchor, pose, clip, length: AR_LENGTH, fps: AR_FPS, wish, light,
     dispose() { (Object.values(r) as { dispose(): void }[]).forEach((x) => x.dispose()); innerAR.dispose(); sparkMat.dispose(); sparkGeo.dispose(); },
   };
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArButton } from "@/components/cards/ArButton";
+import { isArKey } from "@/components/cards/arSupport";
 import { CardPlayer } from "@/components/cards/CardPlayer";
 import { ReportCard } from "@/components/cards/ReportCard";
 import { getPublishedCard } from "@/modules/cards/service";
@@ -27,10 +28,10 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
   return (
     <div className="relative h-dvh bg-midnight">
       <CardPlayer card={{ templateKey: card.templateKey, recipientName: card.recipientName, senderName: card.senderName, message: card.message, media: card.media ? { kind: "image", src: `/api/media/${card.media.id}`, width: card.media.width, height: card.media.height } : null }} />
-      {card.templateKey === "special-gift" && (
+      {isArKey(card.templateKey) && (
         // Beside Replay. AR on Android (WebXR) and iPhone (Quick Look), a QR hand-off on computers, help in in-app browsers; nothing on other phones. AR code loads only on tap.
         <div className="absolute right-[6.75rem] top-3 z-20">
-          <ArButton wish={{ name: card.recipientName, greeting: getTemplate(card.templateKey).greeting, message: card.message, sender: card.senderName }} slug={card.slug} />
+          <ArButton card={card.templateKey} wish={{ name: card.recipientName, greeting: getTemplate(card.templateKey).greeting, message: card.message, sender: card.senderName }} slug={card.slug} />
         </div>
       )}
       <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex items-center justify-center gap-4 pb-[env(safe-area-inset-bottom)]">

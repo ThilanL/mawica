@@ -1,5 +1,5 @@
-// Dev-only: exports the generic (non-personal) AR gift from the /lab/ar page of the DEV server into public/ar/.
-//   BASE=http://localhost:3010 node scripts/ar-export.mjs
+// Dev-only: exports each card's generic (non-personal) AR model from the /lab/ar page of the DEV server into public/ar/.
+//   BASE=http://localhost:3010 node scripts/ar-export.mjs [card-key]
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -17,10 +17,12 @@ let id = 0; const pending = new Map(); ws.onmessage = (m) => { const d = JSON.pa
 const send = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
 try {
   await send("Page.enable");
-  await send("Page.navigate", { url: `${BASE}/lab/ar` });
+  for (const key of process.argv[2] ? [process.argv[2]] : ["special-gift", "christmas-tree"]) {
+  await send("Page.navigate", { url: `${BASE}/lab/ar?key=${key}` });
   let files; for (let i = 0; i < 40 && !files; i++) { await sleep(1000); const r = await send("Runtime.evaluate", { expression: "window.__arExport ? window.__arExport().then((x) => JSON.stringify({ x, report: window.__arReport })) : null", awaitPromise: true, returnByValue: true }); files = r?.result?.value ? JSON.parse(r.result.value) : null; }
   if (!files) throw new Error("export did not finish");
-  const names = { glb: "special-gift.glb", usdz: "special-gift.usdz", glbStatic: "special-gift-still.glb", usdzStatic: "special-gift-still.usdz" };
+  const names = { glb: `${key}.glb`, usdz: `${key}.usdz`, glbStatic: `${key}-still.glb`, usdzStatic: `${key}-still.usdz` };
   for (const [k, f] of Object.entries(names)) writeFileSync(join(OUT, f), Buffer.from(files.x[k], "base64"));
-  console.log(JSON.stringify(files.report));
+  console.log(key, JSON.stringify(files.report));
+  }
 } finally { try { ws.close(); } catch { /* */ } chrome.kill(); try { rmSync(dir, { recursive: true, force: true, maxRetries: 3 }); } catch { /* */ } }

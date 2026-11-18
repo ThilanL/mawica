@@ -1,17 +1,16 @@
 import * as THREE from "three";
-import { easeInOutCubic, easeOutCubic, seg } from "../timeline";
-import { AR_FROM, AR_LENGTH, AR_SCALE, buildGiftAR } from "./gift-ar";
+import { easeOutCubic, seg } from "../timeline";
+import { PANEL_H, PANEL_W, WISH_IN, type ArModel } from "./model";
 import { layoutWish, type WishText } from "./wish";
 
+export { PANEL_H, PANEL_W, WISH_IN };
+
 /**
- * The live AR scene for Android (WebXR), also used by the non-XR lab preview: the AR gift from gift-ar.ts plus what only a live renderer can do
- * (a real golden light inside the box, and the personal wish panel drawn on the phone). Everything personal is built here in memory and never
+ * The live AR scene for Android (WebXR), also used by the non-XR lab preview: a card's AR model (model.ts) plus what only a live renderer can do
+ * (a real light, such as the glow inside the gift or the star's light, and the personal wish panel drawn on the phone). Everything personal is built here in memory and never
  * leaves the page.
  */
-export const PANEL_W = 0.28, PANEL_H = 0.36; // metres: a greeting card held above a 30 cm box
 const TEX_W = 768, TEX_H = Math.round((TEX_W * PANEL_H) / PANEL_W);
-/** Moments of the AR clip (seconds after placing). The wish rises once the lid has tipped back. */
-export const WISH_RISE = 7.5 - AR_FROM, WISH_IN = 1.6, WISH_DONE = WISH_RISE + WISH_IN;
 
 function fonts() {
   const css = typeof document !== "undefined" ? getComputedStyle(document.documentElement) : null;
@@ -46,8 +45,8 @@ export function wishTexture(w: WishText, opts: { note?: string } = {}) {
   return { texture: t, clipped: l.clipped };
 }
 
-export type GiftArScene = {
-  /** The placed object: put it at the hit-test pose. Its origin is the gift's base. */
+export type ArScene = {
+  /** The placed object: put it at the hit-test pose. Its origin is the model's base. */
   root: THREE.Group;
   /** Advances to `time` seconds after placing; turns the wish panel towards `camera`. */
   update(time: number, camera: THREE.Camera): void;
@@ -56,30 +55,30 @@ export type GiftArScene = {
   /** The wish card mesh (for tap detection), and whether it has risen enough to be tapped. */
   panel: THREE.Mesh;
   panelShown(): boolean;
+  /** Seconds after placing when the wish card is fully in place. */
+  wishDone: number;
   dispose(): void;
 };
 
-export function createGiftArScene(wish: WishText, { reduced = false } = {}): GiftArScene {
-  const gift = buildGiftAR();
+export function createArScene(model: ArModel, wish: WishText, { reduced = false } = {}): ArScene {
   const root = new THREE.Group(); root.name = "mawica_ar_root";
-  root.add(gift.scene);
-  // a real light from inside the box, which file formats can't carry
-  const light = new THREE.PointLight("#ffc66a", 0, 0.9, 1.6); light.position.set(0, 0.2, 0); root.add(light);
+  root.add(model.scene);
+  // a real light, which file formats can't carry
+  const light = model.light ? new THREE.PointLight(model.light.color, 0, model.light.range, 1.6) : null;
+  if (light && model.light) { light.position.copy(model.light.pos); root.add(light); }
   const { texture, clipped } = wishTexture(wish);
   const panelMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0, side: THREE.DoubleSide, toneMapped: false });
   const panelGeo = new THREE.PlaneGeometry(PANEL_W, PANEL_H);
   const panel = new THREE.Mesh(panelGeo, panelMat); panel.name = "wish_panel"; panel.renderOrder = 3;
   const pivot = new THREE.Group(); pivot.add(panel); root.add(pivot);
-  const top = gift.anchor.position.clone().multiplyScalar(AR_SCALE).add(new THREE.Vector3(0, PANEL_H / 2 + 0.05, 0.1)); // above and in front of the tipped-back lid
-  const start = new THREE.Vector3(0, 0.22, 0);
+  const { from: start, to: top, at: rise } = model.wish;
   const camPos = new THREE.Vector3(), look = new THREE.Vector3();
 
   function update(time: number, camera: THREE.Camera) {
-    const t = reduced ? AR_LENGTH + WISH_IN : time;
-    gift.pose(Math.min(t, 60));
-    const glow = easeInOutCubic(seg(AR_FROM + t, 5.0, 7.6));
-    light.intensity = glow * 1.2;
-    const k = easeOutCubic(seg(t, WISH_RISE, WISH_RISE + WISH_IN));
+    const t = reduced ? model.length + WISH_IN : time;
+    model.pose(Math.min(t, 600));
+    if (light && model.light) light.intensity = model.light.level(t) * 1.2;
+    const k = easeOutCubic(seg(t, rise, rise + WISH_IN));
     pivot.position.lerpVectors(start, top, k);
     pivot.position.y += Math.sin(t * 1.2) * 0.006 * k;
     pivot.scale.setScalar(0.15 + 0.85 * k);
@@ -90,5 +89,5 @@ export function createGiftArScene(wish: WishText, { reduced = false } = {}): Gif
     pivot.rotation.y = Math.atan2(look.x - pivot.position.x, look.z - pivot.position.z);
   }
   update(0, new THREE.PerspectiveCamera());
-  return { root, update, clipped, panel, panelShown: () => pivot.visible && panelMat.opacity > 0.6, dispose() { gift.dispose(); texture.dispose(); panelMat.dispose(); panelGeo.dispose(); } };
+  return { root, update, clipped, panel, wishDone: rise + WISH_IN, panelShown: () => pivot.visible && panelMat.opacity > 0.6, dispose() { model.dispose(); texture.dispose(); panelMat.dispose(); panelGeo.dispose(); } };
 }

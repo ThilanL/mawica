@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { createGiftArScene, WISH_DONE } from "./scene";
+import { buildArModel, type ArKey } from "./model";
+import { createArScene } from "./scene";
 import type { WishText } from "./wish";
 
 /**
@@ -12,7 +13,7 @@ export type ArState = "starting" | "scanning" | "ready" | "playing" | "wish" | "
 
 export type ArHandle = { end(): void };
 
-export async function startGiftAR(o: { wish: WishText; overlay: HTMLElement; reduced: boolean; onState(s: ArState, info?: { clipped?: boolean; error?: string }): void }): Promise<ArHandle> {
+export async function startCardAR(o: { key: ArKey; wish: WishText; overlay: HTMLElement; reduced: boolean; onState(s: ArState, info?: { clipped?: boolean; error?: string }): void }): Promise<ArHandle> {
   const xr = navigator.xr;
   if (!xr) throw new Error("WebXR is not available");
   // Ask for the session first: it needs the tap's user activation, which expires if we build the scene before asking.
@@ -41,7 +42,7 @@ export async function startGiftAR(o: { wish: WishText; overlay: HTMLElement; red
   const shadowTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d")!; const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, "rgba(0,0,0,0.45)"); g.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
 
-  const ar = createGiftArScene(o.wish, { reduced: o.reduced });
+  const ar = createArScene(await buildArModel(o.key), o.wish, { reduced: o.reduced });
   ar.root.add(shadow); shadow.position.y = 0.002;
   ar.root.visible = false; scene.add(ar.root);
 
@@ -87,7 +88,7 @@ export async function startGiftAR(o: { wish: WishText; overlay: HTMLElement; red
     if (placedAt >= 0) {
       const t = (performance.now() - placedAt) / 1000;
       ar.update(t, renderer.xr.getCamera());
-      if (o.reduced || t > WISH_DONE) set("wish", { clipped: ar.clipped });
+      if (o.reduced || t > ar.wishDone) set("wish", { clipped: ar.clipped });
     }
     renderer.render(scene, camera);
   });

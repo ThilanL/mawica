@@ -4,16 +4,16 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
-import { chooseArRoute, chromeIntent, inAppBrowser, isAndroid, type ArRoute } from "./arSupport";
+import { chooseArRoute, chromeIntent, inAppBrowser, isAndroid, type ArKey, type ArRoute } from "./arSupport";
 import type { ArHandle, ArState } from "./premium3d/ar/webxr";
 import type { WishText } from "./premium3d/ar/wish";
 
 type UiState = ArState | "preparing";
 const HINT: Partial<Record<UiState, string>> = {
-  preparing: "Preparing your gift…",
+  preparing: "Preparing your card…",
   starting: "Starting AR…",
   scanning: "Move your phone slowly to find the floor",
-  ready: "Tap the floor to place your gift",
+  ready: "Tap the floor to place it",
   wish: "Tap the card to read it big",
 };
 
@@ -23,7 +23,7 @@ const HINT: Partial<Record<UiState, string>> = {
  * Chrome" help (AR-1d). Any other phone or tablet gets no button, and the card is exactly as before. The AR code is fetched only when the button
  * is tapped. The personal wish is built on the phone from text already on this page; nothing is uploaded or stored.
  */
-export function ArButton({ wish, slug }: { wish: WishText; slug: string }) {
+export function ArButton({ card, wish, slug }: { card: ArKey; wish: WishText; slug: string }) {
   const reduced = usePrefersReducedMotion();
   const [mode, setMode] = useState<ArRoute>(null);
   const [help, setHelp] = useState<"desktop" | "in-app" | null>(null);
@@ -61,8 +61,8 @@ export function ArButton({ wish, slug }: { wish: WishText; slug: string }) {
     setError(null); dropQuick();
     flushSync(() => { setActive(true); setState("preparing"); });
     try {
-      const { exportGiftUSDZ, openQuickLook, QL_BANNER_TAPPED } = await import("./premium3d/ar/quicklook");
-      const { blob } = await exportGiftUSDZ(wish, { reduced });
+      const { exportCardUSDZ, openQuickLook, QL_BANNER_TAPPED } = await import("./premium3d/ar/quicklook");
+      const { blob } = await exportCardUSDZ(card, wish, { reduced });
       const url = URL.createObjectURL(blob); // in this tab's memory only; revoked on the next view or when the page closes
       const link = openQuickLook(url);
       link.addEventListener("message", (e) => { if ((e as MessageEvent).data === QL_BANNER_TAPPED) setReader(true); }); // banner "Read your card": Quick Look closes, the big card opens
@@ -92,9 +92,9 @@ export function ArButton({ wish, slug }: { wish: WishText; slug: string }) {
     setError(null); setClipped(false);
     flushSync(() => { setActive(true); setState("starting"); }); // the overlay root must be in the page before the session asks for it
     try {
-      const { startGiftAR } = await import("./premium3d/ar/webxr");
-      handle.current = await startGiftAR({
-        wish, overlay: overlay.current!, reduced,
+      const { startCardAR } = await import("./premium3d/ar/webxr");
+      handle.current = await startCardAR({
+        key: card, wish, overlay: overlay.current!, reduced,
         onState: (s, info) => {
           if (s === "card") { setReader(true); return; }
           if (info?.error) setError(info.error);

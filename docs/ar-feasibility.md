@@ -359,3 +359,46 @@ The dialogs close with Close, Escape or a tap outside, and focus moves into them
 - **Big card:** the whole wish full screen on ivory paper, with Close and **Create your own card**.
   - **iPhone:** the Quick Look banner button is now **Read your card**. Tapping it closes Quick Look and opens the big card. Confirmed on the iPhone 14 Pro.
   - **Android:** tapping the wish card in AR (a raycast against the card) opens the big card over the camera, with **Back to AR**. The hint "Tap the card to read it big" appears once the card has risen. This is not yet tried on a device.
+
+---
+
+## AR for the Christmas Tree (2026-11-18)
+
+**Confirmed working on the iPhone 14 Pro (Quick Look).** Android WebXR has been checked in the lab preview only.
+
+### Shared model
+- `stage/cards/tree-model.ts` holds the tree's layout (boughs, ornaments, garland), presents and lighting order. Both the 3D card (`tree.tsx`) and the AR tree build from it.
+- The 3D card is unchanged: before/after renders at 5 moments × desktop/mobile differ only by snow, gold dust and twinkle.
+- The AR code no longer depends on one card. `ar/model.ts` defines what each AR card provides (scene, clip, wish card path, optional live light). The Android scene, the iPhone export and the lab all work for any card listed in `AR_KEYS` (`arSupport.ts`).
+
+### The AR tree (`ar/tree-ar.ts`)
+- About 1.13 m tall from the floor to the star, 0.67 × 0.78 m wide, standing on the floor. About 30k triangles, using lighter density settings (`TREE_DENSITY.ar`).
+- **Boughs:** merged into one mesh with real back faces. Quick Look ignores per-vertex colours, so each bough's green and its dark-to-bright shading come from a small baked palette texture (UV-mapped).
+- **16 s clip at 12 keyframes per second:**
+  - the garland lights appear up the spiral, then twinkle by pulsing in size;
+  - baubles pop on from the bottom up (they can't "light up", because neither format animates colour);
+  - the star grows and turns;
+  - the wish card rises from the presents to hang in front of the tree;
+  - the scene then holds for 9 s.
+- **Android only:** a warm light from the star onto the upper boughs.
+- No snow, gold dust or glow sprites (no particles in the formats).
+
+### Files
+
+| File | Size |
+|---|---|
+| `christmas-tree.glb` | 1.07 MB |
+| `christmas-tree-still.glb` | 0.74 MB |
+| `christmas-tree.usdz` | 3.3 MB |
+| `christmas-tree-still.usdz` | 2.4 MB |
+| Personalised USDZ | about 3.6 MB, built in 0.4–0.8 s on the Mac |
+
+- The size budget for the tree's files is 4 MB, because it has about 100 animated nodes.
+- **Validation:** `usdchecker --arkit` passes on all files, the glTF Validator reports 0 errors, and Apple's `usdrecord` frames show the correct greens, build-up order, star and wish card.
+
+### Checks
+- Tests 450/450. TypeScript and ESLint clean.
+- Saved-card compatibility 35/35.
+- **Bundles:**
+  - Card pages are 181.8 KB gzip (budget 182.5).
+  - `/` is 192.0 KB (+0.1 KB, within budget). The AR code still appears in no initial script; I haven't traced the 0.1 KB.

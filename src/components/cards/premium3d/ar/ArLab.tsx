@@ -7,21 +7,21 @@ import { USDZExporter } from "three/addons/exporters/USDZExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { AR_FPS, AR_LENGTH, buildGiftAR } from "@/components/cards/premium3d/ar/gift-ar";
-import { createGiftArScene, type GiftArScene } from "@/components/cards/premium3d/ar/scene";
+import { buildArModel, isArKey, type ArKey } from "@/components/cards/premium3d/ar/model";
+import { createArScene, type ArScene } from "@/components/cards/premium3d/ar/scene";
 import type { WishText } from "@/components/cards/premium3d/ar/wish";
 
 type Exported = { glb: ArrayBuffer; usdz: ArrayBuffer; usdzStatic: ArrayBuffer; glbStatic: ArrayBuffer };
 
-/** Exports the generic (non-personal) AR gift in every format. The animated files carry the opening clip; the static ones show the opened pose (reduced motion). */
-async function exportAll(): Promise<Exported> {
-  const gift = buildGiftAR(), clip = gift.clip();
+/** Exports a card's generic (non-personal) AR model in every format. The animated files carry its clip; the static ones show the finished scene (reduced motion). */
+async function exportAll(key: ArKey): Promise<Exported> {
+  const gift = await buildArModel(key), clip = gift.clip();
   try {
     const gltf = new GLTFExporter(), usdz = new USDZExporter();
     const glb = (await gltf.parseAsync(gift.scene, { binary: true, animations: [clip], maxTextureSize: 1024 })) as ArrayBuffer;
     gift.scene.updateMatrixWorld(true); // USDZExporter uses stored matrices: never rely on another exporter having refreshed them
-    const usdzAnim = await usdz.parseAsync(gift.scene, { animations: [clip], animationFrameRate: AR_FPS, quickLookCompatible: true });
-    gift.pose(AR_LENGTH); // opened, at rest
+    const usdzAnim = await usdz.parseAsync(gift.scene, { animations: [clip], animationFrameRate: gift.fps, quickLookCompatible: true });
+    gift.pose(gift.length); // finished, at rest
     const glbStatic = (await gltf.parseAsync(gift.scene, { binary: true, maxTextureSize: 1024 })) as ArrayBuffer;
     gift.scene.updateMatrixWorld(true);
     const usdzStatic = await usdz.parseAsync(gift.scene, { quickLookCompatible: true });
@@ -47,15 +47,24 @@ export function ArLab() {
     const clock = new THREE.Clock(); let mixer: THREE.AnimationMixer | null = null;
     const q = new URLSearchParams(location.search), seek = q.has("t") ? Number(q.get("t")) : null;
 
-    // ?live: the Android AR scene (gift + inner light + personal wish panel) without WebXR, on a grey floor. ?name= ?msg= ?from= set the wish.
-    let live: GiftArScene | null = null;
+    // ?key= picks the card (default A Special Gift). ?live: the Android AR scene (model + real light + personal wish panel) without WebXR, on a grey
+    // floor; ?name= ?msg= ?from= set the wish, &reduced=1 shows the finished scene.
+    const key: ArKey = isArKey(q.get("key") ?? "") ? (q.get("key") as ArKey) : "special-gift";
+    const tall = key === "christmas-tree";
+    if (tall) { camera.position.set(0.6, 1.0, 2.4); controls.target.set(0, 0.55, 0); controls.update(); }
+    let live: ArScene | null = null;
     if (q.has("live")) {
-      live = createGiftArScene({ name: q.get("name") ?? "Anna", greeting: "A gift, just for you", message: q.get("msg") ?? "The best presents can't be wrapped. This is my way of saying thank you, and Merry Christmas.", sender: q.get("from") ?? "Sam" }, { reduced: q.has("reduced") });
-      scene.add(live.root); scene.add(new THREE.HemisphereLight("#fff4e6", "#5a4a60", 0.6)); const sun = new THREE.DirectionalLight("#fff1e0", 1.1); sun.position.set(0.5, 1.5, 0.8); scene.add(sun);
-      renderer.toneMapping = THREE.ACESFilmicToneMapping; camera.position.set(0.3, 0.75, 1.6); controls.target.set(0, 0.42, 0); controls.update();
-      setInfo(`live AR scene · clipped: ${live.clipped}`); // eslint-disable-line react-hooks/set-state-in-effect -- dev lab: report once after building the scene
+      scene.add(new THREE.HemisphereLight("#fff4e6", "#5a4a60", 0.6)); const sun = new THREE.DirectionalLight("#fff1e0", 1.1); sun.position.set(0.5, 1.5, 0.8); scene.add(sun);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      if (!tall) { camera.position.set(0.3, 0.75, 1.6); controls.target.set(0, 0.42, 0); controls.update(); }
+      buildArModel(key).then((m) => {
+        if (stop) { m.dispose(); return; }
+        live = createArScene(m, { name: q.get("name") ?? "Anna", greeting: tall ? "Merry Christmas" : "A gift, just for you", message: q.get("msg") ?? "The best presents can't be wrapped. This is my way of saying thank you, and Merry Christmas.", sender: q.get("from") ?? "Sam" }, { reduced: q.has("reduced") });
+        scene.add(live.root);
+        setInfo(`live AR scene (${key}) · clipped: ${live.clipped}`);
+      });
     }
-    const exporting = exportAll().then(async (x) => {
+    const exporting = exportAll(key).then(async (x) => {
       const gltf = await new GLTFLoader().parseAsync(x.glb.slice(0), "");
       if (stop || live) return x;
       scene.add(gltf.scene);
@@ -70,9 +79,9 @@ export function ArLab() {
       return x;
     });
     // iPhone path: the personalised USDZ exactly as the card page builds it (for usdchecker / usdrecord checks)
-    (window as unknown as { __arQuickLook?: (w: WishText, reduced: boolean) => Promise<{ b64: string; ms: number; bytes: number; clipped: boolean }> }).__arQuickLook = async (w, reduced) => {
-      const { exportGiftUSDZ } = await import("@/components/cards/premium3d/ar/quicklook");
-      const r = await exportGiftUSDZ(w, { reduced });
+    (window as unknown as { __arQuickLook?: (w: WishText, reduced: boolean, k?: ArKey) => Promise<{ b64: string; ms: number; bytes: number; clipped: boolean }> }).__arQuickLook = async (w, reduced, k) => {
+      const { exportCardUSDZ } = await import("@/components/cards/premium3d/ar/quicklook");
+      const r = await exportCardUSDZ(k ?? key, w, { reduced });
       return { b64: b64(await r.blob.arrayBuffer()), ms: r.ms, bytes: r.bytes, clipped: r.clipped };
     };
     (window as unknown as { __arExport?: () => Promise<Record<string, string>> }).__arExport = async () => { const x = await exporting; return { glb: b64(x.glb), glbStatic: b64(x.glbStatic), usdz: b64(x.usdz), usdzStatic: b64(x.usdzStatic) }; };

@@ -63,13 +63,13 @@ describe("AR-1b: View in AR button and card page", () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { createElement } = await import("react");
     const { ArButton } = await import("@/components/cards/ArButton");
-    expect(renderToStaticMarkup(createElement(ArButton, { wish: { name: "Anna", greeting: "Hi", message: "m", sender: "Sam" }, slug: "abc123def456" }))).toBe("");
+    expect(renderToStaticMarkup(createElement(ArButton, { card: "special-gift", wish: { name: "Anna", greeting: "Hi", message: "m", sender: "Sam" }, slug: "abc123def456" }))).toBe("");
   });
   it("only the published-card page offers AR, only for A Special Gift, and the wish comes from the page's own data", async () => {
     const { readFileSync } = await import("node:fs");
     const page = readFileSync("src/app/(card)/c/[slug]/page.tsx", "utf8");
     expect(page).toMatch(/getPublishedCard\(slug\)/);
-    expect(page).toMatch(/card\.templateKey === "special-gift" && \(/);
+    expect(page).toMatch(/isArKey\(card\.templateKey\) && \(/);
     const btn = readFileSync("src/components/cards/ArButton.tsx", "utf8");
     expect(btn).not.toMatch(/fetch\(|XMLHttpRequest|sendBeacon/); // nothing personal is uploaded
     const xr = readFileSync("src/components/cards/premium3d/ar/webxr.ts", "utf8");

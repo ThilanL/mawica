@@ -18,6 +18,12 @@ describe("AR-1a: shared gift model", () => {
     expect(giftPose(5.0).ribbon.visible).toBe(false);
     expect(giftPose(5.0).ribbon.opacity).toBe(0);
   });
+  it("the tree card and its AR model share one layout and timeline", () => {
+    const card = read("src/components/cards/premium3d/stage/cards/tree.tsx");
+    expect(card).toMatch(/from "\.\/tree-model"/);
+    expect(card).not.toMatch(/function frondGeometry|rng\(42\)/);
+    expect(read("src/components/cards/premium3d/ar/tree-ar.ts")).toMatch(/treeLayout\(TREE_DENSITY\.ar\)/);
+  });
   it("the 3D card builds from the shared model (one gift, not two copies)", () => {
     const card = read("src/components/cards/premium3d/stage/cards/gift.tsx");
     expect(card).toMatch(/from "\.\/gift-model"/);
@@ -34,10 +40,10 @@ describe("AR-1a: AR model and files", () => {
   });
   it("the public AR files are generic: no personal greeting text can be in them", () => {
     const files = readdirSync(path.join(root, "public/ar"));
-    expect(files.sort()).toEqual(["special-gift-still.glb", "special-gift-still.usdz", "special-gift.glb", "special-gift.usdz"]);
+    expect(files.sort()).toEqual(["christmas-tree-still.glb", "christmas-tree-still.usdz", "christmas-tree.glb", "christmas-tree.usdz", "special-gift-still.glb", "special-gift-still.usdz", "special-gift.glb", "special-gift.usdz"]);
     for (const f of files) {
       const bytes = readFileSync(path.join(root, "public/ar", f));
-      expect(bytes.length).toBeLessThan(3 * 1024 * 1024); // size budget per file
+      expect(bytes.length, f).toBeLessThan((f.startsWith("christmas-tree") ? 4 : 3) * 1024 * 1024); // size budget per file (the tree has ~100 animated nodes)
       const text = bytes.toString("latin1");
       expect(text).not.toMatch(/recipient|senderName|message|With love/i);
     }
@@ -52,5 +58,24 @@ describe("AR-1a: AR model and files", () => {
   });
   it("the AR lab exists only in development (404 in production unless ENABLE_LAB=1)", () => {
     expect(read("src/app/(lab)/lab/ar/page.tsx")).toMatch(/NODE_ENV === "production" && process\.env\.ENABLE_LAB !== "1"\) notFound\(\)/);
+  });
+});
+
+describe("AR: the Christmas tree", () => {
+  it("the AR tree is a lighter version of the same tree, lit in the same order", async () => {
+    const { TREE_DENSITY, ornamentLit, fairyLit, starOn } = await import("@/components/cards/premium3d/stage/cards/tree-model");
+    expect(TREE_DENSITY.ar.levels).toBeLessThan(TREE_DENSITY.mobile.levels);
+    expect(TREE_DENSITY.ar.lights).toBeLessThan(TREE_DENSITY.mobile.lights);
+    expect(ornamentLit(1.0, 0, 10)).toBe(0); expect(ornamentLit(7.0, 9, 10)).toBe(1); // bottom first, all on before the star
+    expect(fairyLit(0.5, 0, 10)).toBe(0); expect(fairyLit(5.4, 9, 10)).toBe(1);
+    expect(starOn(6.0)).toBe(0); expect(starOn(7.4)).toBe(1);
+  });
+  it("is about a metre tall, holds long enough to read the wish, and both cards are offered in AR", async () => {
+    const { TREE_SCALE, TREE_LENGTH, TREE_DONE, TREE_FROM } = await import("@/components/cards/premium3d/ar/tree-ar");
+    const { TOP_Y } = await import("@/components/cards/premium3d/stage/cards/tree-model");
+    expect((TOP_Y + 0.92) * TREE_SCALE).toBeGreaterThan(0.95); expect((TOP_Y + 0.92) * TREE_SCALE).toBeLessThan(1.2);
+    expect(TREE_LENGTH - (TREE_DONE - TREE_FROM)).toBeGreaterThanOrEqual(8);
+    const { AR_KEYS } = await import("@/components/cards/arSupport");
+    expect([...AR_KEYS]).toEqual(["special-gift", "christmas-tree"]);
   });
 });
