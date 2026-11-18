@@ -87,7 +87,7 @@ describe("AR-1c: iPhone Quick Look", () => {
     expect(ql.match(/updateMatrixWorld\(true\)/g)?.length).toBeGreaterThanOrEqual(2); // USDZExporter writes stored matrices
     expect(ql).toMatch(/quickLookCompatible: true/);
     expect(ql).toMatch(/a\.rel = "ar"/);
-    expect(ql).toMatch(/checkoutTitle: "mawica\.", checkoutSubtitle: "Send your feelings to others", callToAction: "Create your own"/); // fixed banner, no personal text
+    expect(ql).toMatch(/checkoutTitle: "mawica\.", checkoutSubtitle: "Send your feelings to others", callToAction: "Read your card"/); // fixed banner, no personal text
     const btn = readFileSync("src/components/cards/ArButton.tsx", "utf8");
     expect(btn).toMatch(/URL\.createObjectURL\(blob\)/);
     expect(btn).toMatch(/URL\.revokeObjectURL/);

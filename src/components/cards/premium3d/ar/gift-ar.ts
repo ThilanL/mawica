@@ -18,9 +18,9 @@ import { BODY_H, buildGift, giftPose, giftResources, type GiftResources } from "
  */
 export const AR_SCALE = 0.15; // 2.0 units -> 0.30 m
 /** The AR clip plays the card's timeline from just before the ribbon loosens to the lid at rest, then holds. */
-export const AR_FROM = 2.6, AR_OPEN = 7.6, AR_HOLD = 2.4;
+export const AR_FROM = 2.6, AR_OPEN = 7.6, AR_HOLD = 9; // a long hold so the wish card can be read before Quick Look loops
 export const AR_LENGTH = AR_OPEN - AR_FROM + AR_HOLD; // 7.4 s
-export const AR_FPS = 30;
+export const AR_FPS = 20; // keyframes are interpolated; 20 per second keeps the longer clip within the file-size budget
 const SPARKS = 16;
 
 /** A sheet with its back faces added as real triangles (reversed winding, flipped normals, nudged 1 mm out along them so they never z-fight). */

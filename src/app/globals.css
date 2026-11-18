@@ -333,3 +333,17 @@ body {
 .ar-qr { width: 200px; height: 200px; border-radius: 0.75rem; background: #fff; padding: 0.5rem; }
 .ar-dialog-close { min-height: 44px; padding: 0 1.1rem; font-size: 0.875rem; font-weight: 600; color: rgb(255 247 238 / 0.8); text-decoration: underline; text-underline-offset: 4px; }
 .ar-dialog-close:focus-visible, .ar-dialog a:focus-visible { outline: 3px solid #f0a9cf; outline-offset: 3px; }
+
+/* The big card (AR follow-up): the whole wish full screen, from the Quick Look banner (iPhone) or a tap on the card in AR (Android). */
+.ar-reader { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom)); background: radial-gradient(120% 80% at 50% 30%, rgb(58 33 72 / 0.94), rgb(20 10 30 / 0.97)); animation: ar-reader-in 0.5s ease both; }
+.ar-reader-card { width: min(100%, 26rem); max-height: calc(100% - 6rem); display: flex; flex-direction: column; align-items: center; text-align: center; padding: 2rem 1.5rem 1.4rem; border-radius: 1.6rem; color: #3d2f45; background: linear-gradient(180deg, #fffaf0, #f8ead6); box-shadow: 0 30px 80px rgb(0 0 0 / 0.5), inset 0 0 0 3px #d9a64e; }
+.ar-reader-for { margin: 0; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #a0742c; overflow-wrap: anywhere; }
+.ar-reader-greeting { margin: 0.5rem 0 0; font-family: var(--font-display); font-size: clamp(1.7rem, 7vw, 2.2rem); font-weight: 600; line-height: 1.15; color: #3a2148; text-wrap: balance; }
+.ar-reader-rule { width: 4rem; height: 2px; margin: 1rem 0; background: #d9a64e; }
+.ar-reader-message { overflow-y: auto; overscroll-behavior: contain; font-size: 1.08rem; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+.ar-reader-message p { margin: 0; }
+.ar-reader-from { margin: 1.1rem 0 0; font-style: italic; color: #6a4a7a; overflow-wrap: anywhere; }
+.ar-reader-mark { margin: 0.9rem 0 0; font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; color: #8a5fa0; }
+.ar-reader-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; }
+@keyframes ar-reader-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ar-reader { animation: none; } }

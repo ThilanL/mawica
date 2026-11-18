@@ -336,3 +336,26 @@ The dialogs close with Close, Escape or a tap outside, and focus moves into them
 ### Not verified
 - **Real in-app browsers.** User agents change, and whether Chrome intent links work inside each app needs a real phone. Some apps (notably WhatsApp on iPhone) open links in Safari's own view, where Quick Look may already work. Those take the Quick Look route automatically, because support is detected before the user agent is consulted.
 - **Clipboard:** copying the link can be refused inside some in-app browsers. The button then stays "Copy link".
+
+---
+
+## AR-1e: first device check and follow-up (2026-11-18)
+
+### iPhone 14 Pro, Safari, over the local Wi-Fi (HTTP)
+- Quick Look opened the personalised gift.
+- Scale, placement, animation, wish card and banner were all reported OK.
+- Quick Look works from a plain-HTTP LAN page with a `blob:` URL and the banner fragment, so no HTTPS certificate is needed for local testing.
+
+### Changes from that review
+- **More time to read:** the hold after the opening is now 9 s (was 2.4 s), so the clip is 14 s and the wish card is fully visible for about 7.5 s before Quick Look loops. Keyframes are now 20 per second (was 30) to keep the files within budget:
+
+  | File | Size |
+  |---|---|
+  | `special-gift.glb` | 886 KB |
+  | `special-gift.usdz` | 2.8 MB |
+  | personalised USDZ | about 3.1 MB, built in about 0.2 s on the Mac |
+
+  All files re-validated (`usdchecker --arkit`, glTF Validator 0 errors).
+- **Big card:** the whole wish full screen on ivory paper, with Close and **Create your own card**.
+  - **iPhone:** the Quick Look banner button is now **Read your card**. Tapping it closes Quick Look and opens the big card. Confirmed on the iPhone 14 Pro.
+  - **Android:** tapping the wish card in AR (a raycast against the card) opens the big card over the camera, with **Back to AR**. The hint "Tap the card to read it big" appears once the card has risen. This is not yet tried on a device.

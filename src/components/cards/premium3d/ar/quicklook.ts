@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { USDZExporter } from "three/addons/exporters/USDZExporter.js";
 import { easeOutCubic, seg } from "../timeline";
-import { AR_LENGTH, AR_SCALE, buildGiftAR } from "./gift-ar";
+import { AR_FPS, AR_LENGTH, AR_SCALE, buildGiftAR } from "./gift-ar";
 import { PANEL_H, PANEL_W, WISH_IN, WISH_RISE, wishTexture } from "./scene";
 import type { WishText } from "./wish";
 
@@ -46,7 +46,7 @@ export async function exportGiftUSDZ(wish: WishText, { reduced = false } = {}): 
       const clip = gift.clip({ nodes: [wishNode], pose: poseWish });
       gift.pose(0); poseWish(0);
       root.updateMatrixWorld(true);
-      bytes = await exporter.parseAsync(root, { quickLookCompatible: true, animations: [clip], animationFrameRate: 30 });
+      bytes = await exporter.parseAsync(root, { quickLookCompatible: true, animations: [clip], animationFrameRate: AR_FPS });
     }
     const blob = new Blob([bytes as BlobPart], { type: "model/vnd.usdz+zip" });
     return { blob, ms: Math.round(performance.now() - started), bytes: blob.size, clipped };
@@ -60,7 +60,7 @@ export async function exportGiftUSDZ(wish: WishText, { reduced = false } = {}): 
 export function openQuickLook(url: string) {
   const a = document.createElement("a");
   a.rel = "ar";
-  a.href = `${url}#${new URLSearchParams({ checkoutTitle: "mawica.", checkoutSubtitle: "Send your feelings to others", callToAction: "Create your own" }).toString().replace(/\+/g, "%20")}`;
+  a.href = `${url}#${new URLSearchParams({ checkoutTitle: "mawica.", checkoutSubtitle: "Send your feelings to others", callToAction: "Read your card" }).toString().replace(/\+/g, "%20")}`;
   a.appendChild(document.createElement("img"));
   a.style.display = "none"; document.body.appendChild(a); // stays in the page: Quick Look reports its banner button tap to this element
   a.click();

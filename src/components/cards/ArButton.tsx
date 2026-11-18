@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
@@ -15,6 +14,7 @@ const HINT: Partial<Record<UiState, string>> = {
   starting: "Starting AR…",
   scanning: "Move your phone slowly to find the floor",
   ready: "Tap the floor to place your gift",
+  wish: "Tap the card to read it big",
 };
 
 /**
@@ -25,10 +25,11 @@ const HINT: Partial<Record<UiState, string>> = {
  */
 export function ArButton({ wish, slug }: { wish: WishText; slug: string }) {
   const reduced = usePrefersReducedMotion();
-  const router = useRouter();
   const [mode, setMode] = useState<ArRoute>(null);
   const [help, setHelp] = useState<"desktop" | "in-app" | null>(null);
   const [copied, setCopied] = useState(false);
+  /** The big card: the whole wish, full screen. iPhone: from the Quick Look banner. Android: tap the card in AR (it shows over the camera). */
+  const [reader, setReader] = useState(false);
   const helpRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
   const [state, setState] = useState<UiState | null>(null);
@@ -64,7 +65,7 @@ export function ArButton({ wish, slug }: { wish: WishText; slug: string }) {
       const { blob } = await exportGiftUSDZ(wish, { reduced });
       const url = URL.createObjectURL(blob); // in this tab's memory only; revoked on the next view or when the page closes
       const link = openQuickLook(url);
-      link.addEventListener("message", (e) => { if ((e as MessageEvent).data === QL_BANNER_TAPPED) router.push("/create"); });
+      link.addEventListener("message", (e) => { if ((e as MessageEvent).data === QL_BANNER_TAPPED) setReader(true); }); // banner "Read your card": Quick Look closes, the big card opens
       quick.current = { url, link };
       setActive(false); setState(null);
     } catch {
@@ -95,10 +96,11 @@ export function ArButton({ wish, slug }: { wish: WishText; slug: string }) {
       handle.current = await startGiftAR({
         wish, overlay: overlay.current!, reduced,
         onState: (s, info) => {
+          if (s === "card") { setReader(true); return; }
           if (info?.error) setError(info.error);
           if (info?.clipped !== undefined) setClipped(info.clipped);
           setState(s);
-          if (s === "ended") { handle.current = null; setActive(false); }
+          if (s === "ended") { handle.current = null; setActive(false); setReader(false); }
         },
       });
     } catch (e) {
@@ -114,11 +116,27 @@ export function ArButton({ wish, slug }: { wish: WishText; slug: string }) {
       <button type="button" onClick={start} disabled={active && state !== "error"} className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold text-ivory backdrop-blur ring-1 ring-white/25 hover:bg-white/25 disabled:opacity-60">
         View in AR
       </button>
-      <div ref={overlay} data-ar-overlay className="ar-overlay" hidden={!active && state !== "error"} aria-live="polite">
+      <div ref={overlay} data-ar-overlay className="ar-overlay" hidden={!active && state !== "error" && !reader} aria-live="polite">
         {state && HINT[state] && <p className="ar-hint">{HINT[state]}</p>}
         {error && <p className="ar-hint" role="alert">{error}</p>}
         <button type="button" className="ar-close" onClick={() => { if (handle.current) handle.current.end(); else { setActive(false); setState(null); setError(null); } }} aria-label="Close AR">Close</button>
-        {state === "wish" && (
+        {reader && (
+          <div className="ar-reader" data-ar-ui role="dialog" aria-modal="true" aria-label={`Card for ${wish.name}`}>
+            <article className="ar-reader-card">
+              <p className="ar-reader-for">For {wish.name}</p>
+              <h2 className="ar-reader-greeting">{wish.greeting}</h2>
+              <div className="ar-reader-rule" aria-hidden />
+              <div className="ar-reader-message" tabIndex={0}><p>{wish.message}</p></div>
+              <p className="ar-reader-from">With love, {wish.sender}</p>
+              <p className="ar-reader-mark">mawica.</p>
+            </article>
+            <div className="ar-reader-actions">
+              <button type="button" className="cin-pill" onClick={() => setReader(false)}>{active ? "Back to AR" : "Close"}</button>
+              <Link href="/create" className="cin-pill cin-pill-primary">Create your own card</Link>
+            </div>
+          </div>
+        )}
+        {state === "wish" && !reader && (
           <section className="ar-sheet" data-ar-ui aria-label="Your greeting">
             <p className="ar-for">For {wish.name}</p>
             <h2 className="ar-greeting">{wish.greeting}</h2>

@@ -7,7 +7,8 @@ import type { WishText } from "./wish";
  * Android AR (WebXR `immersive-ar`, Chrome with ARCore). Loaded only when the recipient taps "View in AR".
  * Flow: find the floor (hit-test reticle) → tap to place the gift → it opens → the wish rises → the overlay offers the full message and the ending.
  */
-export type ArState = "starting" | "scanning" | "ready" | "playing" | "wish" | "ended" | "error";
+/** "card": the recipient tapped the wish card in AR (the page shows it big). */
+export type ArState = "starting" | "scanning" | "ready" | "playing" | "wish" | "card" | "ended" | "error";
 
 export type ArHandle = { end(): void };
 
@@ -53,8 +54,18 @@ export async function startGiftAR(o: { wish: WishText; overlay: HTMLElement; red
   if (!hitSource) { set("error", { error: "This phone can't find surfaces for AR." }); session.end().catch(() => {}); ar.dispose(); renderer.dispose(); renderer.domElement.remove(); return { end() {} }; }
 
   const camPos = new THREE.Vector3(), pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scl = new THREE.Vector3();
-  const place = () => {
-    if (placedAt >= 0 || !reticle.visible) return;
+  // After placing, a tap that lands on the wish card opens it big on the page (the overlay shows over the camera).
+  const ray = new THREE.Raycaster(), m4 = new THREE.Matrix4();
+  const tapCard = (e: XRInputSourceEvent) => {
+    const ref = renderer.xr.getReferenceSpace(), pose = ref && e.frame.getPose(e.inputSource.targetRaySpace, ref);
+    if (!pose || !ar.panelShown()) return;
+    m4.fromArray(pose.transform.matrix);
+    ray.ray.origin.setFromMatrixPosition(m4); ray.ray.direction.set(0, 0, -1).transformDirection(m4);
+    if (ray.intersectObject(ar.panel, false).length) o.onState("card");
+  };
+  const place = (e: XRInputSourceEvent) => {
+    if (placedAt >= 0) return tapCard(e);
+    if (!reticle.visible) return;
     reticle.matrix.decompose(pos, quat, scl);
     ar.root.position.copy(pos);
     renderer.xr.getCamera().getWorldPosition(camPos);

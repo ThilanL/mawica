@@ -7,7 +7,7 @@ import { USDZExporter } from "three/addons/exporters/USDZExporter.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { AR_LENGTH, buildGiftAR } from "@/components/cards/premium3d/ar/gift-ar";
+import { AR_FPS, AR_LENGTH, buildGiftAR } from "@/components/cards/premium3d/ar/gift-ar";
 import { createGiftArScene, type GiftArScene } from "@/components/cards/premium3d/ar/scene";
 import type { WishText } from "@/components/cards/premium3d/ar/wish";
 
@@ -20,7 +20,7 @@ async function exportAll(): Promise<Exported> {
     const gltf = new GLTFExporter(), usdz = new USDZExporter();
     const glb = (await gltf.parseAsync(gift.scene, { binary: true, animations: [clip], maxTextureSize: 1024 })) as ArrayBuffer;
     gift.scene.updateMatrixWorld(true); // USDZExporter uses stored matrices: never rely on another exporter having refreshed them
-    const usdzAnim = await usdz.parseAsync(gift.scene, { animations: [clip], animationFrameRate: 30, quickLookCompatible: true });
+    const usdzAnim = await usdz.parseAsync(gift.scene, { animations: [clip], animationFrameRate: AR_FPS, quickLookCompatible: true });
     gift.pose(AR_LENGTH); // opened, at rest
     const glbStatic = (await gltf.parseAsync(gift.scene, { binary: true, maxTextureSize: 1024 })) as ArrayBuffer;
     gift.scene.updateMatrixWorld(true);

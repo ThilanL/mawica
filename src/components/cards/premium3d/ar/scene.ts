@@ -53,6 +53,9 @@ export type GiftArScene = {
   update(time: number, camera: THREE.Camera): void;
   /** Whether the panel shows only part of the message (the overlay then offers the full text). */
   clipped: boolean;
+  /** The wish card mesh (for tap detection), and whether it has risen enough to be tapped. */
+  panel: THREE.Mesh;
+  panelShown(): boolean;
   dispose(): void;
 };
 
@@ -87,5 +90,5 @@ export function createGiftArScene(wish: WishText, { reduced = false } = {}): Gif
     pivot.rotation.y = Math.atan2(look.x - pivot.position.x, look.z - pivot.position.z);
   }
   update(0, new THREE.PerspectiveCamera());
-  return { root, update, clipped, dispose() { gift.dispose(); texture.dispose(); panelMat.dispose(); panelGeo.dispose(); } };
+  return { root, update, clipped, panel, panelShown: () => pivot.visible && panelMat.opacity > 0.6, dispose() { gift.dispose(); texture.dispose(); panelMat.dispose(); panelGeo.dispose(); } };
 }
