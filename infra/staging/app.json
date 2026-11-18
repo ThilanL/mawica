@@ -1,0 +1,171 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "Mawica STAGING workload, deployed only with the owner's approval (infra/staging/app.sh). On top of main.json: least-privilege database credentials in Key Vault, a role-bootstrap job and a migration job (Container Apps jobs inside the VNet, manual trigger), the web container app (scale 0-1, HTTPS ingress, health probes, Key Vault secrets via managed identity, email and scheduled delivery off), and GitHub Actions' minimum permissions (update the app and the migration job only)."
+  },
+  "parameters": {
+    "location": { "type": "string", "defaultValue": "australiaeast" },
+    "webImage": { "type": "string", "metadata": { "description": "ghcr.io/thilanl/mawica/web:<tag>" } },
+    "migrateImage": { "type": "string", "metadata": { "description": "ghcr.io/thilanl/mawica/migrate:<tag>" } },
+    "rolesSqlB64": { "type": "string", "metadata": { "description": "base64 of infra/staging/sql/roles.sql (not secret)." } },
+    "appDbPassword": { "type": "secureString", "defaultValue": "", "metadata": { "description": "New password for mawica_app. Empty: keep the current Key Vault secrets (no rotation)." } },
+    "migrateDbPassword": { "type": "secureString", "defaultValue": "" },
+    "deployWebApp": { "type": "bool", "defaultValue": false, "metadata": { "description": "false until roles and migrations have run." } }
+  },
+  "variables": {
+    "suffix": "[take(uniqueString(resourceGroup().id), 5)]",
+    "tags": { "app": "mawica", "env": "staging", "temporary": "true", "managedBy": "infra/staging/app.json" },
+    "pgName": "[concat('psql-mawica-stg-', variables('suffix'))]",
+    "kvName": "[concat('kv-mawica-stg-', variables('suffix'))]",
+    "kvUri": "[concat('https://', variables('kvName'), '.vault.azure.net/secrets/')]",
+    "envName": "cae-mawica-stg",
+    "appName": "ca-mawica-stg",
+    "rolesJob": "caj-mawica-stg-dbroles",
+    "migrateJob": "caj-mawica-stg-migrate",
+    "appId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'id-mawica-stg-app')]",
+    "ghIdName": "id-mawica-stg-github",
+    "contributor": "b24988ac-6180-42a0-ab88-20f7382dd24c",
+    "joinRoleName": "[guid(resourceGroup().id, 'mawica-aca-environment-join')]",
+    "pgHost": "[concat(variables('pgName'), '.postgres.database.azure.com')]",
+    "rotate": "[not(empty(parameters('appDbPassword')))]",
+    "kvSecret": {
+      "admin": "[concat(variables('kvUri'), 'database-url')]",
+      "app": "[concat(variables('kvUri'), 'database-app-url')]",
+      "migrate": "[concat(variables('kvUri'), 'database-migrate-url')]",
+      "appPw": "[concat(variables('kvUri'), 'pg-app-password')]",
+      "migratePw": "[concat(variables('kvUri'), 'pg-migrate-password')]"
+    }
+  },
+  "resources": [
+    {
+      "condition": "[variables('rotate')]", "type": "Microsoft.KeyVault/vaults/secrets", "apiVersion": "2023-07-01", "name": "[concat(variables('kvName'), '/pg-app-password')]",
+      "properties": { "contentType": "password for database role mawica_app (runtime)", "value": "[parameters('appDbPassword')]" }
+    },
+    {
+      "condition": "[variables('rotate')]", "type": "Microsoft.KeyVault/vaults/secrets", "apiVersion": "2023-07-01", "name": "[concat(variables('kvName'), '/pg-migrate-password')]",
+      "properties": { "contentType": "password for database role mawica_migrator (migrations only)", "value": "[parameters('migrateDbPassword')]" }
+    },
+    {
+      "condition": "[variables('rotate')]", "type": "Microsoft.KeyVault/vaults/secrets", "apiVersion": "2023-07-01", "name": "[concat(variables('kvName'), '/database-app-url')]",
+      "properties": { "contentType": "runtime connection string: role mawica_app, TLS with full certificate verification", "value": "[concat('postgresql://mawica_app:', parameters('appDbPassword'), '@', variables('pgHost'), ':5432/mawica?sslmode=verify-full')]" }
+    },
+    {
+      "condition": "[variables('rotate')]", "type": "Microsoft.KeyVault/vaults/secrets", "apiVersion": "2023-07-01", "name": "[concat(variables('kvName'), '/database-migrate-url')]",
+      "properties": { "contentType": "migration connection string: role mawica_migrator, TLS required", "value": "[concat('postgresql://mawica_migrator:', parameters('migrateDbPassword'), '@', variables('pgHost'), ':5432/mawica?sslmode=require&sslaccept=strict')]" }
+    },
+    {
+      "type": "Microsoft.App/jobs", "apiVersion": "2024-03-01", "name": "[variables('rolesJob')]", "location": "[parameters('location')]", "tags": "[variables('tags')]",
+      "identity": { "type": "UserAssigned", "userAssignedIdentities": { "[variables('appId')]": {} } },
+      "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'pg-app-password')]", "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'pg-migrate-password')]"],
+      "properties": {
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]", "workloadProfileName": "Consumption",
+        "configuration": {
+          "triggerType": "Manual", "replicaTimeout": 300, "replicaRetryLimit": 0, "manualTriggerConfig": { "parallelism": 1, "replicaCompletionCount": 1 },
+          "secrets": [
+            { "name": "admin-url", "keyVaultUrl": "[variables('kvSecret').admin]", "identity": "[variables('appId')]" },
+            { "name": "app-pw", "keyVaultUrl": "[variables('kvSecret').appPw]", "identity": "[variables('appId')]" },
+            { "name": "migrate-pw", "keyVaultUrl": "[variables('kvSecret').migratePw]", "identity": "[variables('appId')]" }
+          ]
+        },
+        "template": {
+          "containers": [{
+            "name": "roles", "image": "docker.io/library/postgres:17", "resources": { "cpu": 0.25, "memory": "0.5Gi" },
+            "command": ["/bin/sh", "-c", "echo \"$ROLES_SQL_B64\" | base64 -d > /tmp/roles.sql && psql \"$ADMIN_URL\" -v ON_ERROR_STOP=1 -v app_password=\"$APP_PW\" -v migrate_password=\"$MIGRATE_PW\" -v dbname=mawica -f /tmp/roles.sql && echo ROLES_OK"],
+            "env": [
+              { "name": "ADMIN_URL", "secretRef": "admin-url" }, { "name": "APP_PW", "secretRef": "app-pw" }, { "name": "MIGRATE_PW", "secretRef": "migrate-pw" },
+              { "name": "ROLES_SQL_B64", "value": "[parameters('rolesSqlB64')]" }
+            ]
+          }]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.App/jobs", "apiVersion": "2024-03-01", "name": "[variables('migrateJob')]", "location": "[parameters('location')]", "tags": "[variables('tags')]",
+      "identity": { "type": "UserAssigned", "userAssignedIdentities": { "[variables('appId')]": {} } },
+      "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'database-migrate-url')]"],
+      "properties": {
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]", "workloadProfileName": "Consumption",
+        "configuration": {
+          "triggerType": "Manual", "replicaTimeout": 600, "replicaRetryLimit": 0, "manualTriggerConfig": { "parallelism": 1, "replicaCompletionCount": 1 },
+          "secrets": [{ "name": "database-migrate-url", "keyVaultUrl": "[variables('kvSecret').migrate]", "identity": "[variables('appId')]" }]
+        },
+        "template": {
+          "containers": [{
+            "name": "migrate", "image": "[parameters('migrateImage')]", "resources": { "cpu": 0.5, "memory": "1Gi" },
+            "env": [{ "name": "NODE_ENV", "value": "production" }, { "name": "DATABASE_URL", "secretRef": "database-migrate-url" }]
+          }]
+        }
+      }
+    },
+    {
+      "condition": "[parameters('deployWebApp')]", "type": "Microsoft.App/containerApps", "apiVersion": "2024-03-01", "name": "[variables('appName')]", "location": "[parameters('location')]", "tags": "[variables('tags')]",
+      "identity": { "type": "UserAssigned", "userAssignedIdentities": { "[variables('appId')]": {} } },
+      "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'database-app-url')]"],
+      "properties": {
+        "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]", "workloadProfileName": "Consumption",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": { "external": true, "targetPort": 8080, "transport": "auto", "allowInsecure": false },
+          "secrets": [
+            { "name": "database-app-url", "keyVaultUrl": "[variables('kvSecret').app]", "identity": "[variables('appId')]" },
+            { "name": "better-auth-secret", "keyVaultUrl": "[concat(variables('kvUri'), 'better-auth-secret')]", "identity": "[variables('appId')]" },
+            { "name": "welcome-pepper", "keyVaultUrl": "[concat(variables('kvUri'), 'welcome-pepper')]", "identity": "[variables('appId')]" },
+            { "name": "rate-limit-salt", "keyVaultUrl": "[concat(variables('kvUri'), 'rate-limit-salt')]", "identity": "[variables('appId')]" }
+          ]
+        },
+        "template": {
+          "containers": [{
+            "name": "web", "image": "[parameters('webImage')]", "resources": { "cpu": 0.5, "memory": "1Gi" },
+            "env": [
+              { "name": "NODE_ENV", "value": "production" }, { "name": "HOSTNAME", "value": "0.0.0.0" }, { "name": "PORT", "value": "8080" },
+              { "name": "DATABASE_URL", "secretRef": "database-app-url" }, { "name": "DATABASE_POOL_MAX", "value": "5" },
+              { "name": "BETTER_AUTH_SECRET", "secretRef": "better-auth-secret" }, { "name": "WELCOME_PEPPER", "secretRef": "welcome-pepper" }, { "name": "RATE_LIMIT_SALT", "secretRef": "rate-limit-salt" },
+              { "name": "NEXT_PUBLIC_SITE_URL", "value": "[concat('https://', variables('appName'), '.', reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain)]" }, { "name": "BETTER_AUTH_URL", "value": "[concat('https://', variables('appName'), '.', reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain)]" },
+              { "name": "TRUSTED_PROXY_HOPS", "value": "1" },
+              { "name": "EMAIL_PROVIDER", "value": "none" }, { "name": "MAWICA_DISABLE_EXTERNAL_EMAIL", "value": "1" }, { "name": "EMAIL_DELIVERY_ENABLED", "value": "0" }
+            ],
+            "probes": [
+              { "type": "Startup", "httpGet": { "path": "/api/health", "port": 8080 }, "initialDelaySeconds": 3, "periodSeconds": 5, "timeoutSeconds": 5, "failureThreshold": 24 },
+              { "type": "Readiness", "httpGet": { "path": "/api/health", "port": 8080 }, "periodSeconds": 15, "timeoutSeconds": 5, "failureThreshold": 3 },
+              { "type": "Liveness", "httpGet": { "path": "/api/health", "port": 8080 }, "periodSeconds": 30, "timeoutSeconds": 5, "failureThreshold": 3 }
+            ]
+          }],
+          "scale": { "minReplicas": 0, "maxReplicas": 1, "rules": [{ "name": "http", "http": { "metadata": { "concurrentRequests": "20" } } }] }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleDefinitions", "apiVersion": "2022-04-01", "name": "[variables('joinRoleName')]",
+      "properties": {
+        "roleName": "[concat('Mawica staging: join Container Apps environment (', resourceGroup().name, ')')]",
+        "description": "Lets the GitHub deploy identity attach app/job revisions to cae-mawica-stg. Nothing else.",
+        "type": "CustomRole", "assignableScopes": ["[resourceGroup().id]"],
+        "permissions": [{ "actions": ["Microsoft.App/managedEnvironments/read", "Microsoft.App/managedEnvironments/join/action"], "notActions": [] }]
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01", "name": "[guid(resourceId('Microsoft.App/managedEnvironments', variables('envName')), variables('ghIdName'), variables('joinRoleName'))]",
+      "scope": "[concat('Microsoft.App/managedEnvironments/', variables('envName'))]",
+      "dependsOn": ["[resourceId('Microsoft.Authorization/roleDefinitions', variables('joinRoleName'))]"],
+      "properties": { "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('joinRoleName'))]", "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('ghIdName')), '2023-01-31').principalId]", "principalType": "ServicePrincipal" }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01", "name": "[guid(resourceId('Microsoft.App/jobs', variables('migrateJob')), variables('ghIdName'), variables('contributor'))]",
+      "scope": "[concat('Microsoft.App/jobs/', variables('migrateJob'))]",
+      "dependsOn": ["[resourceId('Microsoft.App/jobs', variables('migrateJob'))]"],
+      "properties": { "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('contributor'))]", "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('ghIdName')), '2023-01-31').principalId]", "principalType": "ServicePrincipal", "description": "GitHub Actions may update the image of, and start, the migration job only." }
+    },
+    {
+      "condition": "[parameters('deployWebApp')]", "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01", "name": "[guid(resourceId('Microsoft.App/containerApps', variables('appName')), variables('ghIdName'), variables('contributor'))]",
+      "scope": "[concat('Microsoft.App/containerApps/', variables('appName'))]",
+      "dependsOn": ["[resourceId('Microsoft.App/containerApps', variables('appName'))]"],
+      "properties": { "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('contributor'))]", "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('ghIdName')), '2023-01-31').principalId]", "principalType": "ServicePrincipal", "description": "GitHub Actions may update this one container app only." }
+    }
+  ],
+  "outputs": {
+    "appUrl": { "type": "string", "value": "[concat('https://', variables('appName'), '.', reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain)]" },
+    "rolesJob": { "type": "string", "value": "[variables('rolesJob')]" },
+    "migrateJob": { "type": "string", "value": "[variables('migrateJob')]" }
+  }
+}

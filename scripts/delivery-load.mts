@@ -5,7 +5,7 @@ try { process.loadEnvFile(".env.local"); } catch { /* real environment */ }
 import { spawn, execFileSync } from "node:child_process";
 
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
-if (dbUrl.pathname !== "/mawica_test" || dbUrl.port !== "5433") throw new Error("Refusing to run: DATABASE_URL must point at mawica_test on port 5433");
+if (dbUrl.pathname !== "/mawica_test" || dbUrl.port !== (process.env.MAWICA_PG_PORT ?? "5433")) throw new Error("Refusing to run: DATABASE_URL must point at mawica_test on port 5433");
 const { db } = await import("../src/lib/db");
 const { createSchedule } = await import("../src/modules/scheduling/service");
 const { findAnomalies } = await import("../src/modules/delivery/reconcile");

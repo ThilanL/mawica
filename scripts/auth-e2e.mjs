@@ -16,7 +16,7 @@ const SECURE = process.env.SECURE === "1";
 const OUTBOX = process.env.OUTBOX;
 const SERVER_LOG = process.env.SERVER_LOG;
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
-if (!OUTBOX || !/^\/(mawica_test|authspike)$/.test(dbUrl.pathname) || dbUrl.port !== "5433") {
+if (!OUTBOX || !/^\/(mawica_test|authspike)$/.test(dbUrl.pathname) || dbUrl.port !== (process.env.MAWICA_PG_PORT ?? "5433")) {
   throw new Error("Refusing to run: needs OUTBOX and DATABASE_URL pointing at mawica_test (or the authspike scratch DB) on port 5433");
 }
 const sql = (q) =>

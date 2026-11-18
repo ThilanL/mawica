@@ -4,6 +4,8 @@ import { assertMawicaDatabaseUrl } from "./db-guard";
 
 const schema = z.object({
   DATABASE_URL: z.string().url(),
+  /** Max PostgreSQL connections per process (pg pool). Small servers (Azure B1ms) allow few connections; staging sets 5. Default 10 (pg default). */
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
   RATE_LIMIT_SALT: z.string().min(16),
   ADMIN_TOKEN: z.string().min(24).optional(),
   /** Staging only: enables /api/_proxy-debug (needs ADMIN_TOKEN). Must be unset in production. */

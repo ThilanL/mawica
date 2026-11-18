@@ -10,7 +10,7 @@ import { join } from "node:path";
 const BASE = process.env.BASE || "http://localhost:3030";
 const CHROME = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const dbUrl = new URL(process.env.DATABASE_URL ?? "");
-if (dbUrl.pathname !== "/mawica_test" || dbUrl.port !== "5433") throw new Error("Refusing to run: DATABASE_URL must point at mawica_test on port 5433");
+if (dbUrl.pathname !== "/mawica_test" || dbUrl.port !== (process.env.MAWICA_PG_PORT ?? "5433")) throw new Error("Refusing to run: DATABASE_URL must point at mawica_test on port 5433");
 const sql = (q) => execFileSync("psql", ["-h", dbUrl.hostname, "-p", dbUrl.port, "-U", dbUrl.username, "-d", "mawica_test", "-tA", "-c", q], { env: { ...process.env, PGPASSWORD: decodeURIComponent(dbUrl.password) } }).toString().trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const KEYS = ["snow-globe", "christmas-tree", "special-gift", "warm-wishes", "new-year-2027", "new-year-celebration"];
