@@ -2,7 +2,9 @@
 # Mawica STAGING cost protection (infra/staging/costguard.json + costguard/guard.py). Run ONLY with the owner's approval.
 #   infra/staging/costguard.sh what-if            preview the budget, action group, cost guard and roles (no changes)
 #   infra/staging/costguard.sh apply              create/update them (registers Microsoft.Automation if needed)
-#   infra/staging/costguard.sh publish            upload + publish guard.py as the runbook and link it to the 4-hourly schedule
+#   infra/staging/costguard.sh publish            upload + publish guard.py as the runbook (NOT scheduled)
+#   infra/staging/costguard.sh azure-dry-run      run the published runbook once inside Azure with --dry-run and show its output
+#   infra/staging/costguard.sh enable-schedule    link the runbook to the 4-hourly schedule: activates automatic shutdown at AUD 55
 #   infra/staging/costguard.sh dry-run [AUD]      run guard.py locally, read-only (optionally simulating a spend in AUD)
 #   infra/staging/costguard.sh restore            recovery: start the web app and restore job triggers (owner login)
 #   infra/staging/costguard.sh override HOURS     time-limited (1-72 h) override: the guard will not stop the web app again until then
@@ -31,10 +33,19 @@ case "$MODE" in
   publish)
     az rest --method put --url "https://management.azure.com$AA_ID/runbooks/$RUNBOOK/draft/content?$API" --headers "Content-Type=text/x-python" --body "@$HERE/costguard/guard.py" -o none
     az rest --method post --url "https://management.azure.com$AA_ID/runbooks/$RUNBOOK/publish?$API" -o none
+    az rest --method get --url "https://management.azure.com$AA_ID/runbooks/$RUNBOOK?$API" --query "{runbook:name, state:properties.state, type:properties.runbookType}" -o json
+    echo "published; NOT scheduled (run '$0 azure-dry-run', then '$0 enable-schedule')" ;;
+  azure-dry-run)
+    job="$(python3 -I -c 'import uuid; print(uuid.uuid4())')"
+    az rest --method put --url "https://management.azure.com$AA_ID/jobs/$job?$API" --body "{\"properties\":{\"runbook\":{\"name\":\"$RUNBOOK\"},\"parameters\":{\"mode\":\"--dry-run\"}}}" -o none
+    for _ in $(seq 1 40); do st="$(az rest --method get --url "https://management.azure.com$AA_ID/jobs/$job?$API" --query properties.status -o tsv)"; case "$st" in Completed|Failed|Stopped|Suspended) break ;; esac; sleep 15; done
+    echo "job $job: $st"
+    az rest --method get --url "https://management.azure.com$AA_ID/jobs/$job/streams?$API" --query "value[].properties.summary" -o tsv ;;
+  enable-schedule)
     js="$(python3 -I -c 'import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, "mawica-costguard/every-4-hours"))')"
     az rest --method put --url "https://management.azure.com$AA_ID/jobSchedules/$js?$API" \
-      --body "{\"properties\":{\"runbook\":{\"name\":\"$RUNBOOK\"},\"schedule\":{\"name\":\"every-4-hours\"}}}" -o none 2>/dev/null || echo "(schedule link already present)"
-    az rest --method get --url "https://management.azure.com$AA_ID/runbooks/$RUNBOOK?$API" --query "{runbook:name, state:properties.state, type:properties.runbookType}" -o json ;;
+      --body "{\"properties\":{\"runbook\":{\"name\":\"$RUNBOOK\"},\"schedule\":{\"name\":\"every-4-hours\"}}}" -o none
+    echo "4-hourly schedule linked: the cost guard is now ACTIVE" ;;
   dry-run)
     if [[ -n "${2:-}" ]]; then python3 -I "$HERE/costguard/guard.py" --simulate-spend "$2" ${3:+--old-budget}; else python3 -I "$HERE/costguard/guard.py" --dry-run ${3:+--old-budget}; fi ;;
   restore)
@@ -54,5 +65,5 @@ case "$MODE" in
       || { echo "STOP: the subscription budget does not exist yet" >&2; exit 1; }
     az rest --method delete --url "https://management.azure.com/subscriptions/$SUBSCRIPTION/resourceGroups/$RG/providers/Microsoft.Consumption/budgets/budget-mawica-stg?api-version=2023-11-01" -o none
     echo "old resource-group budget budget-mawica-stg deleted" ;;
-  *) echo "usage: $0 what-if|apply|publish|dry-run [AUD]|restore|override HOURS|verify|retire-old-budget" >&2; exit 2 ;;
+  *) echo "usage: $0 what-if|apply|publish|azure-dry-run|enable-schedule|dry-run [AUD]|restore|override HOURS|verify|retire-old-budget" >&2; exit 2 ;;
 esac
