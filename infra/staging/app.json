@@ -2,18 +2,20 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "Mawica STAGING workload, deployed only with the owner's approval (infra/staging/app.sh). On top of main.json and registry.json (all images pulled from the private ACR by the app's managed identity, by digest): least-privilege database credentials in Key Vault, a role-bootstrap job and a migration job (Container Apps jobs inside the VNet, manual trigger), the web container app (scale 0-1, HTTPS ingress, health probes, Key Vault secrets via managed identity, email and scheduled delivery off), and GitHub Actions' minimum permissions (update the app and the migration job only)."
+    "description": "Mawica STAGING workload, deployed only with the owner's approval (infra/staging/app.sh). On top of main.json and registry.json (all images pulled from the private ACR by the app's managed identity, by digest): least-privilege database credentials in Key Vault; three identities (web app, role job, migration job), each reading only its own secrets (secret-scoped Key Vault Secrets User) and pulling from ACR (AcrPull); a role-bootstrap job and a migration job (Container Apps jobs inside the VNet, manual trigger), the web container app (scale 0-1, HTTPS ingress, health probes, Key Vault secrets via managed identity, email and scheduled delivery off), and GitHub Actions' minimum permissions (update the app and the migration job only)."
   },
   "parameters": {
     "location": { "type": "string", "defaultValue": "australiaeast" },
-    "webImage": { "type": "string", "metadata": { "description": "<acr>.azurecr.io/mawica/web@sha256:<digest> (deployed by digest)" } },
-    "migrateImage": { "type": "string", "metadata": { "description": "<acr>.azurecr.io/mawica/migrate@sha256:<digest>" } },
-    "rolesImage": { "type": "string", "metadata": { "description": "<acr>.azurecr.io/mirror/postgres@sha256:<digest> (postgres:17 imported into ACR)" } },
-    "rolesSqlB64": { "type": "string", "metadata": { "description": "base64 of infra/staging/sql/roles.sql (not secret)." } },
-    "pgRootCasB64": { "type": "string", "metadata": { "description": "base64 of infra/staging/sql/azure-pg-roots.crt (public root CAs; the postgres image has no CA bundle). Used for sslmode=verify-full." } },
+    "webImage": { "type": "string", "defaultValue": "", "metadata": { "description": "<acr>.azurecr.io/mawica/web@sha256:<digest> (deployed by digest)" } },
+    "migrateImage": { "type": "string", "defaultValue": "", "metadata": { "description": "<acr>.azurecr.io/mawica/migrate@sha256:<digest>" } },
+    "rolesImage": { "type": "string", "defaultValue": "", "metadata": { "description": "<acr>.azurecr.io/mirror/postgres@sha256:<digest> (postgres:17 imported into ACR)" } },
+    "rolesSqlB64": { "type": "string", "defaultValue": "", "metadata": { "description": "base64 of infra/staging/sql/roles.sql (not secret)." } },
+    "pgRootCasB64": { "type": "string", "defaultValue": "", "metadata": { "description": "base64 of infra/staging/sql/azure-pg-roots.crt (public root CAs; the postgres image has no CA bundle). Used for sslmode=verify-full." } },
     "appDbPassword": { "type": "secureString", "defaultValue": "", "metadata": { "description": "New password for mawica_app. Empty: keep the current Key Vault secrets (no rotation)." } },
     "migrateDbPassword": { "type": "secureString", "defaultValue": "" },
-    "deployWebApp": { "type": "bool", "defaultValue": false, "metadata": { "description": "false until roles and migrations have run." } }
+    "deployWebApp": { "type": "bool", "defaultValue": false, "metadata": { "description": "false until roles and migrations have run." } },
+    "deployJobs": { "type": "bool", "defaultValue": true, "metadata": { "description": "false: identities, ACR pulls and Key Vault grants only (bootstrap; see app.sh identities / roles)." } },
+    "existingSecrets": { "type": "array", "defaultValue": [], "metadata": { "description": "Names of secrets that already exist in the vault (app.sh reads them, names only). Secret-scoped grants are made only for these and for secrets this deployment creates: Azure cannot assign a role on a secret that does not exist." } }
   },
   "variables": {
     "suffix": "[take(uniqueString(resourceGroup().id), 5)]",
@@ -26,7 +28,25 @@
     "rolesJob": "caj-mawica-stg-dbroles",
     "migrateJob": "caj-mawica-stg-migrate",
     "appId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'id-mawica-stg-app')]",
-    "registries": [{ "server": "[concat('acrmawicastg', variables('suffix'), '.azurecr.io')]", "identity": "[variables('appId')]" }],
+    "rolesIdName": "id-mawica-stg-dbroles",
+    "migrateIdName": "id-mawica-stg-migrate",
+    "rolesId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'id-mawica-stg-dbroles')]",
+    "migrateId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'id-mawica-stg-migrate')]",
+    "acrName": "[concat('acrmawicastg', variables('suffix'))]",
+    "acrServer": "[concat('acrmawicastg', variables('suffix'), '.azurecr.io')]",
+    "acrPull": "7f951dda-4ed3-4680-a7ca-43fe172d538d",
+    "kvSecretsUser": "4633458b-17de-408a-b874-0445c86b69e6",
+    "rotatedSecrets": ["pg-app-password", "pg-migrate-password", "database-app-url", "database-migrate-url"],
+    "secretGrants": [
+      { "identity": "id-mawica-stg-app", "secret": "database-app-url" },
+      { "identity": "id-mawica-stg-app", "secret": "better-auth-secret" },
+      { "identity": "id-mawica-stg-app", "secret": "welcome-pepper" },
+      { "identity": "id-mawica-stg-app", "secret": "rate-limit-salt" },
+      { "identity": "id-mawica-stg-dbroles", "secret": "database-url" },
+      { "identity": "id-mawica-stg-dbroles", "secret": "pg-app-password" },
+      { "identity": "id-mawica-stg-dbroles", "secret": "pg-migrate-password" },
+      { "identity": "id-mawica-stg-migrate", "secret": "database-migrate-url" }
+    ],
     "ghIdName": "id-mawica-stg-github",
     "contributor": "b24988ac-6180-42a0-ab88-20f7382dd24c",
     "joinRoleName": "[guid(resourceGroup().id, 'mawica-aca-environment-join')]",
@@ -41,6 +61,44 @@
     }
   },
   "resources": [
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities", "apiVersion": "2023-01-31", "name": "[variables('rolesIdName')]", "location": "[parameters('location')]", "tags": "[variables('tags')]"
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities", "apiVersion": "2023-01-31", "name": "[variables('migrateIdName')]", "location": "[parameters('location')]", "tags": "[variables('tags')]"
+    },
+    {
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), variables('rolesIdName'), variables('acrPull'))]", "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01",
+      "copy": { "name": "rolesAcrPull", "count": 1 },
+      "scope": "[concat('Microsoft.ContainerRegistry/registries/', variables('acrName'))]",
+      "dependsOn": ["[variables('rolesId')]"],
+      "properties": { "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPull'))]", "principalId": "[reference(variables('rolesId'), '2023-01-31').principalId]", "principalType": "ServicePrincipal", "description": "Role-setup job: pull images from the Mawica registry only." }
+    },
+    {
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), variables('migrateIdName'), variables('acrPull'))]", "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01",
+      "copy": { "name": "migrateAcrPull", "count": 1 },
+      "scope": "[concat('Microsoft.ContainerRegistry/registries/', variables('acrName'))]",
+      "dependsOn": ["[variables('migrateId')]"],
+      "properties": { "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPull'))]", "principalId": "[reference(variables('migrateId'), '2023-01-31').principalId]", "principalType": "ServicePrincipal", "description": "Migration job: pull images from the Mawica registry only." }
+    },
+    {
+      "copy": { "name": "secretGrants", "count": "[length(variables('secretGrants'))]" },
+      "condition": "[or(contains(parameters('existingSecrets'), variables('secretGrants')[copyIndex()].secret), and(variables('rotate'), contains(variables('rotatedSecrets'), variables('secretGrants')[copyIndex()].secret)))]",
+      "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), variables('secretGrants')[copyIndex()].secret), variables('secretGrants')[copyIndex()].identity, variables('kvSecretsUser'))]",
+      "scope": "[concat('Microsoft.KeyVault/vaults/', variables('kvName'), '/secrets/', variables('secretGrants')[copyIndex()].secret)]",
+      "dependsOn": [
+        "[variables('rolesId')]", "[variables('migrateId')]",
+        "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'pg-app-password')]", "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'pg-migrate-password')]",
+        "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'database-app-url')]", "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'database-migrate-url')]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvSecretsUser'))]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('secretGrants')[copyIndex()].identity), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal",
+        "description": "[concat('Read this one secret only (', variables('secretGrants')[copyIndex()].identity, ').')]"
+      }
+    },
     {
       "condition": "[variables('rotate')]", "type": "Microsoft.KeyVault/vaults/secrets", "apiVersion": "2023-07-01", "name": "[concat(variables('kvName'), '/pg-app-password')]",
       "properties": { "contentType": "password for database role mawica_app (runtime)", "value": "[parameters('appDbPassword')]" }
@@ -58,18 +116,19 @@
       "properties": { "contentType": "migration connection string: role mawica_migrator, TLS required", "value": "[concat('postgresql://mawica_migrator:', parameters('migrateDbPassword'), '@', variables('pgHost'), ':5432/mawica?sslmode=require&sslaccept=strict')]" }
     },
     {
+      "condition": "[parameters('deployJobs')]",
       "type": "Microsoft.App/jobs", "apiVersion": "2024-03-01", "name": "[variables('rolesJob')]", "location": "[parameters('location')]", "tags": "[variables('tags')]",
-      "identity": { "type": "UserAssigned", "userAssignedIdentities": { "[variables('appId')]": {} } },
-      "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'pg-app-password')]", "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'pg-migrate-password')]"],
+      "identity": { "type": "UserAssigned", "userAssignedIdentities": { "[variables('rolesId')]": {} } },
+      "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'pg-app-password')]", "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'pg-migrate-password')]", "secretGrants", "rolesAcrPull"],
       "properties": {
         "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]", "workloadProfileName": "Consumption",
         "configuration": {
-          "registries": "[variables('registries')]",
+          "registries": [{ "server": "[variables('acrServer')]", "identity": "[variables('rolesId')]" }],
           "triggerType": "Manual", "replicaTimeout": 300, "replicaRetryLimit": 0, "manualTriggerConfig": { "parallelism": 1, "replicaCompletionCount": 1 },
           "secrets": [
-            { "name": "admin-url", "keyVaultUrl": "[variables('kvSecret').admin]", "identity": "[variables('appId')]" },
-            { "name": "app-pw", "keyVaultUrl": "[variables('kvSecret').appPw]", "identity": "[variables('appId')]" },
-            { "name": "migrate-pw", "keyVaultUrl": "[variables('kvSecret').migratePw]", "identity": "[variables('appId')]" }
+            { "name": "admin-url", "keyVaultUrl": "[variables('kvSecret').admin]", "identity": "[variables('rolesId')]" },
+            { "name": "app-pw", "keyVaultUrl": "[variables('kvSecret').appPw]", "identity": "[variables('rolesId')]" },
+            { "name": "migrate-pw", "keyVaultUrl": "[variables('kvSecret').migratePw]", "identity": "[variables('rolesId')]" }
           ]
         },
         "template": {
@@ -86,15 +145,16 @@
       }
     },
     {
+      "condition": "[parameters('deployJobs')]",
       "type": "Microsoft.App/jobs", "apiVersion": "2024-03-01", "name": "[variables('migrateJob')]", "location": "[parameters('location')]", "tags": "[variables('tags')]",
-      "identity": { "type": "UserAssigned", "userAssignedIdentities": { "[variables('appId')]": {} } },
-      "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'database-migrate-url')]"],
+      "identity": { "type": "UserAssigned", "userAssignedIdentities": { "[variables('migrateId')]": {} } },
+      "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'database-migrate-url')]", "secretGrants", "migrateAcrPull"],
       "properties": {
         "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]", "workloadProfileName": "Consumption",
         "configuration": {
-          "registries": "[variables('registries')]",
+          "registries": [{ "server": "[variables('acrServer')]", "identity": "[variables('migrateId')]" }],
           "triggerType": "Manual", "replicaTimeout": 600, "replicaRetryLimit": 0, "manualTriggerConfig": { "parallelism": 1, "replicaCompletionCount": 1 },
-          "secrets": [{ "name": "database-migrate-url", "keyVaultUrl": "[variables('kvSecret').migrate]", "identity": "[variables('appId')]" }]
+          "secrets": [{ "name": "database-migrate-url", "keyVaultUrl": "[variables('kvSecret').migrate]", "identity": "[variables('migrateId')]" }]
         },
         "template": {
           "containers": [{
@@ -107,11 +167,11 @@
     {
       "condition": "[parameters('deployWebApp')]", "type": "Microsoft.App/containerApps", "apiVersion": "2024-03-01", "name": "[variables('appName')]", "location": "[parameters('location')]", "tags": "[variables('tags')]",
       "identity": { "type": "UserAssigned", "userAssignedIdentities": { "[variables('appId')]": {} } },
-      "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'database-app-url')]"],
+      "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults/secrets', variables('kvName'), 'database-app-url')]", "secretGrants"],
       "properties": {
         "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]", "workloadProfileName": "Consumption",
         "configuration": {
-          "registries": "[variables('registries')]",
+          "registries": [{ "server": "[variables('acrServer')]", "identity": "[variables('appId')]" }],
           "activeRevisionsMode": "Single",
           "ingress": { "external": true, "targetPort": 8080, "transport": "auto", "allowInsecure": false },
           "secrets": [
@@ -143,6 +203,7 @@
       }
     },
     {
+      "condition": "[parameters('deployJobs')]",
       "type": "Microsoft.Authorization/roleDefinitions", "apiVersion": "2022-04-01", "name": "[variables('joinRoleName')]",
       "properties": {
         "roleName": "[concat('Mawica staging: join Container Apps environment (', resourceGroup().name, ')')]",
@@ -152,12 +213,14 @@
       }
     },
     {
+      "condition": "[parameters('deployJobs')]",
       "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01", "name": "[guid(resourceId('Microsoft.App/managedEnvironments', variables('envName')), variables('ghIdName'), variables('joinRoleName'))]",
       "scope": "[concat('Microsoft.App/managedEnvironments/', variables('envName'))]",
       "dependsOn": ["[resourceId('Microsoft.Authorization/roleDefinitions', variables('joinRoleName'))]"],
       "properties": { "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('joinRoleName'))]", "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('ghIdName')), '2023-01-31').principalId]", "principalType": "ServicePrincipal" }
     },
     {
+      "condition": "[parameters('deployJobs')]",
       "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01", "name": "[guid(resourceId('Microsoft.App/jobs', variables('migrateJob')), variables('ghIdName'), variables('contributor'))]",
       "scope": "[concat('Microsoft.App/jobs/', variables('migrateJob'))]",
       "dependsOn": ["[resourceId('Microsoft.App/jobs', variables('migrateJob'))]"],

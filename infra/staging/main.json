@@ -2,7 +2,7 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "2.0.0.0",
   "metadata": {
-    "description": "Mawica temporary STAGING on an Azure Free Trial, Australia East. Hosting: Azure Container Apps (Consumption workload profile only: no plan management fee, scale to zero) in a VNet-integrated environment, because the subscription's App Service quota is zero in Australia East and PostgreSQL is restricted in Australia Southeast. Database: PostgreSQL Flexible 17 B1ms in Southeast Asia (B1ms is not provisionable for this trial in Australia East), private access only in vnet-mawica-stg-sea (10.41.0.0/16), reached from Australia East over bidirectional Global VNet Peering; one private DNS zone linked to both VNets; no public endpoint. Synthetic test data only. Secrets only in Key Vault (RBAC), read by the app's user-assigned identity. Logs: Log Analytics capped at 0.2 GB/day. GitHub OIDC identity (federated credential, no client secret). The workload (database role secrets, migration and role jobs, the container app and GitHub's permissions) is in app.json, deployed only with approval. Budget AUD 60 with alerts at AUD 40/55. The private image registry (ACR Basic, managed identity / OIDC only) is in registry.json, applied separately so this template's secrets are never regenerated. No App Service, Front Door, storage account, private endpoints or premium SKUs."
+    "description": "Mawica temporary STAGING on an Azure Free Trial, Australia East. Hosting: Azure Container Apps (Consumption workload profile only: no plan management fee, scale to zero) in a VNet-integrated environment, because the subscription's App Service quota is zero in Australia East and PostgreSQL is restricted in Australia Southeast. Database: PostgreSQL Flexible 17 B1ms in Southeast Asia (B1ms is not provisionable for this trial in Australia East), private access only in vnet-mawica-stg-sea (10.41.0.0/16), reached from Australia East over bidirectional Global VNet Peering; one private DNS zone linked to both VNets; no public endpoint. Synthetic test data only. Secrets only in Key Vault (RBAC). No vault-wide data access for any workload identity: app.json grants Key Vault Secrets User per secret to the web, role-job and migration-job identities. Logs: Log Analytics capped at 0.2 GB/day. GitHub OIDC identity (federated credential, no client secret). The workload (database role secrets, migration and role jobs, the container app and GitHub's permissions) is in app.json, deployed only with approval. Budget AUD 60 with alerts at AUD 40/55. The private image registry (ACR Basic, managed identity / OIDC only) is in registry.json, applied separately so this template's secrets are never regenerated. No App Service, Front Door, storage account, private endpoints or premium SKUs."
   },
   "parameters": {
     "location": {
@@ -92,7 +92,6 @@
     "appName": "ca-mawica-stg",
     "appIdName": "id-mawica-stg-app",
     "ghIdName": "id-mawica-stg-github",
-    "kvSecretsUser": "4633458b-17de-408a-b874-0445c86b69e6",
     "contributor": "b24988ac-6180-42a0-ab88-20f7382dd24c",
     "kvUri": "[concat('https://', variables('kvName'), '.vault.azure.net/secrets/')]"
   },
@@ -396,21 +395,6 @@
       "name": "[variables('appIdName')]",
       "location": "[parameters('location')]",
       "tags": "[variables('tags')]"
-    },
-    {
-      "type": "Microsoft.Authorization/roleAssignments",
-      "apiVersion": "2022-04-01",
-      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('kvName')), variables('appIdName'), variables('kvSecretsUser'))]",
-      "scope": "[concat('Microsoft.KeyVault/vaults/', variables('kvName'))]",
-      "dependsOn": [
-        "[resourceId('Microsoft.KeyVault/vaults', variables('kvName'))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('appIdName'))]"
-      ],
-      "properties": {
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvSecretsUser'))]",
-        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('appIdName')), '2023-01-31').principalId]",
-        "principalType": "ServicePrincipal"
-      }
     },
     {
       "type": "Microsoft.App/managedEnvironments",
