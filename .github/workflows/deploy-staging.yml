@@ -79,7 +79,7 @@ jobs:
         id: push
         run: |
           tag="${GITHUB_SHA::12}"
-          docker build --build-arg NEXT_PUBLIC_SITE_URL="${{ vars.STAGING_URL }}" -t "$ACR_LOGIN/mawica/web:$tag" .
+          docker build --target runner --build-arg NEXT_PUBLIC_SITE_URL="${{ vars.STAGING_URL }}" -t "$ACR_LOGIN/mawica/web:$tag" .
           docker build --target migrate -t "$ACR_LOGIN/mawica/migrate:$tag" .
           for img in web migrate; do
             docker push "$ACR_LOGIN/mawica/$img:$tag"

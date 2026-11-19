@@ -56,6 +56,13 @@
       "type": "string",
       "defaultValue": "staging"
     },
+    "githubImmutablePrefix": {
+      "type": "string",
+      "defaultValue": "repo:ThilanL@79433147/mawica@1457739842",
+      "metadata": {
+        "description": "GitHub's immutable OIDC subject prefix (owner id 79433147, repository id 1457739842); the repository issues subjects in this form."
+      }
+    },
     "budgetAmountAud": {
       "type": "int",
       "defaultValue": 60
@@ -453,6 +460,21 @@
       "properties": {
         "issuer": "https://token.actions.githubusercontent.com",
         "subject": "[concat('repo:', parameters('githubRepo'), ':environment:', parameters('githubEnvironment'))]",
+        "audiences": [
+          "api://AzureADTokenExchange"
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+      "apiVersion": "2023-01-31",
+      "name": "[concat(variables('ghIdName'), '/github-', parameters('githubEnvironment'), '-immutable')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials', variables('ghIdName'), concat('github-', parameters('githubEnvironment')))]"
+      ],
+      "properties": {
+        "issuer": "https://token.actions.githubusercontent.com",
+        "subject": "[concat(parameters('githubImmutablePrefix'), ':environment:', parameters('githubEnvironment'))]",
         "audiences": [
           "api://AzureADTokenExchange"
         ]
