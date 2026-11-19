@@ -32,13 +32,14 @@ images() { # sets WEB, MIG, PGI
   WEB="$(digest_ref mawica/web "$TAG")"; MIG="$(digest_ref mawica/migrate "$TAG")"; PGI="$(digest_ref mirror/postgres 17)"
 }
 roles_b64() { base64 < "$HERE/sql/roles.sql" | tr -d '\n'; }
+cas_b64() { base64 < "$HERE/sql/azure-pg-roots.crt" | tr -d '\n'; }   # public root CAs for verify-full (postgres image has none)
 pw_params() { # new random passwords (URL-safe; 3 character classes)
   printf '{"$schema":"https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#","contentVersion":"1.0.0.0","parameters":{"appDbPassword":{"value":"Ma%sQ7x"},"migrateDbPassword":{"value":"Mm%sR4y"}}}' "$(openssl rand -hex 20)" "$(openssl rand -hex 20)"
 }
 deploy() { # $1 = deployWebApp, $2 = rotate (yes/no)
   local extra=(); [[ "$2" == yes ]] && extra=(--parameters "@"<(pw_params))
   az deployment group create -g "$RG" -n mawica-staging-app --template-file "$HERE/app.json" \
-    --parameters webImage="$WEB" migrateImage="$MIG" rolesImage="$PGI" rolesSqlB64="$(roles_b64)" deployWebApp="$1" "${extra[@]}" \
+    --parameters webImage="$WEB" migrateImage="$MIG" rolesImage="$PGI" rolesSqlB64="$(roles_b64)" pgRootCasB64="$(cas_b64)" deployWebApp="$1" "${extra[@]}" \
     --query "properties.{state:provisioningState, outputs:outputs}" -o json
 }
 run_job() { # $1 = job name; waits and prints only lines the job marks as results
@@ -51,7 +52,7 @@ case "$MODE" in
   what-if)
     need_tag; images preview
     az deployment group what-if -g "$RG" -n mawica-staging-app --template-file "$HERE/app.json" \
-      --parameters webImage="$WEB" migrateImage="$MIG" rolesImage="$PGI" rolesSqlB64="$(roles_b64)" deployWebApp=true "@"<(pw_params) \
+      --parameters webImage="$WEB" migrateImage="$MIG" rolesImage="$PGI" rolesSqlB64="$(roles_b64)" pgRootCasB64="$(cas_b64)" deployWebApp=true "@"<(pw_params) \
       --no-pretty-print -o json | python3 -I "$HERE/whatif-summary.py" ;;
   roles)   need_tag; mirror_postgres; images; deploy false yes; run_job caj-mawica-stg-dbroles ;;
   migrate) run_job caj-mawica-stg-migrate && run_job caj-mawica-stg-dbroles ;;   # re-apply grants (revokes app writes on _prisma_migrations)

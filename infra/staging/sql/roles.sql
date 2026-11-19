@@ -10,11 +10,16 @@
 
 SELECT format('CREATE ROLE mawica_migrator LOGIN PASSWORD %L', :'migrate_password')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mawica_migrator') \gexec
-SELECT format('ALTER ROLE mawica_migrator WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L', :'migrate_password') \gexec
+-- Azure's admin is not a superuser: PostgreSQL 16+ forbids it to touch SUPERUSER/REPLICATION/BYPASSRLS (new roles never have them; checked below).
+SELECT format('ALTER ROLE mawica_migrator WITH LOGIN NOCREATEDB NOCREATEROLE PASSWORD %L', :'migrate_password') \gexec
 
 SELECT format('CREATE ROLE mawica_app LOGIN PASSWORD %L', :'app_password')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mawica_app') \gexec
-SELECT format('ALTER ROLE mawica_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L', :'app_password') \gexec
+SELECT format('ALTER ROLE mawica_app WITH LOGIN NOCREATEDB NOCREATEROLE PASSWORD %L', :'app_password') \gexec
+
+-- PostgreSQL 16+: the creating admin only gets ADMIN OPTION. ALTER ... OWNER TO and ALTER DEFAULT PRIVILEGES FOR ROLE mawica_migrator
+-- need SET on that role, so the admin (break-glass, already able to reset its password) is given SET, without INHERIT.
+GRANT mawica_migrator TO CURRENT_USER WITH INHERIT FALSE, SET TRUE;
 
 -- Safety nets for the runtime role: bounded statements, no stuck transactions, few connections (B1ms allows ~50).
 ALTER ROLE mawica_app SET statement_timeout = '30s';
@@ -47,16 +52,36 @@ BEGIN
     EXECUTE format('ALTER TYPE public.%I OWNER TO mawica_migrator', r.typname);
   END LOOP;
 END $$;
+-- Grants on the migrator's objects are made AS the migrator (their owner): a non-superuser admin may neither grant on objects it does
+-- not own nor set default privileges FOR ROLE another role. The admin has SET (not INHERIT) on mawica_migrator, see above.
+SET ROLE mawica_migrator;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO mawica_app;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO mawica_app;
--- Prisma's own bookkeeping table is for migrations only.
+-- Prisma's own bookkeeping table is for migrations only (the default privileges below would otherwise grant writes on it).
 DO $$ BEGIN
-  IF to_regclass('public._prisma_migrations') IS NOT NULL THEN EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON public._prisma_migrations FROM mawica_app'; END IF;
+  IF to_regclass('public._prisma_migrations') IS NOT NULL THEN EXECUTE 'REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public._prisma_migrations FROM mawica_app'; END IF;
+END $$;
+-- Future objects created by the migrator get the same app grants automatically.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO mawica_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO mawica_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON TYPES TO mawica_app;
+RESET ROLE;
+
+-- GRANT/REVOKE on a schema the admin does not own only WARNS; make the result explicit instead.
+DO $$ BEGIN
+  IF NOT has_schema_privilege('mawica_migrator', 'public', 'CREATE') OR NOT has_schema_privilege('mawica_app', 'public', 'USAGE')
+     OR has_schema_privilege('mawica_app', 'public', 'CREATE')
+     OR (to_regclass('public._prisma_migrations') IS NOT NULL
+         AND has_table_privilege('mawica_app', 'public._prisma_migrations', 'INSERT,UPDATE,DELETE,TRUNCATE')) THEN
+    RAISE EXCEPTION 'schema public / _prisma_migrations privileges are not as intended (is the admin the database owner?)';
+  END IF;
 END $$;
 
--- Future objects created by the migrator get the same app grants automatically.
-ALTER DEFAULT PRIVILEGES FOR ROLE mawica_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO mawica_app;
-ALTER DEFAULT PRIVILEGES FOR ROLE mawica_migrator IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO mawica_app;
-ALTER DEFAULT PRIVILEGES FOR ROLE mawica_migrator IN SCHEMA public GRANT USAGE ON TYPES TO mawica_app;
-
+-- Fail loudly if either role has any elevated attribute.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname IN ('mawica_app', 'mawica_migrator')
+             AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR NOT rolcanlogin)) THEN
+    RAISE EXCEPTION 'mawica roles have unexpected attributes';
+  END IF;
+END $$;
 SELECT rolname, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolconnlimit FROM pg_roles WHERE rolname IN ('mawica_app', 'mawica_migrator') ORDER BY 1;

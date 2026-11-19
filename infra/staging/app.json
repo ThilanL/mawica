@@ -10,6 +10,7 @@
     "migrateImage": { "type": "string", "metadata": { "description": "<acr>.azurecr.io/mawica/migrate@sha256:<digest>" } },
     "rolesImage": { "type": "string", "metadata": { "description": "<acr>.azurecr.io/mirror/postgres@sha256:<digest> (postgres:17 imported into ACR)" } },
     "rolesSqlB64": { "type": "string", "metadata": { "description": "base64 of infra/staging/sql/roles.sql (not secret)." } },
+    "pgRootCasB64": { "type": "string", "metadata": { "description": "base64 of infra/staging/sql/azure-pg-roots.crt (public root CAs; the postgres image has no CA bundle). Used for sslmode=verify-full." } },
     "appDbPassword": { "type": "secureString", "defaultValue": "", "metadata": { "description": "New password for mawica_app. Empty: keep the current Key Vault secrets (no rotation)." } },
     "migrateDbPassword": { "type": "secureString", "defaultValue": "" },
     "deployWebApp": { "type": "bool", "defaultValue": false, "metadata": { "description": "false until roles and migrations have run." } }
@@ -74,10 +75,11 @@
         "template": {
           "containers": [{
             "name": "roles", "image": "[parameters('rolesImage')]", "resources": { "cpu": 0.25, "memory": "0.5Gi" },
-            "command": ["/bin/sh", "-c", "echo \"$ROLES_SQL_B64\" | base64 -d > /tmp/roles.sql && psql \"$ADMIN_URL\" -v ON_ERROR_STOP=1 -v app_password=\"$APP_PW\" -v migrate_password=\"$MIGRATE_PW\" -v dbname=mawica -f /tmp/roles.sql && echo ROLES_OK"],
+            "command": ["/bin/sh", "-c", "set -e; echo \"$ROLES_SQL_B64\" | base64 -d > /tmp/roles.sql; echo \"$PG_ROOT_CAS_B64\" | base64 -d > /tmp/roots.pem; TLS='sslmode=verify-full sslrootcert=/tmp/roots.pem'; H=$(printf %s \"$ADMIN_URL\" | sed -E 's#^[^@]*@([^:/?]+).*#\\1#'); case \"$H\" in *.postgres.database.azure.com) ;; *) echo 'unexpected database host'; exit 1 ;; esac; psql \"$ADMIN_URL&sslmode=verify-full&sslrootcert=/tmp/roots.pem\" -X -q -v ON_ERROR_STOP=1 -v app_password=\"$APP_PW\" -v migrate_password=\"$MIGRATE_PW\" -v dbname=mawica -f /tmp/roles.sql; echo ROLES_OK; PGPASSWORD=\"$APP_PW\" psql \"host=$H port=5432 dbname=mawica user=mawica_app $TLS\" -X -q -v ON_ERROR_STOP=1 -c \"DO \\$c\\$ BEGIN IF current_user <> 'mawica_app' OR current_database() <> 'mawica' OR NOT (SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()) OR NOT has_schema_privilege('public','USAGE') OR has_schema_privilege('public','CREATE') OR has_database_privilege(current_database(),'CREATE') OR (SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN RAISE EXCEPTION 'APP_CHECK failed'; END IF; END \\$c\\$;\"; echo APP_CHECK_OK; PGPASSWORD=\"$MIGRATE_PW\" psql \"host=$H port=5432 dbname=mawica user=mawica_migrator $TLS\" -X -q -v ON_ERROR_STOP=1 -c \"DO \\$c\\$ BEGIN IF current_user <> 'mawica_migrator' OR current_database() <> 'mawica' OR NOT (SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()) OR NOT has_schema_privilege('public','CREATE') OR has_database_privilege(current_database(),'CREATE') OR (SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls FROM pg_roles WHERE rolname = current_user) THEN RAISE EXCEPTION 'MIGRATOR_CHECK failed'; END IF; END \\$c\\$;\"; echo MIGRATOR_CHECK_OK; rm -f /tmp/roles.sql /tmp/roots.pem; echo CHECKS_OK"],
             "env": [
               { "name": "ADMIN_URL", "secretRef": "admin-url" }, { "name": "APP_PW", "secretRef": "app-pw" }, { "name": "MIGRATE_PW", "secretRef": "migrate-pw" },
-              { "name": "ROLES_SQL_B64", "value": "[parameters('rolesSqlB64')]" }
+              { "name": "ROLES_SQL_B64", "value": "[parameters('rolesSqlB64')]" },
+              { "name": "PG_ROOT_CAS_B64", "value": "[parameters('pgRootCasB64')]" }
             ]
           }]
         }
