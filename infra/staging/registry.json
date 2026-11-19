@@ -7,7 +7,8 @@
   "parameters": {
     "location": { "type": "string", "defaultValue": "australiaeast" },
     "githubRepo": { "type": "string", "defaultValue": "ThilanL/mawica" },
-    "pushBranch": { "type": "string", "defaultValue": "main", "metadata": { "description": "Only workflow runs on this branch may push images." } }
+    "pushBranch": { "type": "string", "defaultValue": "main", "metadata": { "description": "Only workflow runs on this branch may push images." } },
+    "githubImmutablePrefix": { "type": "string", "defaultValue": "repo:ThilanL@79433147/mawica@1457739842", "metadata": { "description": "GitHub's immutable OIDC subject prefix for this repository (owner id 79433147, repository id 1457739842; the repository uses use_immutable_subject). Survives renames; a recreated repository gets a new id and is NOT trusted." } }
   },
   "variables": {
     "suffix": "[take(uniqueString(resourceGroup().id), 5)]",
@@ -39,6 +40,16 @@
       "properties": {
         "issuer": "https://token.actions.githubusercontent.com",
         "subject": "[concat('repo:', parameters('githubRepo'), ':ref:refs/heads/', parameters('pushBranch'))]",
+        "audiences": ["api://AzureADTokenExchange"]
+      }
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials", "apiVersion": "2023-01-31",
+      "name": "[concat(variables('pushIdName'), '/github-', parameters('pushBranch'), '-immutable')]",
+      "dependsOn": ["[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials', variables('pushIdName'), concat('github-', parameters('pushBranch')))]"],
+      "properties": {
+        "issuer": "https://token.actions.githubusercontent.com",
+        "subject": "[concat(parameters('githubImmutablePrefix'), ':ref:refs/heads/', parameters('pushBranch'))]",
         "audiences": ["api://AzureADTokenExchange"]
       }
     },
