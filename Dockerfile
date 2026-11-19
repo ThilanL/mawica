@@ -19,8 +19,12 @@ COPY . .
 # NEXT_PUBLIC_SITE_URL is inlined into pages at build time, so each environment gets its own build.
 ARG NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL NODE_ENV=production
-# Build-time placeholders only (the env schema requires them; nothing connects during the build). Real values are injected at runtime.
-RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5433/build" RATE_LIMIT_SALT="build-time-placeholder-only" npm run build \
+# Build-time placeholders only, scoped to this RUN (not ARG/ENV, so not in the image config or later layers). `next build` imports the
+# route modules to collect page data, and src/lib/auth.ts requires BETTER_AUTH_SECRET at import; nothing connects or signs during the
+# build. Real values come from Azure Key Vault at runtime. Same shape as the CI dummies (.github/workflows/ci.yml).
+RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5433/build" RATE_LIMIT_SALT="build-time-placeholder-only" \
+    BETTER_AUTH_SECRET="build-time-placeholder-not-a-secret-000000" WELCOME_PEPPER="build-time-placeholder-not-a-pepper-000000" \
+    npm run build \
  && cp -r .next/static .next/standalone/.next/static \
  && cp -r public .next/standalone/public
 
