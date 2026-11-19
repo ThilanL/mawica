@@ -10,7 +10,7 @@ Subscription: the personal Mawica Free Trial only (`d5b6244c-…`, tenant `82fd8
 | Budget `budget-mawica-sub` | **Subscription scope**, AUD 60/month, no filter: covers `rg-mawica-staging-aue` (incl. PostgreSQL in Singapore), the Azure-managed `ME_cae-mawica-stg_…` group (Container Apps public IP / load balancer) and anything Azure adds later |
 | Alerts | Actual AUD 40 / 50 / 55 / 60, forecast AUD 60 (Azure allows 5 per budget). Each emails the subscription **Owner** role and the action group |
 | Action group `ag-mawica-cost` | Emails the Owner role (no address stored in code) |
-| Cost guard | Automation account `aa-mawica-costguard` (Basic, system-assigned identity, no local auth), Python runbook `mawica-costguard`, every 4 hours |
+| Cost guard | Automation account `aa-mawica-costguard` in **Southeast Asia** (Basic, system-assigned identity, no local auth; Free Trial accounts can't create Automation accounts in Australia East), Python runbook `mawica-costguard`, every 4 hours once `enable-schedule` has been run |
 | Activity-log alert `alert-mawica-costguard` | Emails the owner whenever the web app is **stopped**, by the guard or by anyone, explaining what was stopped and how to recover |
 | Activity-log alert `alert-mawica-costguard-jobs` | Emails the owner when the **guard's identity** switches a job to Manual |
 
@@ -73,8 +73,9 @@ For a longer pause, raise `THRESHOLD_AUD` in `guard.py` and run `costguard.sh pu
 
 1. `costguard.sh what-if`
 2. `costguard.sh apply`
-3. `costguard.sh publish`
-4. `costguard.sh verify`
-5. Test the email path: Azure portal → Monitor → Alerts → Action groups → `ag-mawica-cost` → Test (email only).
-6. `costguard.sh dry-run`
-7. `costguard.sh retire-old-budget`, only after `verify` shows the new budget and its 5 notifications.
+3. `costguard.sh publish`: uploads the runbook but doesn't schedule it
+4. `costguard.sh azure-dry-run`: one read-only run inside Azure
+5. `costguard.sh verify`
+6. Test the email path: Azure portal → Monitor → Alerts → Action groups → `ag-mawica-cost` → Test (email only).
+7. `costguard.sh enable-schedule`: switches on automatic shutdown
+8. `costguard.sh retire-old-budget`, only after `verify` shows the new budget and its 5 notifications.

@@ -2,11 +2,12 @@
   "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "Mawica STAGING cost protection (infra/staging/costguard.sh). Subscription-scope budget AUD 60/month (covers every Mawica resource group, including the Azure-managed Container Apps group) with actual alerts at AUD 40/50/55/60 and a forecast alert at AUD 60, emailed to the subscription Owner role through an action group. A Python cost-guard runbook (Azure Automation, every 4 hours, system-assigned identity) stops the web app and switches non-essential scheduled jobs to manual once actual spend reaches AUD 55. Its identity can only read this budget and stop the app / change jobs inside the Mawica resource group. An activity-log alert emails the owner whenever it acts. Nothing is ever deleted."
+    "description": "Mawica STAGING cost protection (infra/staging/costguard.sh). Subscription-scope budget AUD 60/month (covers every Mawica resource group, including the Azure-managed Container Apps group) with actual alerts at AUD 40/50/55/60 and a forecast alert at AUD 60, emailed to the subscription Owner role through an action group. A Python cost-guard runbook (Azure Automation in Southeast Asia, since Free Trial accounts cannot create Automation accounts in Australia East;, every 4 hours, system-assigned identity) stops the web app and switches non-essential scheduled jobs to manual once actual spend reaches AUD 55. Its identity can only read this budget and stop the app / change jobs inside the Mawica resource group. An activity-log alert emails the owner whenever it acts. Nothing is ever deleted."
   },
   "parameters": {
     "resourceGroup": { "type": "string", "defaultValue": "rg-mawica-staging-aue" },
     "location": { "type": "string", "defaultValue": "australiaeast" },
+    "automationLocation": { "type": "string", "defaultValue": "southeastasia", "metadata": { "description": "Azure Automation location. Free Trial subscriptions cannot create Automation accounts in Australia East (allowed: eastus, eastus2, westus, northeurope, southeastasia, japanwest). The guard only calls the global management API, so its region does not affect what it protects." } },
     "budgetAmountAud": { "type": "int", "defaultValue": 60 },
     "budgetStartDate": { "type": "string", "defaultValue": "2026-11-01" },
     "scheduleStart": { "type": "string", "defaultValue": "[dateTimeAdd(utcNow(), 'PT1H')]", "metadata": { "description": "First guard run (UTC); then every 4 hours." } }
@@ -46,12 +47,12 @@
       "properties": {
         "mode": "Incremental", "expressionEvaluationOptions": { "scope": "inner" },
         "parameters": {
-          "location": { "value": "[parameters('location')]" }, "scheduleStart": { "value": "[parameters('scheduleStart')]" },
+          "location": { "value": "[parameters('location')]" }, "automationLocation": { "value": "[parameters('automationLocation')]" }, "scheduleStart": { "value": "[parameters('scheduleStart')]" },
           "guardRoleId": { "value": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('guardRole'))]" }
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#", "contentVersion": "1.0.0.0",
-          "parameters": { "location": { "type": "string" }, "scheduleStart": { "type": "string" }, "guardRoleId": { "type": "string" } },
+          "parameters": { "location": { "type": "string" }, "automationLocation": { "type": "string" }, "scheduleStart": { "type": "string" }, "guardRoleId": { "type": "string" } },
           "variables": { "tags": { "app": "mawica", "env": "staging", "temporary": "true", "managedBy": "infra/staging/costguard.json" } },
           "resources": [
             {
@@ -60,12 +61,12 @@
                 "armRoleReceivers": [{ "name": "subscription-owner", "roleId": "8e3af657-a8ff-443c-a75c-2fe8c4bcb635", "useCommonAlertSchema": true }] }
             },
             {
-              "type": "Microsoft.Automation/automationAccounts", "apiVersion": "2023-11-01", "name": "aa-mawica-costguard", "location": "[parameters('location')]", "tags": "[variables('tags')]",
+              "type": "Microsoft.Automation/automationAccounts", "apiVersion": "2023-11-01", "name": "aa-mawica-costguard", "location": "[parameters('automationLocation')]", "tags": "[variables('tags')]",
               "identity": { "type": "SystemAssigned" },
               "properties": { "sku": { "name": "Basic" }, "publicNetworkAccess": true, "disableLocalAuth": true }
             },
             {
-              "type": "Microsoft.Automation/automationAccounts/runbooks", "apiVersion": "2023-11-01", "name": "aa-mawica-costguard/mawica-costguard", "location": "[parameters('location')]", "tags": "[variables('tags')]",
+              "type": "Microsoft.Automation/automationAccounts/runbooks", "apiVersion": "2023-11-01", "name": "aa-mawica-costguard/mawica-costguard", "location": "[parameters('automationLocation')]", "tags": "[variables('tags')]",
               "dependsOn": ["[resourceId('Microsoft.Automation/automationAccounts', 'aa-mawica-costguard')]"],
               "properties": { "runbookType": "Python3", "logProgress": false, "logVerbose": false, "description": "Mawica cost guard (content: infra/staging/costguard/guard.py, published by costguard.sh)." }
             },
