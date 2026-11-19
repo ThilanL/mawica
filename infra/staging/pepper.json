@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": { "description": "Mawica STAGING welcome-pepper: created ONCE by `infra/staging/app.sh pepper` (which refuses if it exists). Never re-deploy: rotating the pepper unlinks welcome-credit tombstones." },
+  "parameters": { "welcomePepper": { "type": "secureString", "minLength": 32 } },
+  "resources": [
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets", "apiVersion": "2023-07-01",
+      "name": "[concat('kv-mawica-stg-', take(uniqueString(resourceGroup().id), 5), '/welcome-pepper')]",
+      "properties": { "contentType": "welcome-credit tombstone HMAC key; NEVER rotate", "value": "[parameters('welcomePepper')]" }
+    }
+  ]
+}
