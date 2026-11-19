@@ -1,0 +1,141 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "Mawica STAGING cost protection (infra/staging/costguard.sh). Subscription-scope budget AUD 60/month (covers every Mawica resource group, including the Azure-managed Container Apps group) with actual alerts at AUD 40/50/55/60 and a forecast alert at AUD 60, emailed to the subscription Owner role through an action group. A Python cost-guard runbook (Azure Automation, every 4 hours, system-assigned identity) stops the web app and switches non-essential scheduled jobs to manual once actual spend reaches AUD 55. Its identity can only read this budget and stop the app / change jobs inside the Mawica resource group. An activity-log alert emails the owner whenever it acts. Nothing is ever deleted."
+  },
+  "parameters": {
+    "resourceGroup": { "type": "string", "defaultValue": "rg-mawica-staging-aue" },
+    "location": { "type": "string", "defaultValue": "australiaeast" },
+    "budgetAmountAud": { "type": "int", "defaultValue": 60 },
+    "budgetStartDate": { "type": "string", "defaultValue": "2026-11-01" },
+    "scheduleStart": { "type": "string", "defaultValue": "[dateTimeAdd(utcNow(), 'PT1H')]", "metadata": { "description": "First guard run (UTC); then every 4 hours." } }
+  },
+  "variables": {
+    "budgetName": "budget-mawica-sub",
+    "rgId": "[concat(subscription().id, '/resourceGroups/', parameters('resourceGroup'))]",
+    "guardRole": "[guid(subscription().id, 'mawica-costguard-workload')]",
+    "budgetRole": "[guid(subscription().id, 'mawica-costguard-budget-read')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleDefinitions", "apiVersion": "2022-04-01", "name": "[variables('guardRole')]",
+      "properties": {
+        "roleName": "Mawica staging cost guard: stop web app, pause scheduled jobs",
+        "description": "Read and stop Container Apps and switch Container Apps jobs to manual in the Mawica staging resource group. No delete, no secrets, no networking, no database.",
+        "type": "CustomRole", "assignableScopes": ["[variables('rgId')]"],
+        "permissions": [{ "actions": [
+          "Microsoft.App/containerApps/read", "Microsoft.App/containerApps/stop/action",
+          "Microsoft.App/jobs/read", "Microsoft.App/jobs/write",
+          "Microsoft.App/managedEnvironments/read", "Microsoft.App/managedEnvironments/join/action"
+        ], "notActions": [] }]
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleDefinitions", "apiVersion": "2022-04-01", "name": "[variables('budgetRole')]",
+      "properties": {
+        "roleName": "Mawica cost guard: read budgets",
+        "description": "Read Cost Management budgets (amount and current spend) in the Mawica subscription. Nothing else.",
+        "type": "CustomRole", "assignableScopes": ["[subscription().id]"],
+        "permissions": [{ "actions": ["Microsoft.Consumption/budgets/read"], "notActions": [] }]
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments", "apiVersion": "2022-09-01", "name": "mawica-costguard-rg", "resourceGroup": "[parameters('resourceGroup')]",
+      "dependsOn": ["[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('guardRole'))]"],
+      "properties": {
+        "mode": "Incremental", "expressionEvaluationOptions": { "scope": "inner" },
+        "parameters": {
+          "location": { "value": "[parameters('location')]" }, "scheduleStart": { "value": "[parameters('scheduleStart')]" },
+          "guardRoleId": { "value": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('guardRole'))]" }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#", "contentVersion": "1.0.0.0",
+          "parameters": { "location": { "type": "string" }, "scheduleStart": { "type": "string" }, "guardRoleId": { "type": "string" } },
+          "variables": { "tags": { "app": "mawica", "env": "staging", "temporary": "true", "managedBy": "infra/staging/costguard.json" } },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/actionGroups", "apiVersion": "2023-01-01", "name": "ag-mawica-cost", "location": "Global", "tags": "[variables('tags')]",
+              "properties": { "groupShortName": "mawicacost", "enabled": true,
+                "armRoleReceivers": [{ "name": "subscription-owner", "roleId": "8e3af657-a8ff-443c-a75c-2fe8c4bcb635", "useCommonAlertSchema": true }] }
+            },
+            {
+              "type": "Microsoft.Automation/automationAccounts", "apiVersion": "2023-11-01", "name": "aa-mawica-costguard", "location": "[parameters('location')]", "tags": "[variables('tags')]",
+              "identity": { "type": "SystemAssigned" },
+              "properties": { "sku": { "name": "Basic" }, "publicNetworkAccess": true, "disableLocalAuth": true }
+            },
+            {
+              "type": "Microsoft.Automation/automationAccounts/runbooks", "apiVersion": "2023-11-01", "name": "aa-mawica-costguard/mawica-costguard", "location": "[parameters('location')]", "tags": "[variables('tags')]",
+              "dependsOn": ["[resourceId('Microsoft.Automation/automationAccounts', 'aa-mawica-costguard')]"],
+              "properties": { "runbookType": "Python3", "logProgress": false, "logVerbose": false, "description": "Mawica cost guard (content: infra/staging/costguard/guard.py, published by costguard.sh)." }
+            },
+            {
+              "type": "Microsoft.Automation/automationAccounts/schedules", "apiVersion": "2023-11-01", "name": "aa-mawica-costguard/every-4-hours",
+              "dependsOn": ["[resourceId('Microsoft.Automation/automationAccounts', 'aa-mawica-costguard')]"],
+              "properties": { "description": "Cost guard check", "startTime": "[parameters('scheduleStart')]", "frequency": "Hour", "interval": 4, "timeZone": "UTC" }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, 'aa-mawica-costguard', parameters('guardRoleId'))]",
+              "dependsOn": ["[resourceId('Microsoft.Automation/automationAccounts', 'aa-mawica-costguard')]"],
+              "properties": { "roleDefinitionId": "[parameters('guardRoleId')]", "principalId": "[reference(resourceId('Microsoft.Automation/automationAccounts', 'aa-mawica-costguard'), '2023-11-01', 'full').identity.principalId]", "principalType": "ServicePrincipal", "description": "Cost guard: stop the web app / pause scheduled jobs in this resource group only." }
+            },
+            {
+              "type": "Microsoft.Insights/activityLogAlerts", "apiVersion": "2020-10-01", "name": "alert-mawica-costguard", "location": "Global", "tags": "[variables('tags')]",
+              "dependsOn": ["[resourceId('Microsoft.Insights/actionGroups', 'ag-mawica-cost')]", "[resourceId('Microsoft.Automation/automationAccounts', 'aa-mawica-costguard')]"],
+              "properties": {
+                "enabled": true, "scopes": ["[resourceGroup().id]"],
+                "description": "COST GUARD ACTED: Mawica staging reached AUD 55 this month. The web app ca-mawica-stg was STOPPED (no compute charges; nothing deleted). This alert fires for any stop of a Container App in the Mawica staging group, so a manual stop by the owner also triggers it. PostgreSQL, Key Vault, ACR, networking and DNS are untouched. Recovery: docs/azure-cost-protection.md (infra/staging/costguard.sh restore).",
+                "condition": { "allOf": [
+                  { "field": "category", "equals": "Administrative" },
+                  { "field": "operationName", "equals": "Microsoft.App/containerApps/stop/action" }
+                ] },
+                "actions": { "actionGroups": [{ "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', 'ag-mawica-cost')]" }] }
+              }
+            },
+            {
+              "type": "Microsoft.Insights/activityLogAlerts", "apiVersion": "2020-10-01", "name": "alert-mawica-costguard-jobs", "location": "Global", "tags": "[variables('tags')]",
+              "dependsOn": ["[resourceId('Microsoft.Insights/actionGroups', 'ag-mawica-cost')]", "[resourceId('Microsoft.Automation/automationAccounts', 'aa-mawica-costguard')]"],
+              "properties": {
+                "enabled": true, "scopes": ["[resourceGroup().id]"],
+                "description": "COST GUARD ACTED: a scheduled Container Apps job in Mawica staging was switched to Manual by the cost guard (AUD 55 reached). Its original trigger is in the job's costguard-original-* tags. Recovery: infra/staging/costguard.sh restore.",
+                "condition": { "allOf": [
+                  { "field": "category", "equals": "Administrative" },
+                  { "field": "operationName", "equals": "Microsoft.App/jobs/write" },
+                  { "field": "caller", "equals": "[reference(resourceId('Microsoft.Automation/automationAccounts', 'aa-mawica-costguard'), '2023-11-01', 'full').identity.principalId]" }
+                ] },
+                "actions": { "actionGroups": [{ "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', 'ag-mawica-cost')]" }] }
+              }
+            }
+          ],
+          "outputs": { "guardPrincipalId": { "type": "string", "value": "[reference(resourceId('Microsoft.Automation/automationAccounts', 'aa-mawica-costguard'), '2023-11-01', 'full').identity.principalId]" } }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01",
+      "name": "[guid(subscription().id, 'aa-mawica-costguard', variables('budgetRole'))]",
+      "dependsOn": ["[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('budgetRole'))]", "mawica-costguard-rg"],
+      "properties": { "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('budgetRole'))]", "principalId": "[reference(resourceId(subscription().subscriptionId, parameters('resourceGroup'), 'Microsoft.Resources/deployments', 'mawica-costguard-rg'), '2022-09-01').outputs.guardPrincipalId.value]", "principalType": "ServicePrincipal", "description": "Cost guard: read the budget's current spend only." }
+    },
+    {
+      "type": "Microsoft.Consumption/budgets", "apiVersion": "2023-11-01", "name": "[variables('budgetName')]",
+      "dependsOn": ["mawica-costguard-rg"],
+      "properties": {
+        "category": "Cost", "amount": "[parameters('budgetAmountAud')]", "timeGrain": "Monthly",
+        "timePeriod": { "startDate": "[parameters('budgetStartDate')]", "endDate": "2036-11-01" },
+        "notifications": {
+          "actualAud40": {"enabled": true, "operator": "GreaterThanOrEqualTo", "threshold": 66.67, "thresholdType": "Actual", "contactRoles": ["Owner"], "contactGroups": ["[concat(subscription().id, '/resourceGroups/', parameters('resourceGroup'), '/providers/Microsoft.Insights/actionGroups/ag-mawica-cost')]"], "locale": "en-us"},
+          "actualAud50": {"enabled": true, "operator": "GreaterThanOrEqualTo", "threshold": 83.34, "thresholdType": "Actual", "contactRoles": ["Owner"], "contactGroups": ["[concat(subscription().id, '/resourceGroups/', parameters('resourceGroup'), '/providers/Microsoft.Insights/actionGroups/ag-mawica-cost')]"], "locale": "en-us"},
+          "actualAud55": {"enabled": true, "operator": "GreaterThanOrEqualTo", "threshold": 91.67, "thresholdType": "Actual", "contactRoles": ["Owner"], "contactGroups": ["[concat(subscription().id, '/resourceGroups/', parameters('resourceGroup'), '/providers/Microsoft.Insights/actionGroups/ag-mawica-cost')]"], "locale": "en-us"},
+          "actualAud60": {"enabled": true, "operator": "GreaterThanOrEqualTo", "threshold": 100, "thresholdType": "Actual", "contactRoles": ["Owner"], "contactGroups": ["[concat(subscription().id, '/resourceGroups/', parameters('resourceGroup'), '/providers/Microsoft.Insights/actionGroups/ag-mawica-cost')]"], "locale": "en-us"},
+          "forecastAud60": {"enabled": true, "operator": "GreaterThanOrEqualTo", "threshold": 100, "thresholdType": "Forecasted", "contactRoles": ["Owner"], "contactGroups": ["[concat(subscription().id, '/resourceGroups/', parameters('resourceGroup'), '/providers/Microsoft.Insights/actionGroups/ag-mawica-cost')]"], "locale": "en-us"}
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "budget": { "type": "string", "value": "[variables('budgetName')]" },
+    "guardPrincipalId": { "type": "string", "value": "[reference(resourceId(subscription().subscriptionId, parameters('resourceGroup'), 'Microsoft.Resources/deployments', 'mawica-costguard-rg'), '2022-09-01').outputs.guardPrincipalId.value]" }
+  }
+}
