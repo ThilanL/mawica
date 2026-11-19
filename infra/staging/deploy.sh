@@ -2,6 +2,7 @@
 # Provision (or preview) the temporary Mawica STAGING infrastructure from infra/staging/main.json.
 #   infra/staging/deploy.sh what-if     # preview only (no changes)
 #   infra/staging/deploy.sh create      # first provisioning (PG_ZONE=1|2|3 pins PostgreSQL to a zone)
+#   infra/staging/deploy.sh registry-what-if | registry   # the private ACR (registry.json): no secrets, safe to re-run
 #
 # Secret hygiene:
 # - The PostgreSQL admin password, Better Auth secret, welcome pepper and rate-limit salt are generated here with openssl and handed to az
@@ -35,10 +36,15 @@ secrets_json() {
     "$(openssl rand -hex 16)" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)"
 }
 
+case "$MODE" in
+  registry-what-if) az deployment group what-if -g "$RG" -n mawica-staging-registry --template-file "$HERE/registry.json" --no-pretty-print -o json | python3 -I "$HERE/whatif-summary.py"; exit ;;
+  registry) az deployment group create -g "$RG" -n mawica-staging-registry --template-file "$HERE/registry.json" --query "properties.{state:provisioningState, outputs:outputs}" -o json; exit ;;
+esac
+
 az group create -n "$RG" -l "$LOCATION" --tags app=mawica env=staging temporary=true -o none
 case "$MODE" in
   what-if) az deployment group what-if -g "$RG" -n mawica-staging --template-file "$HERE/main.json" --parameters "@"<(secrets_json) pgZone="${PG_ZONE:-}" --no-pretty-print -o json \
              | python3 -I "$HERE/whatif-summary.py" ;;
   create)  az deployment group create -g "$RG" -n mawica-staging --template-file "$HERE/main.json" --parameters "@"<(secrets_json) pgZone="${PG_ZONE:-}" --query "properties.{state:provisioningState, outputs:outputs}" -o json ;;
-  *) echo "usage: $0 what-if|create" >&2; exit 2 ;;
+  *) echo "usage: $0 what-if|create|registry-what-if|registry" >&2; exit 2 ;;
 esac

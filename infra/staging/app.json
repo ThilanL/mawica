@@ -2,12 +2,13 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "Mawica STAGING workload, deployed only with the owner's approval (infra/staging/app.sh). On top of main.json: least-privilege database credentials in Key Vault, a role-bootstrap job and a migration job (Container Apps jobs inside the VNet, manual trigger), the web container app (scale 0-1, HTTPS ingress, health probes, Key Vault secrets via managed identity, email and scheduled delivery off), and GitHub Actions' minimum permissions (update the app and the migration job only)."
+    "description": "Mawica STAGING workload, deployed only with the owner's approval (infra/staging/app.sh). On top of main.json and registry.json (all images pulled from the private ACR by the app's managed identity, by digest): least-privilege database credentials in Key Vault, a role-bootstrap job and a migration job (Container Apps jobs inside the VNet, manual trigger), the web container app (scale 0-1, HTTPS ingress, health probes, Key Vault secrets via managed identity, email and scheduled delivery off), and GitHub Actions' minimum permissions (update the app and the migration job only)."
   },
   "parameters": {
     "location": { "type": "string", "defaultValue": "australiaeast" },
-    "webImage": { "type": "string", "metadata": { "description": "ghcr.io/thilanl/mawica/web:<tag>" } },
-    "migrateImage": { "type": "string", "metadata": { "description": "ghcr.io/thilanl/mawica/migrate:<tag>" } },
+    "webImage": { "type": "string", "metadata": { "description": "<acr>.azurecr.io/mawica/web@sha256:<digest> (deployed by digest)" } },
+    "migrateImage": { "type": "string", "metadata": { "description": "<acr>.azurecr.io/mawica/migrate@sha256:<digest>" } },
+    "rolesImage": { "type": "string", "metadata": { "description": "<acr>.azurecr.io/mirror/postgres@sha256:<digest> (postgres:17 imported into ACR)" } },
     "rolesSqlB64": { "type": "string", "metadata": { "description": "base64 of infra/staging/sql/roles.sql (not secret)." } },
     "appDbPassword": { "type": "secureString", "defaultValue": "", "metadata": { "description": "New password for mawica_app. Empty: keep the current Key Vault secrets (no rotation)." } },
     "migrateDbPassword": { "type": "secureString", "defaultValue": "" },
@@ -24,6 +25,7 @@
     "rolesJob": "caj-mawica-stg-dbroles",
     "migrateJob": "caj-mawica-stg-migrate",
     "appId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'id-mawica-stg-app')]",
+    "registries": [{ "server": "[concat('acrmawicastg', variables('suffix'), '.azurecr.io')]", "identity": "[variables('appId')]" }],
     "ghIdName": "id-mawica-stg-github",
     "contributor": "b24988ac-6180-42a0-ab88-20f7382dd24c",
     "joinRoleName": "[guid(resourceGroup().id, 'mawica-aca-environment-join')]",
@@ -61,6 +63,7 @@
       "properties": {
         "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]", "workloadProfileName": "Consumption",
         "configuration": {
+          "registries": "[variables('registries')]",
           "triggerType": "Manual", "replicaTimeout": 300, "replicaRetryLimit": 0, "manualTriggerConfig": { "parallelism": 1, "replicaCompletionCount": 1 },
           "secrets": [
             { "name": "admin-url", "keyVaultUrl": "[variables('kvSecret').admin]", "identity": "[variables('appId')]" },
@@ -70,7 +73,7 @@
         },
         "template": {
           "containers": [{
-            "name": "roles", "image": "docker.io/library/postgres:17", "resources": { "cpu": 0.25, "memory": "0.5Gi" },
+            "name": "roles", "image": "[parameters('rolesImage')]", "resources": { "cpu": 0.25, "memory": "0.5Gi" },
             "command": ["/bin/sh", "-c", "echo \"$ROLES_SQL_B64\" | base64 -d > /tmp/roles.sql && psql \"$ADMIN_URL\" -v ON_ERROR_STOP=1 -v app_password=\"$APP_PW\" -v migrate_password=\"$MIGRATE_PW\" -v dbname=mawica -f /tmp/roles.sql && echo ROLES_OK"],
             "env": [
               { "name": "ADMIN_URL", "secretRef": "admin-url" }, { "name": "APP_PW", "secretRef": "app-pw" }, { "name": "MIGRATE_PW", "secretRef": "migrate-pw" },
@@ -87,6 +90,7 @@
       "properties": {
         "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]", "workloadProfileName": "Consumption",
         "configuration": {
+          "registries": "[variables('registries')]",
           "triggerType": "Manual", "replicaTimeout": 600, "replicaRetryLimit": 0, "manualTriggerConfig": { "parallelism": 1, "replicaCompletionCount": 1 },
           "secrets": [{ "name": "database-migrate-url", "keyVaultUrl": "[variables('kvSecret').migrate]", "identity": "[variables('appId')]" }]
         },
@@ -105,6 +109,7 @@
       "properties": {
         "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]", "workloadProfileName": "Consumption",
         "configuration": {
+          "registries": "[variables('registries')]",
           "activeRevisionsMode": "Single",
           "ingress": { "external": true, "targetPort": 8080, "transport": "auto", "allowInsecure": false },
           "secrets": [

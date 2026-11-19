@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "Mawica STAGING private image registry (infra/staging/deploy.sh registry). Azure Container Registry Basic in Australia East: no admin user, no anonymous pull, Microsoft Entra (managed identity / OIDC) only. GitHub Actions pushes with its own OIDC identity (AcrPush only, main branch only); Container Apps pull with the app's managed identity (AcrPull only). Separate from main.json because main.json cannot be re-applied without rotating its secrets."
+  },
+  "parameters": {
+    "location": { "type": "string", "defaultValue": "australiaeast" },
+    "githubRepo": { "type": "string", "defaultValue": "ThilanL/mawica" },
+    "pushBranch": { "type": "string", "defaultValue": "main", "metadata": { "description": "Only workflow runs on this branch may push images." } }
+  },
+  "variables": {
+    "suffix": "[take(uniqueString(resourceGroup().id), 5)]",
+    "tags": { "app": "mawica", "env": "staging", "temporary": "true", "managedBy": "infra/staging/registry.json" },
+    "acrName": "[concat('acrmawicastg', variables('suffix'))]",
+    "pushIdName": "id-mawica-stg-acrpush",
+    "appIdName": "id-mawica-stg-app",
+    "acrPull": "7f951dda-4ed3-4680-a7ca-43fe172d538d",
+    "acrPush": "8311e382-0749-4cb8-b61a-304f252e45ec"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerRegistry/registries", "apiVersion": "2023-07-01", "name": "[variables('acrName')]", "location": "[parameters('location')]", "tags": "[variables('tags')]",
+      "sku": { "name": "Basic" },
+      "properties": {
+        "adminUserEnabled": false,
+        "anonymousPullEnabled": false,
+        "publicNetworkAccess": "Enabled",
+        "zoneRedundancy": "Disabled"
+      }
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities", "apiVersion": "2023-01-31", "name": "[variables('pushIdName')]", "location": "[parameters('location')]", "tags": "[variables('tags')]"
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials", "apiVersion": "2023-01-31",
+      "name": "[concat(variables('pushIdName'), '/github-', parameters('pushBranch'))]",
+      "dependsOn": ["[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('pushIdName'))]"],
+      "properties": {
+        "issuer": "https://token.actions.githubusercontent.com",
+        "subject": "[concat('repo:', parameters('githubRepo'), ':ref:refs/heads/', parameters('pushBranch'))]",
+        "audiences": ["api://AzureADTokenExchange"]
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), variables('pushIdName'), variables('acrPush'))]",
+      "scope": "[concat('Microsoft.ContainerRegistry/registries/', variables('acrName'))]",
+      "dependsOn": ["[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]", "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('pushIdName'))]"],
+      "properties": { "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPush'))]", "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('pushIdName')), '2023-01-31').principalId]", "principalType": "ServicePrincipal", "description": "GitHub Actions (main branch) may push and pull images in this registry only." }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments", "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), variables('appIdName'), variables('acrPull'))]",
+      "scope": "[concat('Microsoft.ContainerRegistry/registries/', variables('acrName'))]",
+      "dependsOn": ["[resourceId('Microsoft.ContainerRegistry/registries', variables('acrName'))]"],
+      "properties": { "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('acrPull'))]", "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('appIdName')), '2023-01-31').principalId]", "principalType": "ServicePrincipal", "description": "The Mawica web app and its jobs may pull images from this registry only." }
+    }
+  ],
+  "outputs": {
+    "loginServer": { "type": "string", "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').loginServer]" },
+    "pushClientId": { "type": "string", "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('pushIdName')), '2023-01-31').clientId]" }
+  }
+}

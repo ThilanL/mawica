@@ -1,21 +1,32 @@
-# Deploy Mawica to the temporary Azure STAGING environment (Container Apps, Australia East; PostgreSQL in Southeast Asia, private).
-# Manual only (Actions tab -> deploy-staging -> Run workflow), after CI is green. The "staging" GitHub environment must require the
-# owner's approval and allow only the main branch.
-# Azure sign-in: OpenID Connect via the managed identity id-mawica-stg-github (federated credential for environment "staging"); no secret.
-#   It may only: update the web container app and the migration job, start the migration job, and join their environment.
-# Repository VARIABLES (not secrets): AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, STAGING_URL.
-# Images: GitHub Container Registry (free). Make the two packages public once after the first push (the repository is public), so the
-# container app can pull without registry credentials.
-# First-time setup (database roles, jobs, the container app itself) is done once by the owner with infra/staging/app.sh, not here.
+# Build Mawica images and (optionally) deploy them to the temporary Azure STAGING environment
+# (Container Apps, Australia East; PostgreSQL in Southeast Asia, private).
+# Manual only (Actions tab -> deploy-staging -> Run workflow, branch main), after CI is green.
+#
+# mode = build-only (default): build, push to the private ACR, print the digests. The deploy job is skipped outright (its `if` is
+#        false), so no staging approval is requested and nothing in Azure except the registry is touched.
+# mode = deploy: the deploy job runs only after the owner approves the "staging" GitHub environment (required reviewer, main only).
+#
+# Azure sign-in: OpenID Connect only, no stored secrets. Two identities, each limited to its job:
+#   build  -> id-mawica-stg-acrpush (AZURE_ACR_PUSH_CLIENT_ID): federated for ref main; AcrPush on the Mawica registry, nothing else.
+#   deploy -> id-mawica-stg-github  (AZURE_CLIENT_ID): federated for environment staging; may update the web app and the migration job,
+#             start the migration job, and join their environment. Container Apps pull images with the app's own managed identity (AcrPull).
+# Images are tagged with the commit (12 characters) and deployed by digest (immutable).
+# Repository VARIABLES (not secrets): AZURE_CLIENT_ID, AZURE_ACR_PUSH_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, STAGING_URL.
+# First-time setup (registry, database roles, jobs, the container app itself) is done once by the owner with infra/staging/*.sh.
 name: deploy-staging
 
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "build-only: build and push images (no deployment). deploy: also deploy after staging approval."
+        type: choice
+        options: [build-only, deploy]
+        default: build-only
       run_migrations:
-        description: "Run prisma migrate deploy (migration job inside the VNet) before updating the app"
+        description: "deploy mode only: run prisma migrate deploy (migration job inside the VNet) before updating the app"
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
@@ -28,57 +39,88 @@ env:
   RG: rg-mawica-staging-aue
   APP: ca-mawica-stg
   MIGRATE_JOB: caj-mawica-stg-migrate
+  ACR_LOGIN: acrmawicastgurw2b.azurecr.io
   MAWICA_SUBSCRIPTION_ID: d5b6244c-44ac-49fb-9e93-a628acfea802
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      tag: ${{ steps.meta.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: meta
-        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
-      - name: Require the staging URL variable
-        run: test -n "${{ vars.STAGING_URL }}" || { echo "Set the STAGING_URL repository variable"; exit 1; }
-      - uses: docker/login-action@v3
-        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
-      - name: Build and push web and migrate images (Linux x64, Node 24)
-        run: |
-          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
-          docker build --build-arg NEXT_PUBLIC_SITE_URL="${{ vars.STAGING_URL }}" -t "$repo/web:${{ steps.meta.outputs.tag }}" .
-          docker build --target migrate -t "$repo/migrate:${{ steps.meta.outputs.tag }}" .
-          docker push "$repo/web:${{ steps.meta.outputs.tag }}"
-          docker push "$repo/migrate:${{ steps.meta.outputs.tag }}"
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment: staging            # required reviewer: the owner
     permissions:
       contents: read
       id-token: write
+    outputs:
+      web: ${{ steps.push.outputs.web }}
+      migrate: ${{ steps.push.outputs.migrate }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require repository variables
+        run: |
+          for v in "${{ vars.STAGING_URL }}" "${{ vars.AZURE_ACR_PUSH_CLIENT_ID }}" "${{ vars.AZURE_TENANT_ID }}"; do
+            [ -n "$v" ] || { echo "Missing a repository variable (STAGING_URL, AZURE_ACR_PUSH_CLIENT_ID, AZURE_TENANT_ID)"; exit 1; }
+          done
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_ACR_PUSH_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true   # the push identity has no subscription role at all, only AcrPush on the registry
+      - name: Registry sign-in (Entra token exchanged for a short-lived ACR token; no admin user, nothing stored)
+        run: |
+          aad="$(az account get-access-token --query accessToken -o tsv)"
+          echo "::add-mask::$aad"
+          refresh="$(curl -fsS -X POST "https://$ACR_LOGIN/oauth2/exchange" \
+            --data-urlencode grant_type=access_token --data-urlencode "service=$ACR_LOGIN" \
+            --data-urlencode "tenant=${{ vars.AZURE_TENANT_ID }}" --data-urlencode "access_token=$aad" | jq -r .refresh_token)"
+          echo "::add-mask::$refresh"
+          [ -n "$refresh" ] && [ "$refresh" != null ] || { echo "ACR token exchange failed"; exit 1; }
+          printf '%s' "$refresh" | docker login "$ACR_LOGIN" -u 00000000-0000-0000-0000-000000000000 --password-stdin
+      - name: Build and push web and migrate images (Linux x64, Node 24)
+        id: push
+        run: |
+          tag="${GITHUB_SHA::12}"
+          docker build --build-arg NEXT_PUBLIC_SITE_URL="${{ vars.STAGING_URL }}" -t "$ACR_LOGIN/mawica/web:$tag" .
+          docker build --target migrate -t "$ACR_LOGIN/mawica/migrate:$tag" .
+          for img in web migrate; do
+            docker push "$ACR_LOGIN/mawica/$img:$tag"
+            ref="$(docker inspect --format '{{index .RepoDigests 0}}' "$ACR_LOGIN/mawica/$img:$tag")"
+            case "$ref" in "$ACR_LOGIN/mawica/$img@sha256:"*) ;; *) echo "no digest for $img"; exit 1 ;; esac
+            echo "$img=$ref" >> "$GITHUB_OUTPUT"
+            echo "- $img: \`$ref\` (tag $tag)" >> "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Sign out of the registry
+        if: always()
+        run: docker logout "$ACR_LOGIN" || true
+
+  deploy:
+    needs: build
+    if: inputs.mode == 'deploy' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging            # required reviewer: the owner; main branch only
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      WEB_IMAGE: ${{ needs.build.outputs.web }}
+      MIGRATE_IMAGE: ${{ needs.build.outputs.migrate }}
     steps:
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Identity guard (Mawica subscription only)
+      - name: Identity and image guard (Mawica subscription; digests from the Mawica registry only)
         run: |
           [ "$(az account show --query id -o tsv)" = "$MAWICA_SUBSCRIPTION_ID" ] || { echo "Not the Mawica subscription"; exit 1; }
+          case "$WEB_IMAGE" in "$ACR_LOGIN/mawica/web@sha256:"*) ;; *) echo "unexpected web image"; exit 1 ;; esac
+          case "$MIGRATE_IMAGE" in "$ACR_LOGIN/mawica/migrate@sha256:"*) ;; *) echo "unexpected migrate image"; exit 1 ;; esac
       - name: Migrations (job inside the VNet; the database has no public endpoint)
         if: inputs.run_migrations
         run: |
-          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
-          az containerapp job update -g "$RG" -n "$MIGRATE_JOB" --image "$repo/migrate:${{ needs.build.outputs.tag }}" -o none
+          az containerapp job update -g "$RG" -n "$MIGRATE_JOB" --image "$MIGRATE_IMAGE" -o none
           run="$(az containerapp job start -g "$RG" -n "$MIGRATE_JOB" --query name -o tsv)"
-          for i in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             state="$(az containerapp job execution show -g "$RG" -n "$MIGRATE_JOB" --job-execution-name "$run" --query properties.status -o tsv)"
             [ "$state" = "Succeeded" ] && break
             [ "$state" = "Failed" ] && { echo "Migration failed; the app was NOT updated"; exit 1; }
@@ -86,13 +128,11 @@ jobs:
           done
           [ "$state" = "Succeeded" ] || { echo "Migration timed out; the app was NOT updated"; exit 1; }
       - name: Update the web app image (new revision; the previous one stays available for rollback)
-        run: |
-          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
-          az containerapp update -g "$RG" -n "$APP" --image "$repo/web:${{ needs.build.outputs.tag }}" -o none
+        run: az containerapp update -g "$RG" -n "$APP" --image "$WEB_IMAGE" -o none
       - name: Smoke tests (first request may include a cold start)
         run: |
           url="${{ vars.STAGING_URL }}"
-          for i in $(seq 1 30); do code="$(curl -s -o /dev/null -w '%{http_code}' "$url/api/health" || true)"; [ "$code" = "200" ] && break; sleep 10; done
+          for _ in $(seq 1 30); do code="$(curl -s -o /dev/null -w '%{http_code}' "$url/api/health" || true)"; [ "$code" = "200" ] && break; sleep 10; done
           [ "$code" = "200" ] || { echo "health check failed ($code)"; exit 1; }
           [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/")" = "200" ]
           [ "$(curl -s -o /dev/null -w '%{http_code}' "$url/c/doesnotexist1")" = "404" ]
