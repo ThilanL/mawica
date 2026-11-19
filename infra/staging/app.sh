@@ -45,7 +45,7 @@ deploy() { # $1 = deployWebApp, $2 = deployJobs, $3 = rotate (yes/no)
   local extra=(); [[ "$3" == yes ]] && extra=(--parameters "@"<(pw_params))
   az deployment group create -g "$RG" -n mawica-staging-app --template-file "$HERE/app.json" \
     --parameters webImage="${WEB:-}" migrateImage="${MIG:-}" rolesImage="${PGI:-}" rolesSqlB64="$(roles_b64)" pgRootCasB64="$(cas_b64)" \
-      deployWebApp="$1" deployJobs="$2" existingSecrets="$(existing_secrets)" "${extra[@]}" \
+      deployWebApp="$1" deployJobs="$2" existingSecrets="$(existing_secrets)" ${extra[@]+"${extra[@]}"} \
     --query "properties.{state:provisioningState, outputs:outputs}" -o json
 }
 rbac_wait() { echo "waiting 180 s for new Key Vault / ACR role assignments to propagate"; sleep 180; }
