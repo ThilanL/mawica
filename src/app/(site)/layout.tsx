@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { fontVariables } from "../fonts";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+import { isNoindex, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import "../globals.css";
 
 
@@ -14,6 +14,7 @@ export const metadata: Metadata = {
   icons: { icon: "/brand/mawica-app-icon.png", apple: "/brand/mawica-app-icon.png" },
   openGraph: { type: "website", siteName: SITE_NAME, locale: "en_AU", title: "mawica. | Bring your wishes to life", description: SITE_DESCRIPTION, url: "/" },
   twitter: { card: "summary_large_image", title: "mawica. | Bring your wishes to life", description: SITE_DESCRIPTION },
+  ...(isNoindex() ? { robots: { index: false, follow: false } } : {}),
 };
 
 export const viewport: Viewport = { themeColor: "#FFF8F4" };
