@@ -95,14 +95,22 @@ describe("isolation of the auth library (initial bundle)", () => {
     const importers = files.filter((f) => /from ["']better-auth|from ["']@better-auth/.test(read(f))).map((f) => f.replaceAll("\\", "/")).sort();
     expect(importers).toEqual(["src/app/api/auth/[...all]/route.ts", "src/lib/auth.ts"].sort());
   });
-  it("public pages, the header and the guest card flow never import the auth modules", () => {
-    const publicFiles = [...files.filter((f) => f.includes("src/components/landing") || f.includes("src/components/cards") || f.includes("src/components/create") || f.includes("src/components/lumi")), "src/app/(site)/page.tsx", "src/app/api/cards/route.ts", "src/components/auth/AccountNav.tsx", "src/components/layout/SiteHeader.tsx", "src/proxy.ts"];
-    // Static imports only: the cards route reaches accounts/wallet through guarded dynamic imports (signed-in requests only).
+  it("public pages, the header and the create wizard never import the auth modules", () => {
+    const publicFiles = [...files.filter((f) => f.includes("src/components/landing") || f.includes("src/components/cards") || f.includes("src/components/create") || f.includes("src/components/lumi")), "src/app/(site)/page.tsx", "src/components/auth/AccountNav.tsx", "src/components/layout/SiteHeader.tsx", "src/proxy.ts"];
+    // Static imports only: the create wizard stays auth-free (guests may preview). Publish is server-gated.
     const staticImports = (f: string) => read(f).split("\n").filter((l) => /^import\b/.test(l)).join("\n");
     for (const f of publicFiles) expect(staticImports(f), f).not.toMatch(/@\/lib\/auth|@\/modules\/auth\/(session|audit)|@\/modules\/wallet|better-auth/);
+  });
+  it("POST /api/cards requires a session via dynamic import and never falls through to createCard", () => {
     const route = read("src/app/api/cards/route.ts");
-    expect(route).toMatch(/hasSessionCookie\(request\.headers\.get\("cookie"\)\)/);
-    expect(route.indexOf('await import("@/modules/auth/session")')).toBeGreaterThan(route.indexOf("hasSessionCookie(request"));
+    const staticImports = route.split("\n").filter((l) => /^import\b/.test(l)).join("\n");
+    expect(staticImports).not.toMatch(/@\/lib\/auth|@\/modules\/auth\/session|@\/modules\/wallet|better-auth/);
+    expect(route).toMatch(/await import\("@\/modules\/auth\/session"\)/);
+    expect(route).toMatch(/SIGN_IN_REQUIRED/);
+    expect(route).toMatch(/isAllowedOrigin/);
+    expect(route).toMatch(/Idempotency-Key header is required/);
+    expect(route).not.toMatch(/\bcreateCard\(/);
+    expect(route).not.toMatch(/treating the request as a guest/);
   });
   it("the auth route is deny-by-default with an explicit allowlist", () => {
     const src = read("src/app/api/auth/[...all]/route.ts");

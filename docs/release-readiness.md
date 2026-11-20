@@ -1,6 +1,6 @@
 # Release readiness: transactional email and sign-in (Phase 2D.1)
 
-**Nothing here has been provisioned or executed.** It is the plan for a *controlled staging integration*. Production sending, recipient email and the guest-publishing cutover are out of scope.
+**Nothing here has been provisioned or executed.** It is the plan for a *controlled staging integration*. Production sending and recipient email are out of scope. Guest publishing is refused in application code (session required to publish); staging smoke should verify anonymous `401` and that existing ownerless cards still open.
 
 ## 1. Provider recommendation
 **Superseded by [email-provider-assessment.md](email-provider-assessment.md): ACS Email is retiring (30 Sep 2028); migrate the adapter before staging.** The text below is the original Phase 2D.1 position, kept for history. Azure Communication Services (ACS) Email, Australia data location, behind the provider-independent interface ([email.md](email.md)). Proceed to a staging evaluation, not to production. Conditions: the integration-test items in email.md pass; per-email pricing is confirmed; the ACS retirement/breaking-changes guide has been read and does not affect Email.
@@ -50,8 +50,8 @@ Sign-in limits and audit rows key on the client IP, so the hop count must be rig
 - Audit rows keep a hashed IP only (existing behaviour); confirm retention for `AuditLog`.
 - Recipient/sender notification emails need a lawful basis, unsubscribe handling and legal review (Spam Act 2003; Sri Lanka's data-protection rules) before any purpose beyond `auth-code` is enabled.
 
-## 8. Guest-publishing cutover prerequisites (not started)
-Email sign-in reliably delivered in staging for at least two weeks with failure rate under 1%; support path for people who do not receive a code; wallet reconciliation clean; payments decision made; privacy policy and terms published; trusted-proxy verified; rollback rehearsed (the `NOT VALID` owner constraint approach in [accounts.md](accounts.md)); product approval. Guests keep publishing today.
+## 8. Guest-publishing cutover (application code done; staging verification still required)
+Publishing requires sign-in in application code (`POST /api/cards`). Before launch: email sign-in reliably delivered in staging for at least two weeks with failure rate under 1%; support path for people who do not receive a code; wallet reconciliation clean; privacy policy and terms published; trusted-proxy verified; confirm historical ownerless cards and QR still open; product approval. Rollback is restoring the previous guest branch in code (no DB ownership constraint was added).
 
 ## 9. Gaps knowingly left
 No delivery-status receiver (Event Grid) and no bounce/suppression list for auth mail: a bounced sign-in address is simply re-requested by the user, capped by the rate limits. Build the receiver (signature/handshake validation, idempotent by message id) before any purpose beyond sign-in, or when bounce volume matters.

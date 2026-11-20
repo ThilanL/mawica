@@ -80,28 +80,37 @@ export function CreateWizard() {
     return () => { live = false; };
   }, []);
 
-  // After signing in from the premium preview, bring the draft back (kept only in this tab's sessionStorage, removed on read).
+  // After signing in from Publish / Schedule / photo, restore the draft (tab sessionStorage only; removed on read). Never auto-publishes.
   useEffect(() => {
     const t = window.setTimeout(() => {
       try {
         const raw = window.sessionStorage.getItem(DRAFT_KEY);
         if (!raw) return;
         window.sessionStorage.removeItem(DRAFT_KEY);
-        const d = JSON.parse(raw) as { templateKey?: string; fields?: Partial<Fields>; mode?: string };
+        const d = JSON.parse(raw) as { templateKey?: string; fields?: Partial<Fields>; mode?: string; mediaId?: string };
         if (!d.templateKey || !isAnyTemplateKey(d.templateKey) || !d.fields) return;
         const f = d.fields;
         if ([f.recipientName, f.senderName, f.message].some((v) => typeof v !== "string")) return;
         setTemplateKey(d.templateKey);
         setFields({ recipientName: f.recipientName!.slice(0, LIMITS.name), senderName: f.senderName!.slice(0, LIMITS.name), message: f.message!.slice(0, LIMITS.message) });
         if (d.mode === "later") setMode("later");
+        if (typeof d.mediaId === "string" && templateAllowsMedia(d.templateKey)) photo.restore(d.mediaId);
         setStep("preview");
       } catch { /* storage unavailable or malformed: start fresh */ }
     }, 0);
     return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on mount; photo.restore is stable enough for this one-shot
   }, []);
 
   function signInToPublish() {
-    try { window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ templateKey, fields, mode })); } catch { /* the draft is a convenience only */ }
+    try {
+      window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        templateKey,
+        fields,
+        mode,
+        ...(mediaAllowed && photo.mediaId ? { mediaId: photo.mediaId } : {}),
+      }));
+    } catch { /* the draft is a convenience only; sign-in still works without it */ }
     router.push("/sign-in?next=/create");
   }
 
@@ -156,7 +165,9 @@ export function CreateWizard() {
         setErrors(data.errors);
         setStep("personalise");
       } else if (res.status === 401 && data.code === "SIGN_IN_REQUIRED") {
-        setErrors({ form: "Sign in to publish a premium card. Your preview is still here." });
+        // Session missing or expired mid-flow: keep the draft and use the same OTP path as guests. Never invent a guest card.
+        signInToPublish();
+        return;
       } else if (res.status === 402 && data.code === "INSUFFICIENT_PREMIUM_CREDITS") {
         setErrors({ form: "You don't have a premium credit available, so this card wasn't published and nothing was used." });
       } else if (res.status === 402) {
@@ -268,10 +279,7 @@ export function CreateWizard() {
           ) : premium ? (
             <PremiumPublish member={member} busy={busy} confirming={confirming} recipient={fields.recipientName} onEdit={() => { setConfirming(false); setStep("personalise"); }} onAsk={() => setConfirming(true)} onCancel={() => setConfirming(false)} onPublish={publish} onSignIn={signInToPublish} />
           ) : (
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button variant="secondary" onClick={() => setStep("personalise")} disabled={busy}>Edit</Button>
-              <Button onClick={publish} disabled={busy}>{busy ? "Publishing…" : "Publish & get link"}</Button>
-            </div>
+            <StandardPublish member={member} busy={busy} onEdit={() => setStep("personalise")} onPublish={publish} onSignIn={signInToPublish} />
           )}
         </section>
       )}
@@ -335,6 +343,39 @@ function Published({ slug, url, recipient, premiumRemaining, onAnother }: { slug
 }
 
 const ink = "#6c4fb5";
+
+/** Standard (non-premium) publish: guests sign in first; members see their remaining monthly cards and must click Publish again after login. */
+function StandardPublish({ member, busy, onEdit, onPublish, onSignIn }: { member: Member; busy: boolean; onEdit: () => void; onPublish: () => void; onSignIn: () => void }) {
+  const none = member.state === "member" && member.cards < 1;
+  return (
+    <div className="mx-auto mt-8 max-w-md">
+      {member.state === "member" && (
+        <p role="status" className="rounded-[1.5rem] bg-white/70 px-5 py-3 text-sm text-midnight ring-1 ring-midnight/5">
+          {none
+            ? "You've used all your cards for this month, so this card can't be published yet."
+            : <>You have <strong>{member.cards}</strong> {member.cards === 1 ? "card" : "cards"} left this month. Publishing uses 1.</>}
+          {" "}
+          <Link href="/account/wallet" className="font-semibold underline underline-offset-4">View wallet</Link>
+        </p>
+      )}
+      {member.state === "guest" && (
+        <p className="rounded-[1.5rem] bg-[linear-gradient(135deg,#f7e6ef,#e9defb)] px-5 py-3 text-sm text-midnight ring-1 ring-midnight/5">
+          Sign in to publish and get your sharing link and QR code. Previewing is free; nothing is published until you confirm after sign-in.
+        </p>
+      )}
+      <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <Button variant="secondary" onClick={onEdit} disabled={busy}>Edit</Button>
+        {member.state === "member" ? (
+          <Button onClick={onPublish} disabled={busy || none}>{busy ? "Publishing…" : none ? "No cards left this month" : "Publish & get link"}</Button>
+        ) : member.state === "guest" ? (
+          <Button onClick={onSignIn}>Sign in to publish</Button>
+        ) : (
+          <Button disabled>Checking your account…</Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function PremiumChoice({ tkey, selected, onChoose, member, badge }: { tkey: PremiumTemplateKey; selected: boolean; onChoose: () => void; member: Member; badge?: string }) {
   const t = premiumTemplates[tkey];
@@ -432,6 +473,17 @@ function usePhoto(signedIn: boolean) {
   const remove = useCallback(() => { clear(); setState(PHOTO_IDLE); }, [clear]);
   useEffect(() => () => { if (urlRef.current) URL.revokeObjectURL(urlRef.current); }, []);
 
+  /** Re-attach a photo the owner already uploaded (e.g. after OTP sign-in restored a draft). Does not DELETE the previous id. */
+  const restore = useCallback((mediaId: string) => {
+    if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+    mediaRef.current = mediaId;
+    const src = `/api/media/${mediaId}`;
+    setState({ status: "ready", error: null, mediaId, preview: { kind: "image", src, width: 1, height: 1 } });
+    const i = new window.Image();
+    i.onload = () => setState((s) => (s.mediaId === mediaId && s.preview ? { ...s, preview: { ...s.preview, width: i.naturalWidth, height: i.naturalHeight } } : s));
+    i.src = src;
+  }, []);
+
   const choose = useCallback(async (file: File) => {
     if (!signedIn) return;
     if (!PHOTO_TYPES.includes(file.type)) { setState((s) => ({ ...s, status: "error", error: "Use a JPEG, PNG or WebP photo." })); return; }
@@ -453,7 +505,7 @@ function usePhoto(signedIn: boolean) {
     }
   }, [signedIn, clear]);
 
-  return { ...state, choose, remove };
+  return { ...state, choose, remove, restore };
 }
 
 function PhotoField({ photo, member, onSignIn }: { photo: ReturnType<typeof usePhoto>; member: Member; onSignIn: () => void }) {

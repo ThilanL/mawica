@@ -1,6 +1,6 @@
 # Card wallet and credit engine (Phase 2B.2)
 
-Local only: nothing is deployed, there are no payments, no scheduling worker and no premium card scene. Guest publishing is unchanged.
+Local only: nothing is deployed, there are no payments. Publishing a new card (standard or premium) requires a signed-in session; the wallet meters every successful publish.
 
 > The first premium card built on this wallet is documented in docs/premium-lumis-wish.md.
 
@@ -26,7 +26,7 @@ Local only: nothing is deployed, there are no payments, no scheduling worker and
 - **Atomicity**: a conditional decrement (`WHERE remaining > 0`) on a row locked `FOR UPDATE`, inside the caller's transaction; `CHECK (0 <= remaining <= amount)`; ledger deltas must match the kind; `remaining = SUM(ledger delta)` per grant (`reconcile`).
 - **Reservations**: HELD -> COMMITTED | RELEASED only (trigger). Release restores a credit only while the **original grant** is still valid; after its period ended nothing is restored and nothing moves to another period (zero-delta RELEASE with a reason). A committed reservation can never be released; repeated cancels are no-ops; an account cannot settle another account's reservation.
 - **Idempotency**: `(accountId, idempotencyKey)` unique; `requestHash` is a canonical SHA-256 of the request; same key + same request replays, same key + different request is refused (HTTP 422).
-- **Publishing (signed-in)**: reserve -> create owned card -> commit in ONE transaction, tier from the server registry, never the client. No credit -> 402 and nothing is created; a card insert error rolls everything back; a slug collision retries the whole transaction. Guests (no valid session) take the unchanged path: per-IP limits, no owner, no wallet, no credit.
+- **Publishing**: every `POST /api/cards` requires a verified session, allowed Origin and Idempotency-Key. Flow: reserve -> create owned card -> commit in ONE transaction, tier from the server registry, never the client. No credit -> 402 and nothing is created; a card insert error rolls everything back; a slug collision retries the whole transaction. Guests receive `401 SIGN_IN_REQUIRED` and no row is inserted. Historical ownerless cards are unchanged.
 - **Welcome credit**: one grant per verified account, ever. `WelcomeGrantTombstone(emailHash)` = HMAC-SHA256(`WELCOME_PEPPER`, `welcome|` + normalised email), kept after account deletion, so deleting and re-registering the same verified email does not regrant it. Keep the pepper separate from every other secret and **never rotate it** (that would unlink old tombstones). It fails closed without the pepper. Only the hash is stored; the raw email and the pepper are never logged.
 - **Account deletion**: `CreditAccount.userId` becomes NULL (anonymised wallet, ledger kept), cards keep existing with `ownerId` NULL, the tombstone stays. `releaseAllHeld` cancels HELD reservations for a closing account (nothing creates HELD ones yet).
 
@@ -37,9 +37,9 @@ Local only: nothing is deployed, there are no payments, no scheduling worker and
 The tombstone is a keyed hash of an email address kept indefinitely so a gift cannot be re-claimed. Whether that is acceptable, how long to keep it, how to disclose it in the privacy policy, and whether to also bind it to a stronger identifier are **unresolved** and need legal review before launch. Known gap: aliases (`name+tag@`, dotted Gmail) and brand-new addresses get a new gift. Ledger and audit retention periods are also undecided.
 
 ## Known limits
-- Until the separately approved cutover, anyone can still publish as a guest, so the monthly allowance only constrains signed-in publishing. This is intentional for this phase.
+- The monthly allowance and premium credits apply to every new publish and schedule; guests cannot bypass them via the HTTP API.
 - `assignPlan` is an interim mechanism: the full upgrade/downgrade/refund policy belongs to the payments phase (credits reserved by an expired old-plan grant are not restored on cancel).
-- No scheduling UI/worker, no premium scene, no payments.
+- QR regeneration, link copy, recipient views and AR do not spend credits.
 
 ## Tests
 ```bash

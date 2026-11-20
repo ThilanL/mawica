@@ -13,7 +13,7 @@ A 2D, CSS-driven greeting that plays on the existing public card URL: a glowing 
 | Character frames | `public/art/lumi/lumi-awake.webp`, `lumi-asleep.webp` (22 KB + 21 KB), rendered from the same procedural model as the homepage Lumi via `scripts/lumi-e2e.mjs still` (`STILL_QS="still=1&awake=0"` for the sleeping pose; the dev-only lab accepts `?awake=0`) |
 | Motion | `.lw-*` CSS in `globals.css` + the existing `ParticleBurst` 2D canvas (idle = no frames) and `useSchedule` |
 | Creation flow | `CreateWizard.tsx`: premium card with a Premium badge and the credit cost, free preview, sign-in handoff, wallet hints, confirmation, remaining premium balance |
-| Publishing | `POST /api/cards` (unchanged guest path) -> `publishOwnedCard` (wallet engine) |
+| Publishing | `POST /api/cards` (session required) -> `publishOwnedCard` (wallet engine) |
 
 No WebGL, no Three.js, no new dependency: the recipient page never loads the homepage Lumi canvas.
 
