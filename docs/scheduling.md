@@ -1,6 +1,6 @@
 # Smart card scheduling (Phase 2C.1)
 
-Local only: not deployed. Phase 2C.1 built the scheduling foundation; the LINK delivery engine that publishes due cards (Phase 2C.2) is documented in docs/delivery.md. No email/SMS/WhatsApp is sent. Status values in this document follow 2C.1: the terminal success state is now `PUBLISHED` (formerly `DELIVERED`). The six cards, homepage hero/Lumi and guest standard publishing are unchanged.
+Local only: not deployed. Phase 2C.1 built the scheduling foundation; the LINK delivery engine that publishes due cards (Phase 2C.2) is documented in docs/delivery.md. No email/SMS/WhatsApp is sent. Status values in this document follow 2C.1: the terminal success state is now `PUBLISHED` (formerly `DELIVERED`). Scheduling and immediate publish both require a signed-in session; guests may still preview in `/create`.
 
 ## What exists
 | Area | Where |

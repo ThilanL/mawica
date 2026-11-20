@@ -418,12 +418,22 @@ describe("HTTP routes", () => {
     const u = await mkUser();
     const m = await up(u, await photo(100, 100));
     const body = { templateKey: cinema, recipientName: "MediaTest", senderName: "Sam", message: "Hi", mediaId: m.id };
-    const send = (cookie: boolean) => publishRoute(new Request("http://localhost:3000/api/cards", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `1.1.1.1, ${ip()}`, ...(cookie ? { cookie: COOKIE } : {}) }, body: JSON.stringify(body) }));
+    const send = (cookie: boolean, key: string) => publishRoute(new Request("http://localhost:3000/api/cards", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "idempotency-key": key,
+        "x-forwarded-for": `1.1.1.1, ${ip()}`,
+        ...(cookie ? { cookie: COOKIE } : {}),
+      },
+      body: JSON.stringify(body),
+    }));
     session.user = null;
-    expect((await send(false)).status).toBe(401);
+    expect((await send(false, "media-pub-guest0001")).status).toBe(401);
     session.user = u;
-    expect((await send(true)).status).toBe(201);
-    expect((await send(true)).status).toBe(402); // the welcome premium credit is spent: refused before the photo is touched
+    expect((await send(true, "media-pub-owner0001")).status).toBe(201);
+    expect((await send(true, "media-pub-owner0002")).status).toBe(402); // the welcome premium credit is spent: refused before the photo is touched
     expect(await db.cardMedia.count({ where: { id: m.id, cardId: { not: null } } })).toBe(1); // still attached to the first card only
   });
 });

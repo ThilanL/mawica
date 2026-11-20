@@ -7,13 +7,18 @@ import { POST as report } from "@/app/api/cards/[slug]/report/route";
 import { GET as qr } from "@/app/(card)/c/[slug]/qr.png/route";
 import { createCard, getPublishedCard, removeCard } from "@/modules/cards/service";
 import { hit } from "@/modules/security/rate-limit";
-import { TEMPLATE_KEYS } from "@/modules/templates/registry";
+import { readFileSync } from "node:fs";
 
+const ORIGIN = "http://localhost:3000";
 const body = { templateKey: "snow-globe", recipientName: "Ava", senderName: "Sam", message: "Hello" };
 let ipCounter = 0;
 const freshIp = () => `203.0.113.${(++ipCounter % 250) + 1}`;
 const post = (b: unknown, ip = freshIp(), extra: Record<string, string> = {}) =>
-  publish(new Request("http://t/api/cards", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `1.1.1.1, ${ip}`, ...extra }, body: typeof b === "string" ? b : JSON.stringify(b) }));
+  publish(new Request("http://t/api/cards", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: ORIGIN, "x-forwarded-for": `1.1.1.1, ${ip}`, ...extra },
+    body: typeof b === "string" ? b : JSON.stringify(b),
+  }));
 
 beforeEach(async () => { await db.rateLimit.deleteMany(); });
 afterAll(async () => { await db.card.deleteMany(); await db.rateLimit.deleteMany(); await db.$disconnect(); });
@@ -31,64 +36,59 @@ describe("rate limiter", () => {
   });
 });
 
-describe("POST /api/cards", () => {
-  it("publishes a valid card for every template", async () => {
-    for (const templateKey of TEMPLATE_KEYS) {
-      const res = await post({ ...body, templateKey });
-      expect(res.status).toBe(201);
-      const j = await res.json();
-      expect(j.url).toBe(`http://localhost:3000/c/${j.slug}`);
-      expect((await getPublishedCard(j.slug))?.templateKey).toBe(templateKey);
+describe("POST /api/cards (auth required)", () => {
+  it("refuses anonymous publish with 401 and inserts nothing", async () => {
+    const before = await db.card.count();
+    for (const templateKey of ["snow-globe", "christmas-tree", "warm-wishes"] as const) {
+      const res = await post({ ...body, templateKey }, freshIp(), { "idempotency-key": `api-anon-${templateKey}-${crypto.randomUUID().slice(0, 8)}` });
+      expect(res.status).toBe(401);
+      expect((await res.json()).code).toBe("SIGN_IN_REQUIRED");
     }
+    expect(await db.card.count()).toBe(before);
+  });
+  it("rejects a missing or foreign Origin before anything else", async () => {
+    const before = await db.card.count();
+    expect((await publish(new Request("http://t/api/cards", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }))).status).toBe(403);
+    expect((await post(body, freshIp(), { origin: "https://evil.example", "idempotency-key": "api-origin-evil0001" })).status).toBe(403);
+    expect(await db.card.count()).toBe(before);
   });
   it("rejects bad content type, bad JSON, oversize and invalid fields", async () => {
-    expect((await publish(new Request("http://t/api/cards", { method: "POST", body: "x" }))).status).toBe(415);
+    expect((await publish(new Request("http://t/api/cards", { method: "POST", headers: { origin: ORIGIN }, body: "x" }))).status).toBe(415);
     expect((await post("{")).status).toBe(400);
     expect((await post("x".repeat(5000))).status).toBe(413);
     const bad = await post({ ...body, recipientName: "", templateKey: "zzz" });
     expect(bad.status).toBe(400);
     expect(Object.keys((await bad.json()).errors)).toEqual(expect.arrayContaining(["recipientName", "templateKey"]));
   });
-  it("honeypot: fake success, nothing stored, no quota spent", async () => {
+  it("honeypot: fake success, nothing stored", async () => {
     const before = await db.card.count();
-    const ip = freshIp();
-    const res = await post({ ...body, website: "http://spam" }, ip);
+    const res = await post({ ...body, website: "http://spam" });
     expect(res.status).toBe(201);
     expect(await db.card.count()).toBe(before);
-    for (let i = 0; i < 5; i++) expect((await post(body, ip)).status).toBe(201);
   });
-  it("limits 5 valid publishes per client; invalid ones do not spend the quota", async () => {
-    const ip = freshIp();
-    for (let i = 0; i < 3; i++) await post({ ...body, message: "" }, ip);
-    for (let i = 0; i < 5; i++) expect((await post(body, ip)).status).toBe(201);
-    const blocked = await post(body, ip);
-    expect(blocked.status).toBe(429);
-    expect(Number(blocked.headers.get("retry-after"))).toBeGreaterThan(0);
-  });
-  it("concurrent publishes from one client: exactly 5 succeed", async () => {
-    const ip = freshIp();
-    const codes = (await Promise.all(Array.from({ length: 15 }, () => post(body, ip)))).map((r) => r.status);
-    expect(codes.filter((c) => c === 201)).toHaveLength(5);
-    expect(codes.filter((c) => c === 429)).toHaveLength(10);
-  });
-  it("spoofed left-hand X-Forwarded-For values cannot bypass the limit", async () => {
+  it("attempt flood still rate-limits before auth", async () => {
     const ip = freshIp();
     const codes: number[] = [];
-    for (let i = 0; i < 8; i++) {
-      const r = await publish(new Request("http://t/api/cards", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `10.9.8.${i}, ${ip}` }, body: JSON.stringify(body) }));
-      codes.push(r.status);
+    for (let i = 0; i < 65; i++) {
+      codes.push((await post(body, ip, { "idempotency-key": `api-flood-${String(i).padStart(8, "0")}` })).status);
     }
-    expect(codes.filter((c) => c === 201)).toHaveLength(5);
+    expect(codes.filter((c) => c === 429).length).toBeGreaterThan(0);
+    expect(codes.filter((c) => c === 401).length).toBeGreaterThan(0);
   });
-  it("without forwarded headers every client shares the unidentified bucket (fail closed)", async () => {
-    const r = await publish(new Request("http://t/api/cards", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
-    expect(r.status).toBe(201);
-    const keys = await db.rateLimit.findMany({ select: { key: true } });
-    expect(keys.every((k) => !/\d+\.\d+\.\d+\.\d+/.test(k.key))).toBe(true); // no raw IPs stored
-  });
-  it("stores user text verbatim as data (no markup interpretation)", async () => {
-    const j = await (await post({ ...body, message: "<script>alert(1)</script>" })).json();
-    expect((await getPublishedCard(j.slug))?.message).toBe("<script>alert(1)</script>");
+});
+
+describe("create wizard: guest publish requires OTP, draft survives, login does not auto-publish", () => {
+  it("keeps the sign-in redirect, draft restore and no auto-publish contract", () => {
+    const src = readFileSync("src/components/create/CreateWizard.tsx", "utf8");
+    expect(src).toMatch(/function signInToPublish/);
+    expect(src).toMatch(/sessionStorage\.setItem\(DRAFT_KEY/);
+    expect(src).toMatch(/router\.push\("\/sign-in\?next=\/create"\)/);
+    expect(src).toMatch(/sessionStorage\.getItem\(DRAFT_KEY\)/);
+    expect(src).toMatch(/setStep\("preview"\)/);
+    expect(src).toMatch(/function StandardPublish/);
+    expect(src).toMatch(/onClick=\{onSignIn\}/);
+    expect(src).not.toMatch(/signInToPublish\(\)[\s\S]{0,80}publish\(/);
+    expect(src).toMatch(/Sign in to publish/);
   });
 });
 

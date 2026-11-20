@@ -3,13 +3,26 @@ import { db } from "@/lib/db";
 import { welcomeHash } from "@/modules/wallet/wallet";
 
 // The session helper is mocked so routes can be exercised as different signed-in users. Real sessions are covered by the HTTP E2E script.
-const session = vi.hoisted(() => ({ user: null as null | { id: string; email: string; emailVerified: boolean } }));
-vi.mock("@/modules/auth/session", () => ({ getRequestUser: async () => session.user, getSessionUser: async () => session.user }));
+const session = vi.hoisted(() => ({
+  user: null as null | { id: string; email: string; emailVerified: boolean },
+  fail: false,
+}));
+vi.mock("@/modules/auth/session", () => ({
+  getRequestUser: async () => {
+    if (session.fail) throw new Error("session unavailable");
+    return session.user;
+  },
+  getSessionUser: async () => {
+    if (session.fail) throw new Error("session unavailable");
+    return session.user;
+  },
+}));
 
 import { POST as publish } from "@/app/api/cards/route";
 import { GET as getWallet } from "@/app/api/wallet/route";
 import { GET as getActivity } from "@/app/api/wallet/activity/route";
 
+const ORIGIN = "http://localhost:3000";
 const users: string[] = [];
 const accounts: string[] = [];
 const emails: string[] = [];
@@ -24,12 +37,21 @@ async function mkUser() {
 }
 const COOKIE = "mawica.session_token=whatever.value";
 const body = { templateKey: "snow-globe", recipientName: "RouteTest", senderName: "Sam", message: "Hello" };
-const post = (b: unknown, o: { cookie?: boolean; key?: string; ip?: string } = {}) =>
-  publish(new Request("http://t/api/cards", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `1.1.1.1, ${o.ip ?? freshIp()}`, ...(o.cookie ? { cookie: COOKIE } : {}), ...(o.key ? { "idempotency-key": o.key } : {}) }, body: JSON.stringify(b) }));
-const as = (u: typeof session.user) => { session.user = u; };
+type PostOpt = { cookie?: boolean; key?: string | null; ip?: string; origin?: string | null };
+const post = (b: unknown, o: PostOpt = {}) => {
+  const h: Record<string, string> = {
+    "content-type": "application/json",
+    "x-forwarded-for": `1.1.1.1, ${o.ip ?? freshIp()}`,
+  };
+  if (o.origin !== null) h.origin = o.origin ?? ORIGIN;
+  if (o.cookie) h.cookie = COOKIE;
+  if (o.key !== null && o.key !== undefined) h["idempotency-key"] = o.key;
+  return publish(new Request("http://t/api/cards", { method: "POST", headers: h, body: JSON.stringify(b) }));
+};
+const as = (u: typeof session.user) => { session.user = u; session.fail = false; };
 const get = (h: typeof getWallet | typeof getActivity, url = "http://t/api/wallet") => h(new Request(url, { headers: { cookie: COOKIE, "x-forwarded-for": "9.9.9.9, 8.8.8.8" } }));
 
-beforeEach(async () => { await db.rateLimit.deleteMany(); as(null); });
+beforeEach(async () => { await db.rateLimit.deleteMany(); as(null); session.fail = false; });
 afterAll(async () => {
   const accs = await db.creditAccount.findMany({ where: { userId: { in: users } }, select: { id: true } });
   accounts.push(...accs.map((a) => a.id));
@@ -75,10 +97,21 @@ describe("POST /api/cards: signed-in publishing through the wallet", () => {
     expect((await c.json()).code).toBe("IDEMPOTENCY_KEY_REUSED");
     expect(await db.card.count({ where: { ownerId: u.id } })).toBe(1);
   });
-  it("rejects a malformed Idempotency-Key", async () => {
+  it("rejects a missing or malformed Idempotency-Key", async () => {
     as(await mkUser());
+    const before = await db.card.count({ where: { recipientName: "RouteTest" } });
+    expect((await post(body, { cookie: true, key: null })).status).toBe(400);
     expect((await post(body, { cookie: true, key: "short" })).status).toBe(400);
     expect((await post(body, { cookie: true, key: "has spaces and ?! chars" + "x".repeat(10) })).status).toBe(400);
+    expect(await db.card.count({ where: { recipientName: "RouteTest" } })).toBe(before);
+  });
+  it("rejects a foreign or missing Origin even for a signed-in user", async () => {
+    as(await mkUser());
+    const before = await db.card.count({ where: { recipientName: "RouteTest" } });
+    for (const origin of ["https://evil.example", "http://localhost:3000.evil.example", null] as const) {
+      expect((await post(body, { cookie: true, key: "origin-key-000001", origin })).status).toBe(403);
+    }
+    expect(await db.card.count({ where: { recipientName: "RouteTest" } })).toBe(before);
   });
   it("402 once the monthly allowance is used, with the reset date; no card is created for the refused request", async () => {
     const u = await mkUser(); as(u);
@@ -185,25 +218,46 @@ describe("premium card: Lumi's Wish", () => {
   });
 });
 
-describe("guest publishing is unchanged", () => {
-  it("no cookie: guest path, no owner, no credits touched, per-IP limit still applies", async () => {
-    const u = await mkUser(); as(u); // even if some session existed, without the cookie the guest path runs
-    const before = await db.creditAccount.count();
-    const ipx = freshIp();
-    const r = await post(body, { ip: ipx });
-    expect(r.status).toBe(201);
-    const j = await r.json();
-    expect(j.owned).toBeUndefined();
-    expect((await db.card.findUnique({ where: { slug: j.slug } }))?.ownerId).toBeNull();
-    expect(await db.creditAccount.count()).toBe(before);
-    for (let i = 0; i < 4; i++) await post(body, { ip: ipx });
-    expect((await post(body, { ip: ipx })).status).toBe(429);
-  });
-  it("a stale or invalid session cookie falls back to the guest path (as today)", async () => {
+describe("anonymous publishing is refused", () => {
+  it("no session: 401 SIGN_IN_REQUIRED, no card inserted, no wallet debit", async () => {
     as(null);
-    const r = await post(body, { cookie: true });
-    expect(r.status).toBe(201);
-    expect((await db.card.findUnique({ where: { slug: (await r.json()).slug } }))?.ownerId).toBeNull();
+    const beforeCards = await db.card.count({ where: { recipientName: "RouteTest" } });
+    const beforeAccounts = await db.creditAccount.count();
+    const r = await post(body, { key: "anon-key-00000001" });
+    expect(r.status).toBe(401);
+    expect((await r.json()).code).toBe("SIGN_IN_REQUIRED");
+    expect(await db.card.count({ where: { recipientName: "RouteTest" } })).toBe(beforeCards);
+    expect(await db.creditAccount.count()).toBe(beforeAccounts);
+  });
+  it("a stale or invalid session cookie: 401, never a guest card", async () => {
+    as(null);
+    const before = await db.card.count({ where: { recipientName: "RouteTest" } });
+    const r = await post(body, { cookie: true, key: "stale-key-0000001" });
+    expect(r.status).toBe(401);
+    expect((await r.json()).code).toBe("SIGN_IN_REQUIRED");
+    expect(await db.card.count({ where: { recipientName: "RouteTest" } })).toBe(before);
+  });
+  it("session lookup failure: 401 fail closed, nothing created or spent", async () => {
+    const u = await mkUser();
+    as(u);
+    session.fail = true;
+    const beforeCards = await db.card.count({ where: { recipientName: "RouteTest" } });
+    const beforeAccounts = await db.creditAccount.count();
+    const r = await post(body, { cookie: true, key: "fail-key-00000001" });
+    expect(r.status).toBe(401);
+    expect((await r.json()).code).toBe("SIGN_IN_REQUIRED");
+    expect(await db.card.count({ where: { recipientName: "RouteTest" } })).toBe(beforeCards);
+    expect(await db.creditAccount.count()).toBe(beforeAccounts);
+  });
+  it("historical ownerless published cards stay publicly readable with a working QR", async () => {
+    const { createCard, getPublishedCard } = await import("@/modules/cards/service");
+    const { GET: qr } = await import("@/app/(card)/c/[slug]/qr.png/route");
+    const { slug } = await createCard({ templateKey: "snow-globe", recipientName: "RouteTest", senderName: "Sam", message: "Hello", website: "" });
+    expect((await db.card.findUnique({ where: { slug } }))?.ownerId).toBeNull();
+    expect(await getPublishedCard(slug)).toMatchObject({ slug, templateKey: "snow-globe", recipientName: "RouteTest" });
+    const png = await qr(new Request(`http://t/c/${slug}/qr.png`), { params: Promise.resolve({ slug }) });
+    expect(png.status).toBe(200);
+    expect(png.headers.get("content-type")).toBe("image/png");
   });
 });
 

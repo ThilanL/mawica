@@ -150,7 +150,7 @@ HTTP 5xx rate, response time, `/api/health` availability test, PostgreSQL CPU/co
 3. Add secrets to Key Vault; grant the managed identity; add Key Vault references.
 4. Enable PITR; take a manual backup; run the migration from a controlled host in the VNet: `npx prisma migrate deploy` (never `migrate dev`/`reset`).
 5. Deploy the standalone build to the **staging slot**; set `MAWICA_DISABLE_EXTERNAL_EMAIL=1`, `EMAIL_PROVIDER=none`, `TRUSTED_PROXY_HOPS=1`, `ENABLE_PROXY_DEBUG=1`.
-6. Smoke: `/api/health`, homepage, guest card publish and view, `/sign-in` renders, sign-in returns the generic 503 (kill switch on), no secrets in logs.
+6. Smoke: `/api/health`, homepage, anonymous publish refused (`401`), existing card view + QR, `/sign-in` renders, sign-in returns the generic 503 (kill switch on), no secrets in logs.
 7. Run the proxy verification (section 4); set the final hop count; disable the debug route.
 8. Deploy the worker WebJob (once bundled); run `delivery:worker -- reconcile`; schedule a test card well in the future on a **test account**.
 9. Add DNS and the email provider domain; wait for verification; run the limited OTP test (gate B).

@@ -41,7 +41,7 @@ A gate passes only when every item is demonstrably done. Items marked **(owner)*
 
 ## D. Ready for public production launch
 - [ ] Everything in A to C
-- [ ] **Guest publishing cutover** decision and rollback rehearsed (`NOT VALID` owner constraint approach); wallet reconciliation clean; guests' existing cards verified
+- [x] **Guest publishing cutover** (application-enforced): `POST /api/cards` requires session + Origin + Idempotency-Key; historical ownerless cards keep public links; no DB `NOT NULL` on `ownerId` (rollback = restore guest branch in code). Re-verify wallet reconciliation and guests' existing cards on staging before launch.
 - [ ] **Recipient consent** flow and legal review complete **before** any recipient or sender notification email is enabled (Spam Act 2003; Sri Lankan data-protection rules) **(legal)**
 - [ ] DMARC moved to quarantine/reject after a clean ramp; provider ramp plan followed
 - [ ] HSTS raised from 1 day; production domain, TLS and redirects verified

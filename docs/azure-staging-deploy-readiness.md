@@ -143,7 +143,7 @@ Credit: USD 200 (≈ AUD 284) remaining; it expires **4 Dec 2026**.
    infra/staging/app.sh web <tag>
    ```
    Creates the app and runs smoke tests: health 200, home 200, unknown card 404.
-4. Verify the trusted proxy setting (docs/azure-staging.md §6, against the Container Apps ingress), the security headers, `.usdz` type, sign-in returning the generic 503 (email off), and a guest card publish and view with **synthetic** text.
+4. Verify the trusted proxy setting (docs/azure-staging.md §6, against the Container Apps ingress), the security headers, `.usdz` type, sign-in returning the generic 503 (email off), anonymous `POST /api/cards` returning `401 SIGN_IN_REQUIRED`, and viewing an existing published card (synthetic text) with its QR.
 5. Later deploys: Actions → deploy-staging (approval required). Rollback: activate the previous revision with `az containerapp revision activate`, or redeploy the previous tag.
 6. **Cleanup before 4 Dec 2026:**
    ```bash
