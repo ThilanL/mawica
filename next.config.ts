@@ -16,6 +16,8 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), xr-spatial-tracking=(self)" },
           // Short while HTTPS/domain setup is proven on staging; raise to a year (and consider includeSubDomains) at launch.
           { key: "Strict-Transport-Security", value: "max-age=86400" },
+          // Staging/preview builds only (MAWICA_NOINDEX=1 at build time): every response, including card pages, is noindex.
+          ...(process.env.MAWICA_NOINDEX === "1" ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] : []),
         ],
       },
       // Generic AR models (no personal data). USDZ needs its registered type for iOS; neither file type is in the default static MIME map.

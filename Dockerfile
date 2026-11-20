@@ -18,13 +18,15 @@ FROM deps AS build
 COPY . .
 # NEXT_PUBLIC_SITE_URL is inlined into pages at build time, so each environment gets its own build.
 ARG NEXT_PUBLIC_SITE_URL
+# 1 = staging/preview build: X-Robots-Tag noindex, robots.txt disallows all, empty sitemap. Unset for production.
+ARG MAWICA_NOINDEX=""
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL NODE_ENV=production
 # Build-time placeholders only, scoped to this RUN (not ARG/ENV, so not in the image config or later layers). `next build` imports the
 # route modules to collect page data, and src/lib/auth.ts requires BETTER_AUTH_SECRET at import; nothing connects or signs during the
 # build. Real values come from Azure Key Vault at runtime. Same shape as the CI dummies (.github/workflows/ci.yml).
 RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5433/build" RATE_LIMIT_SALT="build-time-placeholder-only" \
     BETTER_AUTH_SECRET="build-time-placeholder-not-a-secret-000000" WELCOME_PEPPER="build-time-placeholder-not-a-pepper-000000" \
-    npm run build \
+    MAWICA_NOINDEX="$MAWICA_NOINDEX" npm run build \
  && mkdir -p .next/standalone/.next/static && cp -r .next/static/. .next/standalone/.next/static/ \
  && mkdir -p .next/standalone/public && cp -r public/. .next/standalone/public/
 
