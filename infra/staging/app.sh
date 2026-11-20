@@ -5,7 +5,7 @@
 #   infra/staging/app.sh what-if <tag>      preview (no changes; uses tag references if the registry does not exist yet)
 #   infra/staging/app.sh roles   <tag>      import postgres:17 into ACR (pinned digest); NEW passwords for mawica_app/mawica_migrator -> Key Vault; create/update jobs; run the role job
 #   infra/staging/app.sh roles-resume <tag> after a failed roles run: jobs + role job again, NO new passwords
-#   infra/staging/app.sh pepper             create welcome-pepper ONCE (refuses if it exists) and grant it to the web identity
+#   infra/staging/app.sh pepper             DISABLED: welcome-pepper exists and must never be rotated (always refuses)
 #   infra/staging/app.sh job-log <job> <execution>   the job's marker lines from Log Analytics
 #   infra/staging/app.sh migrate            run `prisma migrate deploy` (migration job, inside the VNet), then re-apply grants
 #   infra/staging/app.sh web     <tag>      create/update the web container app (scale 0-1) and smoke-test it
@@ -41,15 +41,19 @@ cas_b64() { base64 < "$HERE/sql/azure-pg-roots.crt" | tr -d '\n'; }   # public r
 pw_params() { # new random passwords (URL-safe; 3 character classes)
   printf '{"$schema":"https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#","contentVersion":"1.0.0.0","parameters":{"appDbPassword":{"value":"Ma%sQ7x"},"migrateDbPassword":{"value":"Mm%sR4y"}}}' "$(openssl rand -hex 20)" "$(openssl rand -hex 20)"
 }
-existing_secrets() { # JSON array of secret NAMES in the vault (control plane; values are never read)
-  az rest --method get --url "https://management.azure.com/subscriptions/$SUBSCRIPTION/resourceGroups/$RG/providers/Microsoft.KeyVault/vaults/$KV/secrets?api-version=2023-07-01" \
-    --query "value[].name" -o json | tr -d ' \n'
-}
+KV_SECRETS_URL="https://management.azure.com/subscriptions/$SUBSCRIPTION/resourceGroups/$RG/providers/Microsoft.KeyVault/vaults/$KV/secrets?api-version=2023-07-01"
+kv_list() { python3 -I "$HERE/kv_secrets.py" list "$KV_SECRETS_URL"; }
+kv_guard_absent() { python3 -I "$HERE/kv_secrets.py" guard-absent "$KV_SECRETS_URL" "$@"; }
+kv_require() { python3 -I "$HERE/kv_secrets.py" require "$KV_SECRETS_URL" "$@"; }
+# The COMPLETE secret inventory (names only, every page; kv_secrets.py). Fails closed: if it cannot be verified, the script stops.
+# Loaded into a variable first: a failing $(...) inside a command's arguments would NOT stop the script under set -e.
+load_secrets() { SECRETS_JSON="$(kv_list)" || { echo "STOP: Key Vault secret inventory could not be verified; nothing was changed" >&2; exit 1; }; }
 deploy() { # $1 = deployWebApp, $2 = deployJobs, $3 = rotate (yes/no)
+  load_secrets
   local extra=(); [[ "$3" == yes ]] && extra=(--parameters "@"<(pw_params))
   az deployment group create -g "$RG" -n mawica-staging-app --template-file "$HERE/app.json" \
     --parameters webImage="${WEB:-}" migrateImage="${MIG:-}" rolesImage="${PGI:-}" rolesSqlB64="$(roles_b64)" pgRootCasB64="$(cas_b64)" \
-      deployWebApp="$1" deployJobs="$2" existingSecrets="$(existing_secrets)" ${extra[@]+"${extra[@]}"} \
+      deployWebApp="$1" deployJobs="$2" existingSecrets="$SECRETS_JSON" ${extra[@]+"${extra[@]}"} \
     --query "properties.{state:provisioningState, outputs:outputs}" -o json
 }
 deploy_jobs() { # create/update the jobs (no password change). New secret grants can take minutes to become effective; Container Apps
@@ -79,18 +83,23 @@ run_job() { # $1 = job name; waits, then prints only the lines the job marks as 
 
 case "$MODE" in
   what-if)
-    need_tag; images preview
+    need_tag; images preview; load_secrets
     az deployment group what-if -g "$RG" -n mawica-staging-app --template-file "$HERE/app.json" \
       --parameters webImage="$WEB" migrateImage="$MIG" rolesImage="$PGI" rolesSqlB64="$(roles_b64)" pgRootCasB64="$(cas_b64)" deployWebApp=true deployJobs=true \
-        existingSecrets="$(existing_secrets)" "@"<(pw_params) \
+        existingSecrets="$SECRETS_JSON" "@"<(pw_params) \
       --no-pretty-print -o json | python3 -I "$HERE/whatif-summary.py" ;;
   identities)  # bootstrap: the role-job and migration-job identities, their ACR pulls, and secret-scoped grants for secrets that exist
     deploy false false no ;;
   roles)
     need_tag
     # Run ONCE: it generates new database passwords. A second run would rotate them and break a running web app until it restarts.
-    if existing_secrets | grep -q '"pg-app-password"' && [[ "${ROTATE:-}" != yes ]]; then
-      echo "STOP: database role passwords already exist; re-running would rotate them (set ROTATE=yes deliberately). To re-apply grants use: $0 migrate" >&2; exit 1
+    if [[ "${ROTATE:-}" != yes ]]; then
+      rc=0; kv_guard_absent pg-app-password pg-migrate-password database-app-url database-migrate-url || rc=$?
+      case "$rc" in
+        0) ;;
+        4) echo "STOP: database role secrets already exist; re-running would rotate them (ROTATE=yes only as a deliberate, approved rotation). To re-apply grants use: $0 migrate" >&2; exit 1 ;;
+        *) echo "STOP: could not verify the Key Vault secret inventory; nothing was changed" >&2; exit 1 ;;
+      esac
     fi
     mirror_postgres; images
     deploy false false yes >/dev/null && echo "passwords, connection URLs and their grants written (values never shown)"   # 1) no jobs yet
@@ -100,16 +109,21 @@ case "$MODE" in
     # After a failed first attempt: NO new passwords. Re-creates the jobs and re-runs the role job, which sets the PostgreSQL passwords
     # from Key Vault again, so Key Vault stays the single source of truth. If step 1 itself failed part-way, use ROTATE=yes roles instead.
     need_tag
-    existing_secrets | grep -q '"database-migrate-url"' || { echo "STOP: role secrets are incomplete; run: ROTATE=yes $0 roles $TAG" >&2; exit 1; }
+    rc=0; kv_require pg-app-password pg-migrate-password database-app-url database-migrate-url || rc=$?
+    case "$rc" in 0) ;; 5) echo "STOP: role secrets are incomplete; this needs an approved ROTATE=yes $0 roles $TAG" >&2; exit 1 ;;
+      *) echo "STOP: could not verify the Key Vault secret inventory; nothing was changed" >&2; exit 1 ;; esac
     mirror_postgres; images; deploy_jobs; run_job caj-mawica-stg-dbroles ;;
   job-log) job_log "$TAG" "${3:?usage: $0 job-log <job> <execution>}" ;;
   pepper)
-    # welcome-pepper: created ONCE, never rotated (rotating unlinks welcome-credit tombstones). Refuses if it exists. A soft-deleted
-    # secret of the same name makes the deployment fail (conflict) rather than overwrite anything. Value: 32 random bytes, piped, never shown.
-    existing_secrets | grep -q '"welcome-pepper"' && { echo "STOP: welcome-pepper already exists; it must never be rotated" >&2; exit 1; }
-    az deployment group create -g "$RG" -n mawica-staging-pepper --template-file "$HERE/pepper.json" \
-      --parameters "@"<(printf '{"parameters":{"welcomePepper":{"value":"%s"}}}' "$(openssl rand -hex 32)") --query properties.provisioningState -o tsv
-    deploy false false no >/dev/null && echo "welcome-pepper created and granted to the web identity only" ;;
+    # DISABLED: welcome-pepper exists (created with the infrastructure on 2026-11-18) and must NEVER be rotated: rotating it unlinks
+    # welcome-credit tombstones. There is deliberately no command here that writes it. Grant access with: $0 identities
+    rc=0; kv_require welcome-pepper || rc=$?
+    case "$rc" in
+      0) echo "STOP: welcome-pepper already exists; creation is disabled and it must never be rotated. To grant it: $0 identities" >&2 ;;
+      5) echo "STOP: welcome-pepper is missing. Creating it is a deliberate, reviewed one-time action; this script no longer does it." >&2 ;;
+      *) echo "STOP: could not verify the Key Vault secret inventory; nothing was changed" >&2 ;;
+    esac
+    exit 1 ;;
   migrate) run_job caj-mawica-stg-migrate && run_job caj-mawica-stg-dbroles ;;   # re-apply grants (revokes app writes on _prisma_migrations)
   web)
     need_tag; images; deploy true true no
