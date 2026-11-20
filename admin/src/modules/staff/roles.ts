@@ -36,7 +36,8 @@ const ALL: StaffPermission[] = [
 const ROLE_PERMISSIONS: Record<StaffRoleName, readonly StaffPermission[]> = {
   OWNER: ALL,
   MODERATOR: ["dashboard:read", "reports:read", "reports:moderate", "cards:remove", "audit:read"],
-  SUPPORT: ["dashboard:read", "reports:read", "audit:read", "users:read", "wallet:read", "wallet:adjust"],
+  // wallet:adjust reserved for a future phase — P2 is read-only wallet views.
+  SUPPORT: ["dashboard:read", "reports:read", "audit:read", "users:read", "wallet:read"],
   FINANCE: ["dashboard:read", "audit:read", "finance:read", "wallet:read"],
   OPS: ["dashboard:read", "reports:read", "audit:read", "ops:read"],
   READONLY: ["dashboard:read", "reports:read", "audit:read", "finance:read", "ops:read", "users:read", "wallet:read"],

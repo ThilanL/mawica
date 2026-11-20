@@ -14,9 +14,17 @@ describe("staff RBAC", () => {
     expect(hasPermission("OWNER", "cards:remove")).toBe(true);
   });
 
-  it("allows moderator remove but not wallet adjust", () => {
+  it("allows moderator remove but not customer or wallet access", () => {
     expect(hasPermission("MODERATOR", "cards:remove")).toBe(true);
+    expect(hasPermission("MODERATOR", "users:read")).toBe(false);
+    expect(hasPermission("MODERATOR", "wallet:read")).toBe(false);
     expect(hasPermission("MODERATOR", "wallet:adjust")).toBe(false);
+  });
+
+  it("gives support user+wallet read without adjust in P2", () => {
+    expect(hasPermission("SUPPORT", "users:read")).toBe(true);
+    expect(hasPermission("SUPPORT", "wallet:read")).toBe(true);
+    expect(hasPermission("SUPPORT", "wallet:adjust")).toBe(false);
   });
 
   it("keeps readonly from mutating moderation", () => {

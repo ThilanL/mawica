@@ -7,7 +7,7 @@ export default async function DashboardPage() {
   const session = await readStaffSession();
   if (!session) return null;
 
-  const [openReports, removedCards, recentRemovals] = await Promise.all([
+  const [openReports, removedCards, recentRemovals, customers] = await Promise.all([
     hasPermission(session.role, "reports:read")
       ? db.report.count({ where: { card: { status: "PUBLISHED" } } })
       : null,
@@ -15,6 +15,7 @@ export default async function DashboardPage() {
     hasPermission(session.role, "audit:read")
       ? db.auditLog.count({ where: { action: "moderation.card_removed" } })
       : null,
+    hasPermission(session.role, "users:read") ? db.user.count() : null,
   ]);
 
   return (
@@ -27,17 +28,26 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Customers" value={customers} />
         <Stat label="Open reports (published cards)" value={openReports} />
         <Stat label="Removed cards" value={removedCards} />
         <Stat label="Removal audit events" value={recentRemovals} />
       </div>
 
       <div className="flex flex-wrap gap-3">
+        {hasPermission(session.role, "users:read") ? (
+          <Link
+            href="/customers"
+            className="rounded-full bg-[var(--admin-accent)] px-5 py-2.5 text-sm font-semibold text-[#fff8f4]"
+          >
+            Customer directory
+          </Link>
+        ) : null}
         {hasPermission(session.role, "reports:read") ? (
           <Link
             href="/reports"
-            className="rounded-full bg-[var(--admin-accent)] px-5 py-2.5 text-sm font-semibold text-[#fff8f4]"
+            className="rounded-full border border-[var(--admin-line)] bg-[var(--admin-card)] px-5 py-2.5 text-sm font-semibold"
           >
             Open report queue
           </Link>

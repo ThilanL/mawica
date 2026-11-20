@@ -40,6 +40,30 @@ Existing `StaffPrincipal` rows keep their DB role on subsequent sign-ins.
 
 `npm run admin` in the repo root is unchanged (trusted host + `DATABASE_URL`).
 
-## Out of scope (this phase)
+## P2 — Customers & wallet (read-only)
 
-Stripe/billing, events/RSVP, CMS, Azure deploy, DNS, production migrations.
+- `/customers` — searchable, paginated directory (`users:read`)
+- `/customers/[id]` — account + card counts; wallet/ledger when `wallet:read`
+- Detail views write `support.customer_viewed` audit events (userId only in meta; never email)
+- Never calls consumer `ensureWallet` / period grant writers / expire writers
+- No credit adjustments in this phase (`wallet:adjust` reserved, not granted to SUPPORT)
+
+### Authorization matrix (P2)
+
+| Role | Directory | Detail | Wallet / ledger | Adjust credits |
+|------|-----------|--------|-----------------|----------------|
+| OWNER | yes | yes | yes | permission exists; UI/API not shipped |
+| SUPPORT | yes | yes | yes | no |
+| READONLY | yes | yes | yes | no |
+| FINANCE | no (`users:read` absent) | no | (has `wallet:read` only) | no |
+| MODERATOR | no | no | no | no |
+| OPS | no | no | no | no |
+
+### Privacy
+
+- Card messages, recipient/sender names, and media blobs are never selected for customer views.
+- Directory/detail expose email + display name for support lookup; minimize further PII.
+
+## Out of scope
+
+Stripe/billing, wallet adjustments, events/RSVP, CMS, Azure deploy, DNS, production migrations.
