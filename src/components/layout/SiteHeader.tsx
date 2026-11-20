@@ -5,13 +5,13 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { AccountNav } from "@/components/auth/AccountNav";
 import { ButtonLink } from "@/components/ui/Button";
-import { navLinks } from "@/content/site";
+import type { NavPayload } from "@/modules/cms/schemas";
 
-function SearchLink() {
+function SearchLink({ href, ariaLabel }: { href: string; ariaLabel: string }) {
   return (
     <Link
-      href="/#christmas"
-      aria-label="Browse Christmas cards"
+      href={href}
+      aria-label={ariaLabel}
       className="grid size-10 place-items-center rounded-full text-midnight/75 transition hover:bg-midnight/5 hover:text-midnight focus-visible:outline-offset-4"
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -22,7 +22,7 @@ function SearchLink() {
   );
 }
 
-export function SiteHeader() {
+export function SiteHeader({ nav }: { nav: NavPayload }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -52,9 +52,9 @@ export function SiteHeader() {
         </div>
 
         <nav aria-label="Primary" className="hidden items-center justify-center gap-0.5 lg:flex">
-          {navLinks.map((l) => (
+          {nav.links.map((l) => (
             <a
-              key={l.href}
+              key={`${l.href}-${l.label}`}
               href={l.href}
               className="rounded-full px-3.5 py-2 text-[0.92rem] font-medium text-midnight/75 transition hover:bg-white/40 hover:text-midnight"
             >
@@ -64,10 +64,10 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden items-center justify-end gap-2 lg:flex">
-          <SearchLink />
+          <SearchLink href={nav.searchHref} ariaLabel={nav.searchAriaLabel} />
           <AccountNav outlined />
           <ButtonLink href="/create" size="md" className="gap-1.5 px-5 shadow-[0_10px_24px_-12px_rgb(42_27_61/0.5)]">
-            Create Free Card
+            {nav.createCta}
             <span aria-hidden>→</span>
           </ButtonLink>
         </div>
@@ -88,14 +88,14 @@ export function SiteHeader() {
 
       <div id="mobile-menu" hidden={!open} className="border-t border-midnight/10 bg-ivory/95 backdrop-blur-xl lg:hidden">
         <nav aria-label="Mobile" className="mx-auto flex max-w-7xl flex-col gap-1 px-5 py-4 sm:px-8">
-          {navLinks.map((l) => (
-            <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-lg font-medium">
+          {nav.links.map((l) => (
+            <a key={`${l.href}-${l.label}`} href={l.href} onClick={() => setOpen(false)} className="rounded-xl px-3 py-3 text-lg font-medium">
               {l.label}
             </a>
           ))}
           <div className="mt-3 flex flex-col gap-3">
             <ButtonLink href="/create" onClick={() => setOpen(false)} className="gap-1.5">
-              Create Free Card
+              {nav.createCta}
               <span aria-hidden>→</span>
             </ButtonLink>
             <AccountNav mobile onNavigate={() => setOpen(false)} />

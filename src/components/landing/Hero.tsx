@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { ButtonLink } from "@/components/ui/Button";
-import { heroCopy } from "@/content/hero";
+import type { HeroPayload } from "@/modules/cms/schemas";
 import { useMediaQuery, usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import { HeroAnnotation } from "./HeroAnnotation";
 import { HeroArtwork } from "./HeroArtwork";
@@ -10,7 +10,7 @@ import { HeroBenefits } from "./HeroBenefits";
 import { HeroPlate } from "./HeroBackdrop";
 import { SnowCanvas } from "./SnowCanvas";
 
-export function Hero() {
+export function Hero({ copy }: { copy: HeroPayload }) {
   const root = useRef<HTMLElement>(null);
   const reduced = usePrefersReducedMotion();
   const finePointer = useMediaQuery("(hover: hover) and (pointer: fine)");
@@ -90,35 +90,35 @@ export function Hero() {
       <div className="relative z-[2] mx-auto grid max-w-[90rem] items-center gap-6 px-5 pb-14 pt-4 sm:gap-10 sm:px-8 sm:pb-16 lg:min-h-[calc(100dvh-1rem)] lg:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] lg:gap-6 lg:pb-12 lg:pt-2 xl:gap-8">
         <div className="order-1 text-center lg:order-none lg:self-center lg:text-left lg:pb-6">
           <p data-in className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[#8a3d6e] sm:text-sm">
-            {heroCopy.eyebrow}
+            {copy.eyebrow}
           </p>
           <h1
             id="hero-title"
             data-in
             className="mt-3 font-display text-[clamp(2.55rem,6.4vw,4.85rem)] font-semibold leading-[1.02] tracking-tight text-midnight text-balance sm:mt-4"
           >
-            {heroCopy.titleLines[0]}
+            {copy.titleLines[0]}
             <br />
-            {heroCopy.titleLines[1]}
+            {copy.titleLines[1]}
           </h1>
           <p data-in className="mx-auto mt-4 max-w-md text-base leading-relaxed text-ink-soft text-pretty sm:mt-5 sm:text-lg lg:mx-0 lg:max-w-[28rem]">
-            {heroCopy.body}
+            {copy.body}
           </p>
           <div data-in className="mt-7 flex justify-center lg:justify-start">
             <ButtonLink href="/create" className="group gap-2.5 px-7 py-3.5 shadow-[0_14px_34px_-12px_rgb(42_27_61/0.55)]">
-              {heroCopy.cta}
+              {copy.cta}
               <span aria-hidden className="transition-transform duration-300 group-hover:translate-x-0.5">
                 →
               </span>
             </ButtonLink>
           </div>
           <div className="flex justify-center lg:justify-start">
-            <HeroBenefits />
+            <HeroBenefits benefits={copy.benefits} />
           </div>
         </div>
 
         <div className="relative order-2 pb-2 sm:pb-6 lg:order-none lg:pb-8 lg:pt-4">
-          <HeroAnnotation />
+          <HeroAnnotation lines={copy.annotation} />
           <div data-in>
             <HeroArtwork snowCount={compact ? 36 : 70} />
           </div>

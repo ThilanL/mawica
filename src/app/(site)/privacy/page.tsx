@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import { LegalCmsArticle } from "@/components/ui/LegalCmsArticle";
 import { LegalPage, Todo } from "@/components/ui/LegalPage";
+import { resolveLegal } from "@/modules/cms/resolve";
+
+export const instant = false;
 
 export const metadata: Metadata = {
   title: "Privacy Policy | mawica.",
@@ -7,7 +11,10 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const { data, source } = await resolveLegal("privacy");
+  if (source === "cms") return <LegalCmsArticle data={data} />;
+
   return (
     <LegalPage title="Privacy Policy" updated="5 November 2026 (draft)">
       <section>

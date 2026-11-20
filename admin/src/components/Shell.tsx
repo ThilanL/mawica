@@ -6,6 +6,7 @@ const NAV: { href: string; label: string; permission: Parameters<typeof hasPermi
   { href: "/", label: "Dashboard", permission: "dashboard:read" },
   { href: "/ops", label: "Operations", permission: "ops:read" },
   { href: "/finance", label: "Finance plan", permission: "finance:plan" },
+  { href: "/cms", label: "CMS", permission: "cms:read" },
   { href: "/customers", label: "Customers", permission: "users:read" },
   { href: "/reports", label: "Reports", permission: "reports:read" },
   { href: "/audit", label: "Moderation audit", permission: "audit:read" },

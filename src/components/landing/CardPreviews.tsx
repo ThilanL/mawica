@@ -1,4 +1,5 @@
 import { cardPreviews, type CardPreview } from "@/content/site";
+import type { HomeSectionsPayload } from "@/modules/cms/schemas";
 import { Reveal } from "@/components/ui/Reveal";
 import { CardArt } from "./CardArt";
 import { SectionHeading } from "./SectionHeading";
@@ -18,22 +19,27 @@ function CardTile({ card, i }: { card: CardPreview; i: number }) {
   );
 }
 
-export function CardPreviews() {
+export function CardPreviews({ copy }: { copy: HomeSectionsPayload }) {
   const christmas = cardPreviews.filter((c) => c.occasion === "Christmas");
   const newYear = cardPreviews.filter((c) => c.occasion === "New Year");
   return (
     <section aria-labelledby="cards-title" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:py-32">
       <Reveal>
-        <SectionHeading id="cards-title" eyebrow="The collection" title="Six cards, ready to be made yours" body="Four for Christmas and two to welcome the new year. Preview images here are illustrative; open any card in the creator to see the real animation." />
+        <SectionHeading
+          id="cards-title"
+          eyebrow={copy.galleryEyebrow}
+          title={copy.galleryTitle}
+          body={copy.galleryBody}
+        />
       </Reveal>
       <div id="christmas" className="mt-16 scroll-mt-24">
-        <h3 className="mb-6 font-display text-3xl">Christmas Cards</h3>
+        <h3 className="mb-6 font-display text-3xl">{copy.galleryChristmasHeading}</h3>
         <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {christmas.map((c, i) => <CardTile key={c.id} card={c} i={i} />)}
         </ul>
       </div>
       <div id="new-year" className="mt-16 scroll-mt-24">
-        <h3 className="mb-6 font-display text-3xl">New Year Cards</h3>
+        <h3 className="mb-6 font-display text-3xl">{copy.galleryNewYearHeading}</h3>
         <ul className="grid gap-6 sm:grid-cols-2 lg:max-w-[calc(50%+0.75rem)]">
           {newYear.map((c, i) => <CardTile key={c.id} card={c} i={i} />)}
         </ul>

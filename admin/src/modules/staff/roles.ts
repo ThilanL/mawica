@@ -18,6 +18,9 @@ export type StaffPermission =
   | "finance:read"
   | "finance:plan"
   | "ops:read"
+  | "cms:read"
+  | "cms:write"
+  | "cms:publish"
   | "staff:manage";
 
 const ALL: StaffPermission[] = [
@@ -32,6 +35,9 @@ const ALL: StaffPermission[] = [
   "finance:read",
   "finance:plan",
   "ops:read",
+  "cms:read",
+  "cms:write",
+  "cms:publish",
   "staff:manage",
 ];
 
@@ -43,8 +49,18 @@ const ROLE_PERMISSIONS: Record<StaffRoleName, readonly StaffPermission[]> = {
   // finance:plan = revenue forecasting (P4A); OWNER + FINANCE only — not READONLY.
   FINANCE: ["dashboard:read", "audit:read", "finance:read", "finance:plan", "wallet:read"],
   // wallet:read for credit-activity ops metrics (not revenue / Stripe).
-  OPS: ["dashboard:read", "reports:read", "audit:read", "ops:read", "wallet:read"],
-  READONLY: ["dashboard:read", "reports:read", "audit:read", "finance:read", "ops:read", "users:read", "wallet:read"],
+  OPS: ["dashboard:read", "reports:read", "audit:read", "ops:read", "wallet:read", "cms:read"],
+  // cms:publish is OWNER-only in P5A/B.
+  READONLY: [
+    "dashboard:read",
+    "reports:read",
+    "audit:read",
+    "finance:read",
+    "ops:read",
+    "users:read",
+    "wallet:read",
+    "cms:read",
+  ],
 };
 
 export function permissionsFor(role: StaffRoleName): readonly StaffPermission[] {

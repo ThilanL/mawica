@@ -2,30 +2,49 @@ import type { Metadata, Viewport } from "next";
 import { fontVariables } from "../fonts";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
-import { isNoindex, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+import { resolveFooter, resolveNav, resolveSeo } from "@/modules/cms/resolve";
+import { isNoindex, SITE_NAME, SITE_URL } from "@/lib/site";
 import "../globals.css";
 
+/** CMS resolvers read the DB (with static fallbacks) — allow request-time rendering. */
+export const instant = false;
 
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  title: { default: "mawica. | Bring your wishes to life", template: "%s" },
-  description: SITE_DESCRIPTION,
-  alternates: { canonical: "/" },
-  // File conventions (app/favicon.ico, icon.png, apple-icon.png) supply the tab and home-screen icons.
-  // Keep metadata as a fallback for older crawlers and for card routes that share the same brand mark.
-  icons: {
-    icon: [{ url: "/brand/mawica-icon-192.png", type: "image/png", sizes: "192x192" }],
-    apple: [{ url: "/brand/mawica-app-icon.png", type: "image/png", sizes: "1254x1254" }],
-  },
-  manifest: "/site.webmanifest",
-  openGraph: { type: "website", siteName: SITE_NAME, locale: "en_AU", title: "mawica. | Bring your wishes to life", description: SITE_DESCRIPTION, url: "/" },
-  twitter: { card: "summary_large_image", title: "mawica. | Bring your wishes to life", description: SITE_DESCRIPTION },
-  ...(isNoindex() ? { robots: { index: false, follow: false } } : {}),
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { data: seo } = await resolveSeo();
+  return {
+    metadataBase: new URL(SITE_URL),
+    title: { default: seo.titleDefault, template: "%s" },
+    description: seo.description,
+    alternates: { canonical: "/" },
+    // File conventions (app/favicon.ico, icon.png, apple-icon.png) supply the tab and home-screen icons.
+    // Keep metadata as a fallback for older crawlers and for card routes that share the same brand mark.
+    icons: {
+      icon: [{ url: "/brand/mawica-icon-192.png", type: "image/png", sizes: "192x192" }],
+      apple: [{ url: "/brand/mawica-app-icon.png", type: "image/png", sizes: "1254x1254" }],
+    },
+    manifest: "/site.webmanifest",
+    openGraph: {
+      type: "website",
+      siteName: SITE_NAME,
+      locale: "en_AU",
+      title: seo.ogTitle,
+      description: seo.ogDescription,
+      url: "/",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: seo.twitterTitle,
+      description: seo.twitterDescription,
+    },
+    // Staging noindex is env-driven and cannot be overridden by CMS.
+    ...(isNoindex() ? { robots: { index: false, follow: false } } : {}),
+  };
+}
 
 export const viewport: Viewport = { themeColor: "#FFF8F4" };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const [{ data: nav }, { data: footer }] = await Promise.all([resolveNav(), resolveFooter()]);
   return (
     <html lang="en" className={fontVariables}>
       <body className="min-h-dvh flex flex-col">
@@ -35,9 +54,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <SiteHeader />
+        <SiteHeader nav={nav} />
         <main id="main" className="flex-1">{children}</main>
-        <SiteFooter />
+        <SiteFooter footer={footer} />
       </body>
     </html>
   );

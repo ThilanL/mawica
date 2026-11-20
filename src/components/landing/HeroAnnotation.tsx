@@ -1,8 +1,5 @@
-import { heroCopy } from "@/content/hero";
-
 /** Decorative handwritten note beside the globe — non-interactive, hidden on small phones. */
-export function HeroAnnotation() {
-  const lines = heroCopy.annotation;
+export function HeroAnnotation({ lines }: { lines: readonly [string, string, string] }) {
   return (
     <p
       aria-hidden

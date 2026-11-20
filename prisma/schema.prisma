@@ -233,6 +233,8 @@ model StaffPrincipal {
   createdAt   DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
   auditLogs   AuditLog[]
+  cmsDocumentsUpdated CmsDocument[] @relation("CmsDocumentUpdatedBy")
+  cmsRevisionsPublished CmsRevision[] @relation("CmsRevisionPublishedBy")
 
   @@index([email])
   @@index([role, disabledAt])
@@ -556,4 +558,46 @@ model CardMediaBlob {
   mediaId String    @id @db.Uuid
   media   CardMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
   data    Bytes
+}
+
+// ============================ Marketing CMS (P5) ============================
+// Document + revision store for site copy. Never stores HTML/scripts; payloads are typed JSON.
+// Consumer reads publishedRevision only; drafts stay admin-only. Falls back to src/content/* when missing.
+
+model CmsDocument {
+  id                   String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Stable key: home.hero, home.sections, site.nav, site.footer, legal.privacy, legal.terms, seo.site
+  key                  String        @unique @db.VarChar(80)
+  title                String        @db.VarChar(160)
+  /// Working draft JSON (validated by app schemas).
+  draftPayload         Json
+  /// Optimistic concurrency token for draft saves.
+  draftVersion         Int           @default(1)
+  publishedRevisionId  String?       @unique @db.Uuid
+  publishedRevision    CmsRevision?  @relation("CmsPublishedPointer", fields: [publishedRevisionId], references: [id], onDelete: SetNull)
+  publishedAt          DateTime?     @db.Timestamptz(3)
+  updatedAt            DateTime      @updatedAt @db.Timestamptz(3)
+  createdAt            DateTime      @default(now()) @db.Timestamptz(3)
+  updatedByStaffId     String?       @db.Uuid
+  updatedByStaff       StaffPrincipal? @relation("CmsDocumentUpdatedBy", fields: [updatedByStaffId], references: [id], onDelete: SetNull)
+  revisions            CmsRevision[] @relation("CmsDocumentRevisions")
+
+  @@index([updatedAt])
+}
+
+model CmsRevision {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId         String       @db.Uuid
+  document           CmsDocument  @relation("CmsDocumentRevisions", fields: [documentId], references: [id], onDelete: Cascade)
+  revisionNumber     Int
+  payload            Json
+  note               String?      @db.VarChar(300)
+  publishedAt        DateTime     @default(now()) @db.Timestamptz(3)
+  publishedByStaffId String?      @db.Uuid
+  publishedByStaff   StaffPrincipal? @relation("CmsRevisionPublishedBy", fields: [publishedByStaffId], references: [id], onDelete: SetNull)
+  /// Back-relation when this revision is the live pointer.
+  publishedFor       CmsDocument? @relation("CmsPublishedPointer")
+
+  @@unique([documentId, revisionNumber])
+  @@index([documentId, publishedAt])
 }

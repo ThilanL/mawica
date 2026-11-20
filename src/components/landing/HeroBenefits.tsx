@@ -1,6 +1,6 @@
-import { heroCopy } from "@/content/hero";
+import type { HeroPayload } from "@/modules/cms/schemas";
 
-function Icon({ id }: { id: (typeof heroCopy.benefits)[number]["id"] }) {
+function Icon({ id }: { id: HeroPayload["benefits"][number]["id"] }) {
   const common = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true as const };
   if (id === "heart") {
     return (
@@ -28,10 +28,10 @@ function Icon({ id }: { id: (typeof heroCopy.benefits)[number]["id"] }) {
   );
 }
 
-export function HeroBenefits() {
+export function HeroBenefits({ benefits }: { benefits: HeroPayload["benefits"] }) {
   return (
     <ul data-in className="mt-9 flex flex-col items-center gap-3.5 sm:mt-12 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-0 lg:mt-14 lg:justify-start" aria-label="Why Mawica">
-      {heroCopy.benefits.map((b, i) => (
+      {benefits.map((b, i) => (
         <li
           key={b.id}
           className={`flex items-center gap-2.5 text-sm font-medium text-midnight/85 sm:px-4 md:px-5 ${i === 0 ? "sm:pl-0" : "sm:border-l sm:border-midnight/15"}`}

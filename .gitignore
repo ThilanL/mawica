@@ -47,6 +47,9 @@ next-env.d.ts
 # local mail transport outbox (contains one-time codes)
 /.local-mail/
 
+# local agent/validation artifacts (screenshots, logs)
+/tmp/
+
 # Card music: only the three approved catalogue tracks are tracked.
 /public/music/*.mp3
 !/public/music/rise-and-shine.mp3

@@ -6,6 +6,7 @@ import { CardEnding } from "@/components/brand/CardEnding";
 import { Logo } from "@/components/brand/Logo";
 import { Wordmark } from "@/components/brand/Wordmark";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { defaultFooter } from "@/modules/cms/defaults";
 
 const root = process.cwd();
 const read = (p: string) => readFileSync(path.join(root, p), "utf8");
@@ -56,7 +57,7 @@ describe("Wordmark / Logo / CardEnding", () => {
   });
 
   it("footer uses the official gradient wordmark on the dark surface", () => {
-    const html = renderToStaticMarkup(<SiteFooter />);
+    const html = renderToStaticMarkup(<SiteFooter footer={defaultFooter()} />);
     expect(html).toMatch(/mawica-wordmark\.png/);
     expect(html).not.toMatch(/mawica-app-icon\.png/);
   });

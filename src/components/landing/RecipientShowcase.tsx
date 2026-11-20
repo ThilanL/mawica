@@ -1,16 +1,19 @@
+import type { HomeSectionsPayload } from "@/modules/cms/schemas";
 import { Reveal } from "@/components/ui/Reveal";
 import { CardArt } from "./CardArt";
 
-export function RecipientShowcase() {
+export function RecipientShowcase({
+  copy,
+}: {
+  copy: Pick<HomeSectionsPayload, "recipientEyebrow" | "recipientTitle" | "recipientBody">;
+}) {
   return (
     <section id="about" aria-labelledby="recipient-title" className="mx-auto grid max-w-7xl items-center gap-16 px-5 py-24 sm:px-8 lg:grid-cols-2 lg:py-32">
       <div className="text-center lg:text-left">
         <Reveal>
-          <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: "#a63d78" }}>For the person who opens it</p>
-          <h2 id="recipient-title" className="mt-4 font-display text-4xl leading-tight tracking-tight text-balance sm:text-5xl">A moment made for their phone</h2>
-          <p className="mt-5 text-lg leading-relaxed text-ink-soft text-pretty">
-            Mawica is a new home for digital greetings, built around the feeling of opening something made just for you. Recipients tap a link and their card comes alive, with their name, your words and a little magic. No app to install.
-          </p>
+          <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: "#a63d78" }}>{copy.recipientEyebrow}</p>
+          <h2 id="recipient-title" className="mt-4 font-display text-4xl leading-tight tracking-tight text-balance sm:text-5xl">{copy.recipientTitle}</h2>
+          <p className="mt-5 text-lg leading-relaxed text-ink-soft text-pretty">{copy.recipientBody}</p>
         </Reveal>
       </div>
       <Reveal delay={120} className="flex justify-center">

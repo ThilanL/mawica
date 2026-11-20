@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import { LegalCmsArticle } from "@/components/ui/LegalCmsArticle";
 import { LegalPage, Todo } from "@/components/ui/LegalPage";
+import { resolveLegal } from "@/modules/cms/resolve";
+
+export const instant = false;
 
 export const metadata: Metadata = {
   title: "Terms of Use | mawica.",
@@ -7,7 +11,10 @@ export const metadata: Metadata = {
   alternates: { canonical: "/terms" },
 };
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const { data, source } = await resolveLegal("terms");
+  if (source === "cms") return <LegalCmsArticle data={data} />;
+
   return (
     <LegalPage title="Terms of Use" updated="5 November 2026 (draft)">
       <section>

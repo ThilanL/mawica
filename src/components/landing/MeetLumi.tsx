@@ -44,7 +44,15 @@ function LumiPreview({ pop }: { pop?: number }) {
   );
 }
 
-export function MeetLumi() {
+export function MeetLumi({
+  eyebrow,
+  title,
+  body,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+}) {
   const reduced = usePrefersReducedMotion();
   const [step, setStep] = useState<Step>("idle");
   const [activated, setActivated] = useState(false);
@@ -109,11 +117,11 @@ export function MeetLumi() {
       {/* Mobile order: headline, Lumi, interaction. Desktop: Lumi left, headline + interaction right. */}
       <div className="relative mx-auto grid max-w-6xl gap-x-14 gap-y-6 px-4 py-14 sm:px-8 sm:py-24 lg:grid-cols-2 lg:gap-y-0">
         <div className="text-center lg:col-start-2 lg:row-start-1 lg:self-end lg:text-left">
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gold">Your wish companion</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gold">{eyebrow}</p>
           <h2 id="meet-lumi-title" className="mt-4 font-display text-[clamp(2.1rem,6vw,3.6rem)] leading-[1.05] tracking-tight text-balance">
-            Meet Lumi. Your Little Wish Companion.
+            {title}
           </h2>
-          <p className="mx-auto mt-4 max-w-md text-lg leading-relaxed text-ivory/85 text-pretty lg:mx-0">A little magic to help you make someone smile.</p>
+          <p className="mx-auto mt-4 max-w-md text-lg leading-relaxed text-ivory/85 text-pretty lg:mx-0">{body}</p>
         </div>
 
         <div className="lg:col-start-1 lg:row-span-2 lg:row-start-1">
