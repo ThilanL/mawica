@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { MediaPicker } from "@/components/cms/MediaPicker";
 
 type Revision = {
   id: string;
@@ -10,6 +11,10 @@ type Revision = {
   publishedAt: string;
   publishedByStaffId: string | null;
 };
+
+function isCampaignKey(key: string): boolean {
+  return key === "campaign.christmas" || key === "campaign.newyear";
+}
 
 export function CmsEditor({
   documentKey,
@@ -46,6 +51,32 @@ export function CmsEditor({
       setError("Draft JSON is invalid");
       return null;
     }
+  };
+
+  const campaignPreview = useMemo(() => {
+    if (!isCampaignKey(documentKey)) return null;
+    try {
+      return JSON.parse(text) as {
+        title?: string;
+        description?: string;
+        ctaLabel?: string;
+        ctaHref?: string;
+        mediaAssetId?: string | null;
+        sectionVisible?: boolean;
+        startsAt?: string;
+        endsAt?: string;
+        anchorId?: string;
+      };
+    } catch {
+      return null;
+    }
+  }, [documentKey, text]);
+
+  const setCampaignMedia = (id: string | null) => {
+    const parsed = parsePayload();
+    if (!parsed || typeof parsed !== "object") return;
+    const next = { ...(parsed as Record<string, unknown>), mediaAssetId: id };
+    setText(JSON.stringify(next, null, 2));
   };
 
   const save = () => {
@@ -155,8 +186,43 @@ export function CmsEditor({
 
       <p className="rounded-xl border border-[var(--admin-line)] bg-[var(--admin-card)] px-4 py-3 text-sm text-[var(--admin-muted)]">
         Plain JSON only — no HTML, scripts, or component injection. URLs must be relative paths or https://mawica.com.
-        Drafts never appear on the public site until published.
+        Drafts never appear on the public site until published. Campaign rollback uses publication history below.
       </p>
+
+      {isCampaignKey(documentKey) && canWrite ? (
+        <MediaPicker
+          value={typeof campaignPreview?.mediaAssetId === "string" ? campaignPreview.mediaAssetId : null}
+          onChange={setCampaignMedia}
+          disabled={pending}
+        />
+      ) : null}
+
+      {campaignPreview ? (
+        <section className="rounded-2xl border border-[var(--admin-line)] bg-[var(--admin-card)] p-4">
+          <h2 className="text-lg font-semibold">Campaign preview (draft)</h2>
+          <p className="mt-1 text-sm text-[var(--admin-muted)]">
+            Visible: {String(campaignPreview.sectionVisible)} · Anchor #{campaignPreview.anchorId} ·{" "}
+            {campaignPreview.startsAt} → {campaignPreview.endsAt}
+          </p>
+          <div className="mt-4 rounded-xl bg-white/60 p-4">
+            <h3 className="font-display text-2xl">{campaignPreview.title}</h3>
+            <p className="mt-2 text-[var(--admin-muted)]">{campaignPreview.description}</p>
+            <p className="mt-3 text-sm font-semibold">
+              CTA: {campaignPreview.ctaLabel} → {campaignPreview.ctaHref}
+            </p>
+            {campaignPreview.mediaAssetId ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`/api/cms/media/${campaignPreview.mediaAssetId}/file?variant=thumb`}
+                alt=""
+                className="mt-4 max-h-40 rounded-lg object-contain"
+              />
+            ) : (
+              <p className="mt-3 text-xs text-[var(--admin-muted)]">No media assigned</p>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       <label className="block space-y-2">
         <span className="text-sm font-medium">Draft payload</span>
@@ -165,7 +231,7 @@ export function CmsEditor({
           onChange={(e) => setText(e.target.value)}
           spellCheck={false}
           disabled={!canWrite || pending}
-          rows={28}
+          rows={isCampaignKey(documentKey) ? 18 : 28}
           className="w-full rounded-xl border border-[var(--admin-line)] bg-white px-3 py-2 font-mono text-xs leading-relaxed disabled:opacity-70"
         />
       </label>

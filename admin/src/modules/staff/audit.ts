@@ -13,7 +13,10 @@ export type StaffAuditAction =
   | "finance.plan_viewed"
   | "finance.projection_exported"
   | "cms.document_saved"
-  | "cms.document_published";
+  | "cms.document_published"
+  | "cms.media_uploaded"
+  | "cms.media_updated"
+  | "cms.media_deleted";
 
 /**
  * Admin audit writer. Never store emails, message bodies, tokens, or raw IPs in meta.

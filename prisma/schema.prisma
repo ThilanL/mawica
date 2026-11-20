@@ -235,6 +235,7 @@ model StaffPrincipal {
   auditLogs   AuditLog[]
   cmsDocumentsUpdated CmsDocument[] @relation("CmsDocumentUpdatedBy")
   cmsRevisionsPublished CmsRevision[] @relation("CmsRevisionPublishedBy")
+  cmsMarketingAssetsUploaded CmsMarketingAsset[] @relation("CmsMarketingAssetUploadedBy")
 
   @@index([email])
   @@index([role, disabledAt])
@@ -600,4 +601,42 @@ model CmsRevision {
 
   @@unique([documentId, revisionNumber])
   @@index([documentId, publishedAt])
+}
+
+// ============================ Marketing media library (P5C) ============================
+// Public marketing assets only — never customer CardMedia. Bytes live on disk (local) / object storage (later);
+// this table is metadata + CDN-ready public path. Soft-delete protects published CMS references.
+
+enum CmsMarketingKind {
+  IMAGE
+  VIDEO
+}
+
+model CmsMarketingAsset {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind             CmsMarketingKind
+  title            String           @db.VarChar(160)
+  altText          String           @db.VarChar(300)
+  contentType      String           @db.VarChar(80)
+  /// Relative storage key under the marketing media root (UUID-based; never a user path).
+  storageKey       String           @unique @db.VarChar(200)
+  /// Optional derivative thumbnail key (images only).
+  thumbStorageKey  String?          @unique @db.VarChar(200)
+  /// Display-only original basename (sanitised); never used for filesystem paths.
+  originalFilename String           @db.VarChar(200)
+  byteSize         Int
+  width            Int?
+  height           Int?
+  durationMs       Int?
+  sha256           String           @db.VarChar(64)
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
+  uploadedByStaffId String?         @db.Uuid
+  uploadedByStaff  StaffPrincipal?  @relation("CmsMarketingAssetUploadedBy", fields: [uploadedByStaffId], references: [id], onDelete: SetNull)
+  /// Soft-delete: retained while published CMS revisions still reference the id.
+  deletedAt        DateTime?        @db.Timestamptz(3)
+
+  @@index([kind, createdAt])
+  @@index([deletedAt, createdAt])
+  @@index([title])
 }

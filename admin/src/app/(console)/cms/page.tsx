@@ -19,12 +19,20 @@ export default async function CmsIndexPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Marketing CMS</h1>
-        <p className="mt-2 max-w-3xl text-[var(--admin-muted)]">
-          Edit homepage, navigation, footer, legal and SEO copy. Drafts stay private until an OWNER publishes.
-          Public pages fall back to static TypeScript content when nothing is published.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Marketing CMS</h1>
+          <p className="mt-2 max-w-3xl text-[var(--admin-muted)]">
+            Edit homepage, navigation, footer, legal, SEO and seasonal campaigns. Drafts stay private until an OWNER
+            publishes. Public pages fall back to static TypeScript content when nothing is published.
+          </p>
+        </div>
+        <Link
+          href="/cms/media"
+          className="rounded-full border border-[var(--admin-line)] px-4 py-2 text-sm font-semibold"
+        >
+          Media library
+        </Link>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-[var(--admin-line)] bg-[var(--admin-card)]">

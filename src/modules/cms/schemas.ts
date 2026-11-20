@@ -22,6 +22,19 @@ const safeHref = z
   )
   .refine((h) => !/[<>"']/.test(h), { message: "Unsafe characters in href" });
 
+/** UUID or null — marketing asset references only (never CardMedia ids). */
+const assetId = z.union([z.string().uuid(), z.null()]);
+
+/** ISO-8601 datetime with offset, e.g. 2026-12-01T00:00:00+11:00 */
+const isoOffsetDateTime = z
+  .string()
+  .min(20)
+  .max(40)
+  .refine((s) => !Number.isNaN(Date.parse(s)), { message: "Invalid datetime" })
+  .refine((s) => /([zZ]|[+-]\d{2}:?\d{2})$/.test(s), {
+    message: "Datetime must include a timezone offset",
+  });
+
 export const heroPayloadSchema = z.object({
   eyebrow: plainString(120),
   titleLines: z.tuple([plainString(120), plainString(120)]),
@@ -107,6 +120,28 @@ export const seoPayloadSchema = z.object({
   twitterDescription: plainString(320),
 });
 
+/** Seasonal campaign (Christmas / New Year) — uses existing homepage anchors. */
+export const campaignPayloadSchema = z
+  .object({
+    season: z.enum(["christmas", "new-year"]),
+    /** Existing homepage section id: christmas | new-year */
+    anchorId: z.enum(["christmas", "new-year"]),
+    title: plainString(160),
+    description: plainString(800),
+    ctaLabel: plainString(80),
+    ctaHref: safeHref,
+    mediaAssetId: assetId,
+    sectionVisible: z.boolean(),
+    startsAt: isoOffsetDateTime,
+    endsAt: isoOffsetDateTime,
+  })
+  .refine((c) => Date.parse(c.endsAt) > Date.parse(c.startsAt), {
+    message: "endsAt must be after startsAt",
+  })
+  .refine((c) => (c.season === "christmas" ? c.anchorId === "christmas" : c.anchorId === "new-year"), {
+    message: "anchorId must match season",
+  });
+
 export const CMS_DOCUMENT_KEYS = [
   "home.hero",
   "home.sections",
@@ -115,6 +150,8 @@ export const CMS_DOCUMENT_KEYS = [
   "legal.privacy",
   "legal.terms",
   "seo.site",
+  "campaign.christmas",
+  "campaign.newyear",
 ] as const;
 
 export type CmsDocumentKey = (typeof CMS_DOCUMENT_KEYS)[number];
@@ -127,6 +164,8 @@ export const documentSchemas = {
   "legal.privacy": legalPayloadSchema,
   "legal.terms": legalPayloadSchema,
   "seo.site": seoPayloadSchema,
+  "campaign.christmas": campaignPayloadSchema,
+  "campaign.newyear": campaignPayloadSchema,
 } as const;
 
 export type HeroPayload = z.infer<typeof heroPayloadSchema>;
@@ -135,6 +174,7 @@ export type NavPayload = z.infer<typeof navPayloadSchema>;
 export type FooterPayload = z.infer<typeof footerPayloadSchema>;
 export type LegalPayload = z.infer<typeof legalPayloadSchema>;
 export type SeoPayload = z.infer<typeof seoPayloadSchema>;
+export type CampaignPayload = z.infer<typeof campaignPayloadSchema>;
 
 export function parseDocumentPayload(key: CmsDocumentKey, raw: unknown) {
   return documentSchemas[key].parse(raw);
@@ -142,6 +182,10 @@ export function parseDocumentPayload(key: CmsDocumentKey, raw: unknown) {
 
 export function isCmsDocumentKey(k: string): k is CmsDocumentKey {
   return (CMS_DOCUMENT_KEYS as readonly string[]).includes(k);
+}
+
+export function isCampaignDocumentKey(k: string): k is "campaign.christmas" | "campaign.newyear" {
+  return k === "campaign.christmas" || k === "campaign.newyear";
 }
 
 /** Escape for safe HTML text nodes (SEO / legal rendering). */
@@ -152,4 +196,11 @@ export function escapeText(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/** Whether a campaign should display for visitors right now. */
+export function isCampaignActiveNow(payload: CampaignPayload, now = new Date()): boolean {
+  if (!payload.sectionVisible) return false;
+  const t = now.getTime();
+  return t >= Date.parse(payload.startsAt) && t < Date.parse(payload.endsAt);
 }

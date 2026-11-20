@@ -1,5 +1,6 @@
 import { SITE_DESCRIPTION } from "../../lib/site";
 import type {
+  CampaignPayload,
   CmsDocumentKey,
   FooterPayload,
   HeroPayload,
@@ -17,6 +18,8 @@ export const DOCUMENT_TITLES: Record<CmsDocumentKey, string> = {
   "legal.privacy": "Privacy Policy",
   "legal.terms": "Terms of Use",
   "seo.site": "Site SEO & social metadata",
+  "campaign.christmas": "Christmas campaign",
+  "campaign.newyear": "New Year campaign",
 };
 
 /** Mirrors `src/content/hero` + homepage copy so CMS fallbacks do not change visuals. */
@@ -169,6 +172,37 @@ export function defaultSeo(): SeoPayload {
   };
 }
 
+/** Default campaigns are visible but inactive outside their window until staff publish overrides. */
+export function defaultCampaignChristmas(): CampaignPayload {
+  return {
+    season: "christmas",
+    anchorId: "christmas",
+    title: "Christmas Cards",
+    description: "Four festive cards ready to personalise and share.",
+    ctaLabel: "Browse Christmas cards",
+    ctaHref: "/#christmas",
+    mediaAssetId: null,
+    sectionVisible: true,
+    startsAt: "2026-11-01T00:00:00+11:00",
+    endsAt: "2026-12-26T00:00:00+11:00",
+  };
+}
+
+export function defaultCampaignNewYear(): CampaignPayload {
+  return {
+    season: "new-year",
+    anchorId: "new-year",
+    title: "New Year Cards",
+    description: "Welcome the year ahead with a card that feels personal.",
+    ctaLabel: "Browse New Year cards",
+    ctaHref: "/#new-year",
+    mediaAssetId: null,
+    sectionVisible: true,
+    startsAt: "2026-12-20T00:00:00+11:00",
+    endsAt: "2027-01-15T00:00:00+11:00",
+  };
+}
+
 export function defaultPayloadFor(key: CmsDocumentKey): unknown {
   switch (key) {
     case "home.hero":
@@ -185,5 +219,9 @@ export function defaultPayloadFor(key: CmsDocumentKey): unknown {
       return defaultLegalTerms();
     case "seo.site":
       return defaultSeo();
+    case "campaign.christmas":
+      return defaultCampaignChristmas();
+    case "campaign.newyear":
+      return defaultCampaignNewYear();
   }
 }

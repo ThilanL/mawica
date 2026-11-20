@@ -50,6 +50,9 @@ next-env.d.ts
 # local agent/validation artifacts (screenshots, logs)
 /tmp/
 
+# CMS marketing media bytes (metadata in Postgres; never customer CardMedia)
+/storage/cms-marketing/
+
 # Card music: only the three approved catalogue tracks are tracked.
 /public/music/*.mp3
 !/public/music/rise-and-shine.mp3

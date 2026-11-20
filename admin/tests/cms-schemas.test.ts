@@ -60,7 +60,7 @@ describe("CMS schemas & defaults", () => {
     );
   });
 
-  it("covers expected document keys for P5B", () => {
+  it("covers expected document keys for P5B + P5C campaigns", () => {
     const expected: CmsDocumentKey[] = [
       "home.hero",
       "home.sections",
@@ -69,7 +69,26 @@ describe("CMS schemas & defaults", () => {
       "legal.privacy",
       "legal.terms",
       "seo.site",
+      "campaign.christmas",
+      "campaign.newyear",
     ];
     expect([...CMS_DOCUMENT_KEYS]).toEqual(expected);
+  });
+
+  it("validates campaign schedule and anchors", () => {
+    const base = defaultPayloadFor("campaign.christmas") as Record<string, unknown>;
+    expect(() =>
+      parseDocumentPayload("campaign.christmas", {
+        ...base,
+        endsAt: "2026-10-01T00:00:00+11:00",
+        startsAt: "2026-11-01T00:00:00+11:00",
+      }),
+    ).toThrow(/endsAt/);
+    expect(() =>
+      parseDocumentPayload("campaign.christmas", { ...base, anchorId: "new-year" }),
+    ).toThrow(/anchorId/);
+    expect(() =>
+      parseDocumentPayload("campaign.christmas", { ...base, startsAt: "2026-11-01T00:00:00" }),
+    ).toThrow(/timezone/);
   });
 });

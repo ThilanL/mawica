@@ -1,6 +1,7 @@
 import { cardPreviews, type CardPreview } from "@/content/site";
-import type { HomeSectionsPayload } from "@/modules/cms/schemas";
+import type { CampaignPayload, HomeSectionsPayload } from "@/modules/cms/schemas";
 import { Reveal } from "@/components/ui/Reveal";
+import { CampaignBanner } from "./CampaignBanner";
 import { CardArt } from "./CardArt";
 import { SectionHeading } from "./SectionHeading";
 
@@ -19,9 +20,27 @@ function CardTile({ card, i }: { card: CardPreview; i: number }) {
   );
 }
 
-export function CardPreviews({ copy }: { copy: HomeSectionsPayload }) {
+export type CampaignSlot = {
+  data: CampaignPayload;
+  active: boolean;
+};
+
+/**
+ * Product gallery keeps #christmas / #new-year anchors for nav.
+ * Campaign banners appear only when published + sectionVisible + inside schedule.
+ */
+export function CardPreviews({
+  copy,
+  christmasCampaign,
+  newYearCampaign,
+}: {
+  copy: HomeSectionsPayload;
+  christmasCampaign?: CampaignSlot;
+  newYearCampaign?: CampaignSlot;
+}) {
   const christmas = cardPreviews.filter((c) => c.occasion === "Christmas");
   const newYear = cardPreviews.filter((c) => c.occasion === "New Year");
+
   return (
     <section aria-labelledby="cards-title" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:py-32">
       <Reveal>
@@ -33,15 +52,29 @@ export function CardPreviews({ copy }: { copy: HomeSectionsPayload }) {
         />
       </Reveal>
       <div id="christmas" className="mt-16 scroll-mt-24">
-        <h3 className="mb-6 font-display text-3xl">{copy.galleryChristmasHeading}</h3>
+        {christmasCampaign ? (
+          <CampaignBanner campaign={christmasCampaign.data} active={christmasCampaign.active} />
+        ) : null}
+        <h3 className="mb-6 font-display text-3xl">
+          {christmasCampaign?.active ? christmasCampaign.data.title : copy.galleryChristmasHeading}
+        </h3>
         <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {christmas.map((c, i) => <CardTile key={c.id} card={c} i={i} />)}
+          {christmas.map((c, i) => (
+            <CardTile key={c.id} card={c} i={i} />
+          ))}
         </ul>
       </div>
       <div id="new-year" className="mt-16 scroll-mt-24">
-        <h3 className="mb-6 font-display text-3xl">{copy.galleryNewYearHeading}</h3>
+        {newYearCampaign ? (
+          <CampaignBanner campaign={newYearCampaign.data} active={newYearCampaign.active} />
+        ) : null}
+        <h3 className="mb-6 font-display text-3xl">
+          {newYearCampaign?.active ? newYearCampaign.data.title : copy.galleryNewYearHeading}
+        </h3>
         <ul className="grid gap-6 sm:grid-cols-2 lg:max-w-[calc(50%+0.75rem)]">
-          {newYear.map((c, i) => <CardTile key={c.id} card={c} i={i} />)}
+          {newYear.map((c, i) => (
+            <CardTile key={c.id} card={c} i={i} />
+          ))}
         </ul>
       </div>
     </section>

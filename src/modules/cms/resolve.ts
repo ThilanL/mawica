@@ -2,8 +2,10 @@ import "server-only";
 import { db } from "@/lib/db";
 import { defaultPayloadFor } from "./defaults";
 import {
+  isCampaignActiveNow,
   isCmsDocumentKey,
   parseDocumentPayload,
+  type CampaignPayload,
   type CmsDocumentKey,
   type FooterPayload,
   type HeroPayload,
@@ -75,7 +77,34 @@ export async function resolveSeo(): Promise<{ data: SeoPayload; source: ResolveS
   return resolveCmsDocument("seo.site", (raw) => parseDocumentPayload("seo.site", raw) as SeoPayload);
 }
 
+export async function resolveCampaign(
+  season: "christmas" | "new-year",
+  now?: Date,
+): Promise<{ data: CampaignPayload; source: ResolveSource; active: boolean }> {
+  const key = season === "christmas" ? "campaign.christmas" : "campaign.newyear";
+  const resolved = await resolveCmsDocument(key, (raw) => parseDocumentPayload(key, raw) as CampaignPayload);
+  // Callers that need wall-clock scheduling should pass `now` after `await connection()`.
+  return { ...resolved, active: now ? isCampaignActiveNow(resolved.data, now) : false };
+}
+
+export async function resolveActiveCampaigns(now: Date): Promise<{
+  christmas: { data: CampaignPayload; source: ResolveSource; active: boolean };
+  newYear: { data: CampaignPayload; source: ResolveSource; active: boolean };
+}> {
+  const [christmas, newYear] = await Promise.all([
+    resolveCampaign("christmas", now),
+    resolveCampaign("new-year", now),
+  ]);
+  return { christmas, newYear };
+}
+
 export function assertKey(key: string): CmsDocumentKey {
   if (!isCmsDocumentKey(key)) throw new Error(`Unknown CMS document key: ${key}`);
   return key;
+}
+
+/** CDN-ready public URL for a marketing asset (consumer origin). */
+export function marketingAssetPublicUrl(assetId: string, variant: "full" | "thumb" = "full"): string {
+  const base = `/marketing-media/${encodeURIComponent(assetId)}`;
+  return variant === "thumb" ? `${base}/thumb` : base;
 }
