@@ -10,7 +10,7 @@ let pending: Promise<SessionInfo> | null = null;
 const load = () => (pending ??= fetch("/api/account/session", { cache: "no-store", credentials: "same-origin" }).then((r) => (r.ok ? r.json() : { signedIn: false })).catch(() => ({ signedIn: false })));
 
 /** Header slot: "Sign In" until the session check says otherwise. Deliberately tiny: no auth client library on public pages. */
-export function AccountNav({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
+export function AccountNav({ mobile = false, outlined = false, onNavigate }: { mobile?: boolean; outlined?: boolean; onNavigate?: () => void }) {
   const [info, setInfo] = useState<SessionInfo>({ signedIn: false });
   useEffect(() => { let live = true; load().then((i) => live && setInfo(i)); return () => { live = false; }; }, []);
 
@@ -25,6 +25,15 @@ export function AccountNav({ mobile = false, onNavigate }: { mobile?: boolean; o
   }
   return mobile ? (
     <ButtonLink href="/sign-in" variant="secondary" onClick={onNavigate}>Sign In</ButtonLink>
+  ) : outlined ? (
+    <ButtonLink
+      href="/sign-in"
+      variant="secondary"
+      size="md"
+      className="border-midnight/25 bg-white/35 px-5 shadow-none backdrop-blur-sm hover:bg-white/70"
+    >
+      Sign In
+    </ButtonLink>
   ) : (
     <ButtonLink href="/sign-in" variant="ghost" size="md">Sign In</ButtonLink>
   );

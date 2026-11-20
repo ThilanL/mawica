@@ -1,19 +1,19 @@
-import Image from "next/image";
 import Link from "next/link";
+import { Wordmark } from "./Wordmark";
 
-/** Approved Mawica wordmark. Never restyle or recreate: use the supplied asset. */
-export function Logo({ priority = false, className = "" }: { priority?: boolean; className?: string }) {
+/** Approved Mawica wordmark linked to home. Never restyle or recreate: use the supplied asset. */
+export function Logo({
+  priority = false,
+  className = "",
+  surface = "light",
+}: {
+  priority?: boolean;
+  className?: string;
+  surface?: "light" | "dark";
+}) {
   return (
     <Link href="/" aria-label="mawica. home" className={`inline-block ${className}`}>
-      <Image
-        src="/brand/mawica-wordmark.png"
-        alt="mawica. Bring your wishes to life."
-        width={2000}
-        height={667}
-        priority={priority}
-        sizes="160px"
-        className="h-10 w-auto mix-blend-multiply"
-      />
+      <Wordmark variant="full" size="md" surface={surface} priority={priority} />
     </Link>
   );
 }

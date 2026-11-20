@@ -11,7 +11,13 @@ export const metadata: Metadata = {
   title: { default: "mawica. | Bring your wishes to life", template: "%s" },
   description: SITE_DESCRIPTION,
   alternates: { canonical: "/" },
-  icons: { icon: "/brand/mawica-app-icon.png", apple: "/brand/mawica-app-icon.png" },
+  // File conventions (app/favicon.ico, icon.png, apple-icon.png) supply the tab and home-screen icons.
+  // Keep metadata as a fallback for older crawlers and for card routes that share the same brand mark.
+  icons: {
+    icon: [{ url: "/brand/mawica-icon-192.png", type: "image/png", sizes: "192x192" }],
+    apple: [{ url: "/brand/mawica-app-icon.png", type: "image/png", sizes: "1254x1254" }],
+  },
+  manifest: "/site.webmanifest",
   openGraph: { type: "website", siteName: SITE_NAME, locale: "en_AU", title: "mawica. | Bring your wishes to life", description: SITE_DESCRIPTION, url: "/" },
   twitter: { card: "summary_large_image", title: "mawica. | Bring your wishes to life", description: SITE_DESCRIPTION },
   ...(isNoindex() ? { robots: { index: false, follow: false } } : {}),

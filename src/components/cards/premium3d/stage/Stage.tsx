@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { Component, useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { CardEnding } from "@/components/brand/CardEnding";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import type { TemplateKey } from "@/modules/templates/registry";
 import type { SceneProps } from "../../types";
@@ -140,16 +140,7 @@ export function Stage(props: SceneProps & { sceneKey: TemplateKey; Fallback: Com
       </section>
       {stage === "intro" && <button type="button" onClick={skip} className="cin-pill absolute left-3 top-3 z-20">Skip intro</button>}
       <div className={`cin-end ${stage === "ending" ? "cin-end-on" : ""}`} aria-hidden={stage !== "ending"} inert={stage !== "ending"}>
-        <div className="cin-end-inner">
-          <p className="cin-wordmark">mawica.</p>
-          <Link href="/" className="cin-url">www.mawica.com</Link>
-          <p className="cin-send">Send your feelings to others.</p>
-          <p className="cin-tag">BRING YOUR WISHES TO LIFE.</p>
-          <div className="cin-end-actions">
-            <Link href="/create" className="cin-pill cin-pill-primary">Create your own card</Link>
-            <button type="button" onClick={readAgain} className="cin-pill">Read again</button>
-          </div>
-        </div>
+        <CardEnding onReadAgain={readAgain} />
       </div>
       {dev.perf && !dev.bare && stats && <p data-testid="cinema-stats" className="pointer-events-none absolute left-1 top-1 z-30 rounded bg-black/60 px-2 py-1 font-mono text-[10px] text-white">{stats.fps}fps · {stats.calls} calls · {Math.round(stats.triangles / 1000)}k tris · dpr {stats.dpr.toFixed(2)}</p>}
     </div>

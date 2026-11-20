@@ -11,6 +11,7 @@
 
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-script: var(--font-caveat), ui-serif, "Segoe Script", cursive;
 
   --shadow-soft: 0 24px 60px -24px rgb(42 27 61 / 0.35);
   --shadow-lift: 0 30px 80px -30px rgb(42 27 61 / 0.5);
@@ -76,10 +77,29 @@ body {
   animation: plate-zoom 24s ease-in-out infinite alternate;
   transform-origin: 70% 60%;
 }
+.hero-shimmer {
+  background: linear-gradient(115deg, transparent 35%, rgb(255 248 244 / 0.18) 48%, transparent 62%);
+  background-size: 220% 100%;
+  animation: hero-shimmer 14s ease-in-out infinite;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+@keyframes hero-shimmer {
+  0%, 100% { background-position: 100% 0; }
+  50% { background-position: 0% 0; }
+}
+.hero-annotation {
+  font-family: var(--font-script);
+  font-size: clamp(1.15rem, 1.6vw, 1.55rem);
+  font-weight: 600;
+  transform: rotate(-6deg);
+  text-shadow: 0 1px 0 rgb(255 248 244 / 0.65);
+}
 @media (prefers-reduced-motion: reduce) {
   .light-glow { animation: none; opacity: 0.85; transform: translate(-50%, -50%); }
   .globe-float { animation: none; }
   .hero-plate { animation: none; }
+  .hero-shimmer { animation: none; opacity: 0.35; }
   html { scroll-behavior: auto; }
 }
 
@@ -275,7 +295,7 @@ body {
 .cin-end-on { opacity: 1; visibility: visible; transition-delay: 0s; }
 .cin-end-inner { position: relative; text-align: center; max-width: 28rem; }
 .cin-end-inner::before { content: ""; position: absolute; left: 50%; top: 22%; width: 150%; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; background: radial-gradient(closest-side, rgb(244 195 113 / 0.22), rgb(217 105 163 / 0.14) 45%, rgb(156 126 219 / 0.12) 62%, transparent 76%); }
-.cin-wordmark { font-family: var(--font-display); font-weight: 600; font-size: clamp(3.4rem, 17vw, 6.2rem); line-height: 1; letter-spacing: -0.02em; margin: 0; background: linear-gradient(100deg, #f4c371 0%, #fff3d6 22%, #f0a9cf 48%, #b9a4ee 74%, #f4c371 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 6px 28px rgb(244 195 113 / 0.35)); animation: lw-shimmer 8s linear infinite; }
+.cin-wordmark-img { margin: 0 auto; display: block; filter: drop-shadow(0 6px 28px rgb(244 195 113 / 0.35)); }
 .cin-url { display: inline-block; margin-top: 0.9rem; color: #ffe3a8; font-size: 1.05rem; letter-spacing: 0.06em; text-decoration: underline; text-underline-offset: 5px; text-decoration-color: rgb(255 227 168 / 0.4); }
 .cin-send { margin: 1.4rem 0 0; font-family: var(--font-display); font-style: italic; font-size: 1.4rem; color: #f3e8ff; }
 .cin-tag { margin: 0.9rem 0 0; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.34em; color: #f0a9cf; }
@@ -286,7 +306,7 @@ body {
 @keyframes cin-rise { from { opacity: 0; transform: translateY(14px); } }
 @media (prefers-reduced-motion: reduce) {
   .cin-page, .cin-end { transition: none; }
-  .cin-wordmark, .cin-end-on .cin-end-inner > * { animation: none; }
+  .cin-end-on .cin-end-inner > * { animation: none; }
 }
 
 /* ---- Standard cards in 3D (Phase 2E.2): the message sheet that sits below the picture. Default styles are the finished, readable state. ---- */
@@ -319,7 +339,7 @@ body {
 .ar-from { margin: 0.5rem 0 0; font-style: italic; color: #e8d6f3; overflow-wrap: anywhere; }
 .ar-note { margin: 0.25rem 0 0; font-size: 0.75rem; color: rgb(255 247 238 / 0.65); }
 .ar-end { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; margin-top: 0.8rem; padding-top: 0.7rem; border-top: 1px solid rgb(244 195 113 / 0.25); }
-.ar-wordmark { margin: 0; font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; color: #f4c371; }
+.ar-wordmark { margin: 0; display: flex; justify-content: center; }
 .ar-tag { margin: 0 0 0.3rem; font-size: 0.8rem; color: rgb(255 247 238 / 0.75); }
 @keyframes ar-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .ar-sheet { animation: none; } }
@@ -343,7 +363,7 @@ body {
 .ar-reader-message { overflow-y: auto; overscroll-behavior: contain; font-size: 1.08rem; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; unicode-bidi: plaintext; }
 .ar-reader-message p { margin: 0; }
 .ar-reader-from { margin: 1.1rem 0 0; font-style: italic; color: #6a4a7a; overflow-wrap: anywhere; }
-.ar-reader-mark { margin: 0.9rem 0 0; font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; color: #8a5fa0; }
+.ar-reader-mark { margin: 0.9rem 0 0; display: flex; justify-content: center; }
 .ar-reader-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem; }
 @keyframes ar-reader-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ar-reader { animation: none; } }

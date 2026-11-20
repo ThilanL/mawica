@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { Wordmark } from "@/components/brand/Wordmark";
 
 const cols = [
   { title: "Cards", links: [["Christmas Cards", "/#christmas"], ["New Year Cards", "/#new-year"], ["Create Free Card", "/create"]] },
@@ -12,9 +12,8 @@ export function SiteFooter() {
     <footer className="bg-midnight text-ivory">
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
-          <Image src="/brand/mawica-app-icon.png" alt="" width={56} height={56} className="size-14 rounded-2xl" />
-          <p className="mt-6 max-w-xs font-display text-2xl leading-snug">Bring your wishes to life.</p>
-          <p className="mt-3 max-w-xs text-sm text-ivory/70">
+          <Wordmark variant="full" size="lg" surface="dark" />
+          <p className="mt-6 max-w-xs text-sm text-ivory/70">
             Beautiful, personalised digital greeting cards. Starting with Christmas and New Year, for Australia, Sri Lanka and everywhere between.
           </p>
         </div>
