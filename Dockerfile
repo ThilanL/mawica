@@ -25,8 +25,8 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL NODE_ENV=production
 RUN DATABASE_URL="postgresql://build:build@127.0.0.1:5433/build" RATE_LIMIT_SALT="build-time-placeholder-only" \
     BETTER_AUTH_SECRET="build-time-placeholder-not-a-secret-000000" WELCOME_PEPPER="build-time-placeholder-not-a-pepper-000000" \
     npm run build \
- && cp -r .next/static .next/standalone/.next/static \
- && cp -r public .next/standalone/public
+ && mkdir -p .next/standalone/.next/static && cp -r .next/static/. .next/standalone/.next/static/ \
+ && mkdir -p .next/standalone/public && cp -r public/. .next/standalone/public/
 
 FROM node:24-bookworm-slim AS runner
 WORKDIR /app
