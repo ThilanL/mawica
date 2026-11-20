@@ -394,7 +394,7 @@ describe("account deletion", () => {
   it("keeps the anonymised ledger and tombstone, nulls card ownership, and blocks a second welcome gift", async () => {
     const email = `del-${crypto.randomUUID()}@wallet.example.test`;
     const { u, acc } = await open({ email });
-    const out = await publishOwnedCard({ templateKey: "snow-globe", recipientName: "WalletTest", senderName: "S", message: "m" }, u, { idempotencyKey: key("del1"), now: t0 });
+    const out = await publishOwnedCard({ templateKey: "snow-globe", recipientName: "WalletTest", senderName: "S", message: "m", musicTrackId: "snowlight-on-the-sleigh-path" }, u, { idempotencyKey: key("del1"), now: t0 });
     const ledgerBefore = await db.ledgerEntry.count({ where: { accountId: acc.id } });
     await db.user.delete({ where: { id: u.id } });
     expect(await db.ledgerEntry.count({ where: { accountId: acc.id } })).toBe(ledgerBefore);
@@ -407,7 +407,7 @@ describe("account deletion", () => {
 });
 
 describe("publishing a card with the wallet", () => {
-  const body = { templateKey: "snow-globe" as const, recipientName: "WalletTest", senderName: "Sam", message: "Hello" };
+  const body = { templateKey: "snow-globe" as const, recipientName: "WalletTest", senderName: "Sam", message: "Hello", musicTrackId: "snowlight-on-the-sleigh-path" as const };
   it("creates an owned STANDARD card, spends one credit, and commits the reservation", async () => {
     const { u, acc } = await open();
     const out = await publishOwnedCard(body, u, { idempotencyKey: key("pub1"), now: t0 });
@@ -461,7 +461,7 @@ describe("publishing a card with the wallet", () => {
   });
   it("the premium template needs a premium credit: uses the welcome gift, then refuses and rolls back the total credit", async () => {
     const { u, acc } = await open();
-    const prem = { ...body, templateKey: "lumis-wish" as const };
+    const prem = { ...body, templateKey: "lumis-wish" as const , musicTrackId: "none" as const };
     const a = await publishOwnedCard(prem, u, { idempotencyKey: key("prem1"), now: t0 });
     expect((await db.card.findUnique({ where: { slug: a.slug } }))?.tier).toBe("PREMIUM");
     expect(a).toMatchObject({ remaining: 9, premiumRemaining: 0 });
@@ -476,7 +476,7 @@ describe("publishing a card with the wallet", () => {
 describe("wallet summary and activity (own data only)", () => {
   it("reports real numbers: plan, remaining, used, premium, next reset", async () => {
     const { u } = await open();
-    const body = { templateKey: "snow-globe" as const, recipientName: "WalletTest", senderName: "S", message: "m" };
+    const body = { templateKey: "snow-globe" as const, recipientName: "WalletTest", senderName: "S", message: "m", musicTrackId: "snowlight-on-the-sleigh-path" as const };
     const now = new Date();
     const u2 = await mkUser();
     for (let i = 0; i < 3; i++) await publishOwnedCard(body, u2, { idempotencyKey: key(`sum${i}`), now });
@@ -488,7 +488,7 @@ describe("wallet summary and activity (own data only)", () => {
   });
   it("activity lists only the user's own cards and the welcome gift", async () => {
     const a = await mkUser(), b = await mkUser();
-    const body = { templateKey: "snow-globe" as const, recipientName: "WalletTest", senderName: "S", message: "m" };
+    const body = { templateKey: "snow-globe" as const, recipientName: "WalletTest", senderName: "S", message: "m", musicTrackId: "snowlight-on-the-sleigh-path" as const };
     const now = new Date();
     const ca = await publishOwnedCard(body, a, { idempotencyKey: key("act-a"), now });
     const cb = await publishOwnedCard({ ...body, message: "b" }, b, { idempotencyKey: key("act-b"), now });

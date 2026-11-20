@@ -44,6 +44,10 @@ model Card {
   /// Resolved on the server from the template registry at publish time (never from the client); a snapshot, so
   /// reclassifying a template later does not rewrite history. Every existing card is STANDARD.
   tier          CardTier   @default(STANDARD)
+  /// Curated soundtrack id from src/modules/music/catalogue (including "none"). Null = legacy card published before
+  /// music existed; resolved at read time (Christmas → snowlight-on-the-sleigh-path). Explicit "none" is silence.
+  /// Never an external URL. New publishes always store an explicit value.
+  musicTrackId  String?    @db.VarChar(40)
   scheduledDelivery ScheduledDelivery?
   media         CardMedia?
 

@@ -30,7 +30,7 @@ async function mkUser() {
   return u;
 }
 type User = Awaited<ReturnType<typeof mkUser>>;
-const card = { recipientName: "DeliveryTest", senderName: "Sam", saveRecipient: false, channel: "LINK" as const };
+const card = { recipientName: "DeliveryTest", senderName: "Sam", musicTrackId: "snowlight-on-the-sleigh-path" as const, saveRecipient: false, channel: "LINK" as const };
 let seq = 0;
 async function schedule(u: User, o: { templateKey?: "snow-globe" | "lumis-wish"; date?: string } = {}) {
   const r = await createSchedule({ ...card, templateKey: o.templateKey ?? "snow-globe", message: `msg ${++seq}`, schedule: { localDate: o.date ?? "2026-11-15", localTime: "09:00", timeZone: "UTC" } } as never, u, { idempotencyKey: key(`d${seq}-${Math.random().toString(36).slice(2, 8)}`), now: T0 });

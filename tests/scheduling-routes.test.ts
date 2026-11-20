@@ -23,7 +23,7 @@ async function mkUser() {
   return u;
 }
 const key = () => crypto.randomUUID();
-const card = { templateKey: "snow-globe", recipientName: "RouteSched", senderName: "Sam", message: "Hello" };
+const card = { templateKey: "snow-globe", recipientName: "RouteSched", senderName: "Sam", message: "Hello", musicTrackId: "snowlight-on-the-sleigh-path" };
 const when = (localDate: string, localTime = "09:00", timeZone = "UTC", ambiguity?: string) => ({ localDate, localTime, timeZone, ...(ambiguity ? { ambiguity } : {}) });
 const body = (over: Record<string, unknown> = {}) => ({ ...card, schedule: when("2026-11-20"), ...over });
 

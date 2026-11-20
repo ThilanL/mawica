@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
       // Generic AR models (no personal data). USDZ needs its registered type for iOS; neither file type is in the default static MIME map.
       { source: "/ar/:file*.usdz", headers: [{ key: "Content-Type", value: "model/vnd.usdz+zip" }, { key: "Cache-Control", value: "public, max-age=3600" }] },
       { source: "/ar/:file*.glb", headers: [{ key: "Content-Type", value: "model/gltf-binary" }, { key: "Cache-Control", value: "public, max-age=3600" }] },
+      // Curated card soundtracks (catalogue ids only; files under public/music/).
+      { source: "/music/:file*.mp3", headers: [{ key: "Content-Type", value: "audio/mpeg" }, { key: "Cache-Control", value: "public, max-age=3600" }] },
     ];
   },
   cacheComponents: true,

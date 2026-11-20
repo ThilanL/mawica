@@ -9,7 +9,7 @@ import { WhenFields } from "./WhenFields";
 import { evaluateWhen, type When } from "./when";
 import { useBrowserZone } from "./useTimeZones";
 
-type CardInput = { templateKey: string; recipientName: string; senderName: string; message: string; mediaId?: string };
+type CardInput = { templateKey: string; recipientName: string; senderName: string; message: string; musicTrackId: string; mediaId?: string };
 type Done = { deliverAtUtc: string; timeZone: string; premium: boolean; cardsRemaining: number; premiumRemaining: number };
 
 /** Schedule-for-later form for the creation flow (signed-in users). All rules are enforced again on the server. */

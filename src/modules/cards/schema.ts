@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MUSIC_TRACK_IDS } from "@/modules/music/catalogue";
 import { ALL_TEMPLATE_KEYS } from "@/modules/templates/registry";
 
 export const LIMITS = { name: 40, message: 500 } as const;
@@ -24,6 +25,11 @@ export const createCardSchema = z.object({
     .pipe(z.string().min(1, "Message is required").max(LIMITS.message, `Message must be ${LIMITS.message} characters or fewer`)),
   /** A photo the signed-in owner uploaded earlier (premium cinematic card only; checked on the server inside the publish transaction). */
   mediaId: z.uuid().optional(),
+  /**
+   * Curated soundtrack id (including "none"). Required on every new publish/schedule so the row never relies on the
+   * historical null fallback. External URLs are rejected by the enum.
+   */
+  musicTrackId: z.enum(MUSIC_TRACK_IDS, { error: "Choose background music" }),
   /** Honeypot: real users never fill this */
   website: z.string().max(200).optional().default(""),
 });

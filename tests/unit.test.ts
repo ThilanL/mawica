@@ -44,7 +44,7 @@ describe("trusted proxy client IP", () => {
 });
 
 describe("card input validation", () => {
-  const ok = { templateKey: "snow-globe", recipientName: " Ava ", senderName: "Sam", message: "Hi" };
+  const ok = { templateKey: "snow-globe", recipientName: " Ava ", senderName: "Sam", message: "Hi", musicTrackId: "snowlight-on-the-sleigh-path" };
   it("trims, and accepts every registered template", () => {
     for (const templateKey of TEMPLATE_KEYS) {
       const r = createCardSchema.safeParse({ ...ok, templateKey });

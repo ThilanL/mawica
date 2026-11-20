@@ -22,7 +22,7 @@ async function mkUser() {
   return u;
 }
 type User = Awaited<ReturnType<typeof mkUser>>;
-const base = { templateKey: "snow-globe" as const, recipientName: "SchedTest", senderName: "Sam", message: "Happy days", saveRecipient: true, channel: "LINK" as const };
+const base = { templateKey: "snow-globe" as const, recipientName: "SchedTest", senderName: "Sam", message: "Happy days", musicTrackId: "snowlight-on-the-sleigh-path" as const, saveRecipient: true, channel: "LINK" as const };
 const when = (localDate: string, localTime = "09:00", timeZone = "UTC", ambiguity?: "earlier" | "later") => ({ localDate, localTime, timeZone, ...(ambiguity ? { ambiguity } : {}) });
 const input = (over: Partial<Parameters<typeof createSchedule>[0]> & { schedule?: ReturnType<typeof when> } = {}) => ({ ...base, schedule: when("2026-10-01"), ...over }) as Parameters<typeof createSchedule>[0];
 const sched = (u: User, k: string, over = {}, now = NOW) => createSchedule(input(over), u, { idempotencyKey: key(k), now });
@@ -96,7 +96,7 @@ describe("creating a schedule", () => {
   it("schedules and publishes share one wallet: scheduling reserves, wallet activity shows it as scheduled", async () => {
     const u = await mkUser();
     await sched(u, "w1");
-    await publishOwnedCard({ templateKey: "snow-globe", recipientName: "SchedTest", senderName: "S", message: "now" }, u, { idempotencyKey: key("w2"), now: NOW });
+    await publishOwnedCard({ templateKey: "snow-globe", recipientName: "SchedTest", senderName: "S", message: "now" , musicTrackId: "snowlight-on-the-sleigh-path" }, u, { idempotencyKey: key("w2"), now: NOW });
     expect(await bal(u)).toEqual({ total: 8, premium: 1 });
     const act = await walletActivity(u.id);
     expect(act.items.map((i) => i.type).sort()).toEqual(["card_published", "card_scheduled", "welcome_gift"]);
@@ -198,7 +198,7 @@ describe("idempotency", () => {
   });
   it("a key already used by a publish cannot be replayed as a schedule", async () => {
     const u = await mkUser();
-    await publishOwnedCard({ templateKey: "snow-globe", recipientName: "SchedTest", senderName: "S", message: "m" }, u, { idempotencyKey: key("x1"), now: NOW });
+    await publishOwnedCard({ templateKey: "snow-globe", recipientName: "SchedTest", senderName: "S", message: "m" , musicTrackId: "snowlight-on-the-sleigh-path" }, u, { idempotencyKey: key("x1"), now: NOW });
     expect(await fails(sched(u, "x1"))).toBeInstanceOf(IdempotencyKeyReuseError);
   });
   it("15 concurrent duplicates create exactly one schedule", async () => {
@@ -226,7 +226,7 @@ describe("concurrency against limited credits", () => {
     const u = await mkUser();
     const ops = Array.from({ length: 24 }, (_, i) => i % 2
       ? sched(u, `mx${i}`, { message: `s${i}` }).then((x) => x.schedule.id)
-      : publishOwnedCard({ templateKey: "snow-globe", recipientName: "SchedTest", senderName: "S", message: `p${i}` }, u, { idempotencyKey: key(`mp${i}`), now: NOW }).then((x) => x.slug));
+      : publishOwnedCard({ templateKey: "snow-globe", recipientName: "SchedTest", senderName: "S", message: `p${i}`, musicTrackId: "snowlight-on-the-sleigh-path" }, u, { idempotencyKey: key(`mp${i}`), now: NOW }).then((x) => x.slug));
     const r = await Promise.allSettled(ops);
     expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(10);
     expect((await bal(u)).total).toBe(0);
@@ -418,7 +418,7 @@ describe("privacy of scheduled cards", () => {
     expect((await report(new Request("http://t/x", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "1.1.1.1, 198.51.100.77" }, body: JSON.stringify({ reason: "SPAM" }) }), { params: Promise.resolve({ slug: d.card.slug }) })).status).toBe(404);
     await cancelSchedule(u, schedule.id, NOW);
     expect(await getPublishedCard(d.card.slug)).toBeNull();
-    const pub = await publishOwnedCard({ templateKey: "snow-globe", recipientName: "SchedTest", senderName: "S", message: "live" }, u, { idempotencyKey: key("pv2"), now: NOW });
+    const pub = await publishOwnedCard({ templateKey: "snow-globe", recipientName: "SchedTest", senderName: "S", message: "live" , musicTrackId: "snowlight-on-the-sleigh-path" }, u, { idempotencyKey: key("pv2"), now: NOW });
     expect(await getPublishedCard(pub.slug)).toMatchObject({ slug: pub.slug });
     expect(await db.card.count({ where: { status: "PUBLISHED", ownerId: u.id } })).toBe(1);
   });

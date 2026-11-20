@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 }
 
 /** Wallet-metered, account-owned publishing. Quotas are enforced here on the server, in the same transaction as the card insert. */
-async function publishSignedIn(request: Request, user: { id: string; email: string; emailVerified: boolean }, data: { templateKey: string; recipientName: string; senderName: string; message: string; mediaId?: string }) {
+async function publishSignedIn(request: Request, user: { id: string; email: string; emailVerified: boolean }, data: { templateKey: string; recipientName: string; senderName: string; message: string; musicTrackId: string; mediaId?: string }) {
   const { publishOwnedCard, IDEMPOTENCY_KEY_RE } = await import("@/modules/wallet/publish");
   const { InsufficientCreditsError, IdempotencyKeyReuseError } = await import("@/modules/wallet/engine");
   const headerKey = request.headers.get("idempotency-key");

@@ -5,10 +5,12 @@ import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { MusicField } from "@/components/create/MusicField";
 import { CardArt } from "@/components/landing/CardArt";
 import { Button } from "@/components/ui/Button";
 import { LIMITS } from "@/modules/cards/schema";
 import { hasTemporaryArtwork } from "@/content/artwork";
+import { defaultMusicForTemplate, isMusicTrackId, type MusicTrackId } from "@/modules/music/catalogue";
 import { ALL_TEMPLATE_KEYS, getTemplate, isAnyTemplateKey, isPremiumTemplateKey, premiumTemplates, templateAllowsMedia, templates, type AnyTemplateKey, type PremiumTemplateKey, type TemplateKey } from "@/modules/templates/registry";
 
 // Scheduling UI (time-zone engine + form) is only needed after "Schedule for later" is chosen: keep it out of the first /create bundle.
@@ -44,6 +46,7 @@ export function CreateWizard() {
   const [step, setStep] = useState<Step>("choose");
   const [templateKey, setTemplateKey] = useState<AnyTemplateKey>("snow-globe");
   const [fields, setFields] = useState<Fields>({ recipientName: "", senderName: "", message: templates["snow-globe"].defaultMessage });
+  const [musicTrackId, setMusicTrackId] = useState<MusicTrackId>(() => defaultMusicForTemplate("snow-globe"));
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
   const [published, setPublished] = useState<{ slug: string; url: string; premiumRemaining?: number } | null>(null);
@@ -57,10 +60,12 @@ export function CreateWizard() {
   const idemKey = useRef<string | null>(null);
 
   // Switching template swaps in that template's default message only if the user has not edited the current one.
+  // Music resets to the catalogue default for the new template (Christmas → Snowlight; otherwise none).
   function chooseTemplate(key: AnyTemplateKey) {
     if (!templateAllowsMedia(key)) photo.remove(); // a photo only belongs to the card that can carry it: drop (and delete) it when switching away
     setTemplateKey(key);
     setConfirming(false);
+    setMusicTrackId(defaultMusicForTemplate(key));
     setFields((f) => (f.message === getTemplate(templateKey).defaultMessage || !f.message.trim() ? { ...f, message: getTemplate(key).defaultMessage } : f));
   }
 
@@ -87,12 +92,13 @@ export function CreateWizard() {
         const raw = window.sessionStorage.getItem(DRAFT_KEY);
         if (!raw) return;
         window.sessionStorage.removeItem(DRAFT_KEY);
-        const d = JSON.parse(raw) as { templateKey?: string; fields?: Partial<Fields>; mode?: string; mediaId?: string };
+        const d = JSON.parse(raw) as { templateKey?: string; fields?: Partial<Fields>; mode?: string; mediaId?: string; musicTrackId?: string };
         if (!d.templateKey || !isAnyTemplateKey(d.templateKey) || !d.fields) return;
         const f = d.fields;
         if ([f.recipientName, f.senderName, f.message].some((v) => typeof v !== "string")) return;
         setTemplateKey(d.templateKey);
         setFields({ recipientName: f.recipientName!.slice(0, LIMITS.name), senderName: f.senderName!.slice(0, LIMITS.name), message: f.message!.slice(0, LIMITS.message) });
+        setMusicTrackId(isMusicTrackId(d.musicTrackId) ? d.musicTrackId : defaultMusicForTemplate(d.templateKey));
         if (d.mode === "later") setMode("later");
         if (typeof d.mediaId === "string" && templateAllowsMedia(d.templateKey)) photo.restore(d.mediaId);
         setStep("preview");
@@ -108,6 +114,7 @@ export function CreateWizard() {
         templateKey,
         fields,
         mode,
+        musicTrackId,
         ...(mediaAllowed && photo.mediaId ? { mediaId: photo.mediaId } : {}),
       }));
     } catch { /* the draft is a convenience only; sign-in still works without it */ }
@@ -154,7 +161,7 @@ export function CreateWizard() {
       const res = await fetch("/api/cards", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": idemKey.current },
-        body: JSON.stringify({ templateKey, ...fields, ...(mediaAllowed && photo.mediaId ? { mediaId: photo.mediaId } : {}), website: honeypot.current?.value ?? "" }),
+        body: JSON.stringify({ templateKey, ...fields, musicTrackId, ...(mediaAllowed && photo.mediaId ? { mediaId: photo.mediaId } : {}), website: honeypot.current?.value ?? "" }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 201 || res.status === 200) {
@@ -189,7 +196,7 @@ export function CreateWizard() {
     }
   }
 
-  if (step === "published" && published) return <Published slug={published.slug} url={published.url} recipient={fields.recipientName} premiumRemaining={published.premiumRemaining} onAnother={() => { setPublished(null); setStep("choose"); setFields({ recipientName: "", senderName: fields.senderName, message: getTemplate(templateKey).defaultMessage }); }} />;
+  if (step === "published" && published) return <Published slug={published.slug} url={published.url} recipient={fields.recipientName} premiumRemaining={published.premiumRemaining} onAnother={() => { setPublished(null); setStep("choose"); setMusicTrackId(defaultMusicForTemplate(templateKey)); setFields({ recipientName: "", senderName: fields.senderName, message: getTemplate(templateKey).defaultMessage }); }} />;
 
   const idx = STEPS.findIndex((s) => s.id === step);
   const errorSummary = Object.values(errors).filter(Boolean);
@@ -248,6 +255,7 @@ export function CreateWizard() {
               {(p) => <textarea {...p} value={fields.message} onChange={set("message")} maxLength={LIMITS.message} rows={6} className={inputCls} />}
             </Field>
             {mediaAllowed && <PhotoField photo={photo} member={member} onSignIn={signInToPublish} />}
+            <MusicField value={musicTrackId} onChange={setMusicTrackId} />
             <div aria-hidden className="absolute -left-[9999px]"><label>Website<input ref={honeypot} tabIndex={-1} autoComplete="off" name="website" /></label></div>
           </div>
           <div className="mt-10 flex justify-between gap-3">
@@ -268,7 +276,7 @@ export function CreateWizard() {
           <DeliveryChoice mode={mode} onChange={(m) => { setConfirming(false); setMode(m); }} />
           {mode === "later" ? (
             member.state === "member" ? (
-              <SchedulePanel card={{ templateKey, ...fields, ...(mediaAllowed && photo.mediaId ? { mediaId: photo.mediaId } : {}) }} premium={premium} cards={member.cards} premiumCredits={member.premium} monthsAhead={member.monthsAhead} onEditCard={() => setStep("personalise")} />
+              <SchedulePanel card={{ templateKey, ...fields, musicTrackId, ...(mediaAllowed && photo.mediaId ? { mediaId: photo.mediaId } : {}) }} premium={premium} cards={member.cards} premiumCredits={member.premium} monthsAhead={member.monthsAhead} onEditCard={() => setStep("personalise")} />
             ) : (
               <div className="mx-auto mt-8 max-w-md rounded-[1.5rem] bg-[linear-gradient(135deg,#f7e6ef,#e9defb)] p-5 text-left ring-1 ring-midnight/5">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: ink }}>Schedule for later</p>
