@@ -3,9 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArButton } from "@/components/cards/ArButton";
 import { isArKey } from "@/components/cards/arSupport";
+import { CardMusicPlayer } from "@/components/cards/CardMusicPlayer";
 import { CardPlayer } from "@/components/cards/CardPlayer";
 import { ReportCard } from "@/components/cards/ReportCard";
 import { getPublishedCard } from "@/modules/cards/service";
+import { resolveEffectiveMusic } from "@/modules/music/catalogue";
 import { getTemplate, isAnyTemplateKey } from "@/modules/templates/registry";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -24,10 +26,12 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
   // Uncached lookup before any Suspense boundary: removed cards give a real 404, never a stale page.
   const card = await getPublishedCard(slug);
   if (!card || !isAnyTemplateKey(card.templateKey)) notFound();
+  const music = resolveEffectiveMusic(card.musicTrackId, card.templateKey);
 
   return (
     <div className="relative h-dvh bg-midnight">
       <CardPlayer card={{ templateKey: card.templateKey, recipientName: card.recipientName, senderName: card.senderName, message: card.message, media: card.media ? { kind: "image", src: `/api/media/${card.media.id}`, width: card.media.width, height: card.media.height } : null }} />
+      <CardMusicPlayer key={music.track?.id ?? "silent"} track={music.track} />
       {isArKey(card.templateKey) && (
         // Beside Replay. AR on Android (WebXR) and iPhone (Quick Look), a QR hand-off on computers, help in in-app browsers; nothing on other phones. AR code loads only on tap.
         <div className="absolute right-[6.75rem] top-3 z-20">

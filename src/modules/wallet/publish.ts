@@ -20,13 +20,20 @@ export const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_-]{16,64}$/;
  * the original card instead of creating a second one; the same key with a different request throws IdempotencyKeyReuseError.
  */
 export async function publishOwnedCard(
-  input: Pick<CreateCardInput, "templateKey" | "recipientName" | "senderName" | "message"> & { mediaId?: string },
+  input: Pick<CreateCardInput, "templateKey" | "recipientName" | "senderName" | "message" | "musicTrackId"> & { mediaId?: string },
   user: { id: string; email: string; emailVerified: boolean },
   opts: { idempotencyKey: string; now?: Date; slugFn?: () => string },
 ): Promise<PublishOwnedResult> {
   const tier = templateTier(input.templateKey);
-  // mediaId joins the idempotency fingerprint only when present, so every existing request keeps its fingerprint.
-  const request = { templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message, ...(input.mediaId ? { mediaId: input.mediaId } : {}) };
+  // mediaId joins the fingerprint only when present (legacy keys). musicTrackId is always present on new publishes.
+  const request = {
+    templateKey: input.templateKey,
+    recipientName: input.recipientName,
+    senderName: input.senderName,
+    message: input.message,
+    musicTrackId: input.musicTrackId,
+    ...(input.mediaId ? { mediaId: input.mediaId } : {}),
+  };
   const now = opts.now ?? new Date();
   const slugFn = opts.slugFn ?? newSlug;
 
@@ -43,7 +50,16 @@ export async function publishOwnedCard(
           return { slug: card.slug, replay: true, remaining: b.total, premiumRemaining: b.premium };
         }
         const card = await tx.card.create({
-          data: { slug: slugFn(), templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message, ownerId: user.id, tier },
+          data: {
+            slug: slugFn(),
+            templateKey: input.templateKey,
+            recipientName: input.recipientName,
+            senderName: input.senderName,
+            message: input.message,
+            musicTrackId: input.musicTrackId,
+            ownerId: user.id,
+            tier,
+          },
           select: { id: true, slug: true },
         });
         // The photo is claimed in the same transaction as the credit spend: if it is not the caller's, or already used, everything rolls back.

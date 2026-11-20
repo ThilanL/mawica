@@ -46,3 +46,6 @@ next-env.d.ts
 
 # local mail transport outbox (contains one-time codes)
 /.local-mail/
+
+# Card music binaries (rights not yet confirmed for public distribution)
+/public/music/*.mp3

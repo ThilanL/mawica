@@ -12,7 +12,7 @@ export const scheduleWhenSchema = z.object({
   ambiguity: z.enum(["earlier", "later"]).optional(),
 }).strict();
 
-export const createScheduleSchema = createCardSchema.pick({ templateKey: true, recipientName: true, senderName: true, message: true }).extend({
+export const createScheduleSchema = createCardSchema.pick({ templateKey: true, recipientName: true, senderName: true, message: true, musicTrackId: true }).extend({
   /** A photo the owner uploaded earlier (premium cinematic card only). */
   mediaId: z.uuid().optional(),
   /** An existing saved recipient of THIS account. */

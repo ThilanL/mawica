@@ -36,7 +36,7 @@ async function mkUser() {
   return u;
 }
 const COOKIE = "mawica.session_token=whatever.value";
-const body = { templateKey: "snow-globe", recipientName: "RouteTest", senderName: "Sam", message: "Hello" };
+const body = { templateKey: "snow-globe", recipientName: "RouteTest", senderName: "Sam", message: "Hello", musicTrackId: "snowlight-on-the-sleigh-path" as const };
 type PostOpt = { cookie?: boolean; key?: string | null; ip?: string; origin?: string | null };
 const post = (b: unknown, o: PostOpt = {}) => {
   const h: Record<string, string> = {
@@ -138,7 +138,7 @@ describe("POST /api/cards: signed-in publishing through the wallet", () => {
 });
 
 describe("premium card: Lumi's Wish", () => {
-  const prem = { ...body, templateKey: "lumis-wish" };
+  const prem = { ...body, templateKey: "lumis-wish", musicTrackId: "none" as const };
   const bal = async (userId: string) => {
     const acc = await db.creditAccount.findUnique({ where: { userId } });
     const g = await db.creditGrant.findMany({ where: { accountId: acc!.id } });
@@ -213,7 +213,7 @@ describe("premium card: Lumi's Wish", () => {
     const j = await (await post(prem, { cookie: true, key: "view-key-0000001" })).json();
     const { getPublishedCard } = await import("@/modules/cards/service");
     const card = await getPublishedCard(j.slug);
-    expect(card).toEqual({ slug: j.slug, templateKey: "lumis-wish", recipientName: "RouteTest", senderName: "Sam", message: "Hello", media: null });
+    expect(card).toEqual({ slug: j.slug, templateKey: "lumis-wish", recipientName: "RouteTest", senderName: "Sam", message: "Hello", musicTrackId: "none", media: null });
     expect(JSON.stringify(card)).not.toMatch(/owner|tier|credit|wallet|email|userId/i);
   });
 });
@@ -252,7 +252,7 @@ describe("anonymous publishing is refused", () => {
   it("historical ownerless published cards stay publicly readable with a working QR", async () => {
     const { createCard, getPublishedCard } = await import("@/modules/cards/service");
     const { GET: qr } = await import("@/app/(card)/c/[slug]/qr.png/route");
-    const { slug } = await createCard({ templateKey: "snow-globe", recipientName: "RouteTest", senderName: "Sam", message: "Hello", website: "" });
+    const { slug } = await createCard({ templateKey: "snow-globe", recipientName: "RouteTest", senderName: "Sam", message: "Hello", musicTrackId: "snowlight-on-the-sleigh-path", website: "" });
     expect((await db.card.findUnique({ where: { slug } }))?.ownerId).toBeNull();
     expect(await getPublishedCard(slug)).toMatchObject({ slug, templateKey: "snow-globe", recipientName: "RouteTest" });
     const png = await qr(new Request(`http://t/c/${slug}/qr.png`), { params: Promise.resolve({ slug }) });

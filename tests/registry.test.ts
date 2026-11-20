@@ -26,7 +26,7 @@ describe("template registry", () => {
     const titles = new Set<string>();
     for (const k of TEMPLATE_KEYS) {
       const t = templates[k];
-      expect(createCardSchema.safeParse({ templateKey: k, recipientName: "Ava", senderName: "Sam", message: t.defaultMessage }).success).toBe(true);
+      expect(createCardSchema.safeParse({ templateKey: k, recipientName: "Ava", senderName: "Sam", message: t.defaultMessage, musicTrackId: "none" }).success).toBe(true);
       titles.add(t.title);
     }
     expect(titles.size).toBe(TEMPLATE_KEYS.length);

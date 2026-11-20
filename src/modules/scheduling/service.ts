@@ -108,6 +108,7 @@ export async function createSchedule(
   const now = opts.now ?? new Date();
   const fingerprint = {
     templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message,
+    musicTrackId: input.musicTrackId,
     recipientId: input.recipientId ?? null, saveRecipient: input.saveRecipient, recipientEmail: input.recipientEmail ?? null, channel: input.channel,
     schedule: { localDate: input.schedule.localDate, localTime: input.schedule.localTime, timeZone: input.schedule.timeZone, ambiguity: input.schedule.ambiguity ?? null },
     ...(input.mediaId ? { mediaId: input.mediaId } : {}), // only when present: existing fingerprints are unchanged
@@ -142,7 +143,17 @@ export async function createSchedule(
         }
 
         const card = await tx.card.create({
-          data: { slug: newSlug(), templateKey: input.templateKey, recipientName: input.recipientName, senderName: input.senderName, message: input.message, ownerId: user.id, tier, status: "SCHEDULED" },
+          data: {
+            slug: newSlug(),
+            templateKey: input.templateKey,
+            recipientName: input.recipientName,
+            senderName: input.senderName,
+            message: input.message,
+            musicTrackId: input.musicTrackId,
+            ownerId: user.id,
+            tier,
+            status: "SCHEDULED",
+          },
           select: { id: true },
         });
         if (input.mediaId) await attachMedia(tx, { mediaId: input.mediaId, ownerId: user.id, cardId: card.id, templateKey: input.templateKey, now }); // same transaction as the reservation: all or nothing

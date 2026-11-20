@@ -26,7 +26,7 @@ describe("saved-card compatibility", () => {
     expect(Object.keys(scenes)).toEqual([...TEMPLATE_KEYS]);
     for (const k of TEMPLATE_KEYS) {
       expect(templateTier(k)).toBe("STANDARD");
-      expect(createCardSchema.safeParse({ templateKey: k, recipientName: "Ava", senderName: "Sam", message: "Hello" }).success).toBe(true);
+      expect(createCardSchema.safeParse({ templateKey: k, recipientName: "Ava", senderName: "Sam", message: "Hello", musicTrackId: "none" }).success).toBe(true);
     }
     const names = read("src/modules/templates/registry.ts");
     for (const t of ["Christmas Snow Globe", "Magical Christmas Tree", "A Special Gift", "Warm Christmas Wishes", "New Year 2027", "New Year Celebration"]) expect(names).toContain(`title: "${t}"`);

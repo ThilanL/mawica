@@ -40,7 +40,7 @@ type User = Awaited<ReturnType<typeof mkUser>>;
 const photo = (w = 640, h = 480, fmt: "jpeg" | "png" | "webp" = "jpeg") =>
   sharp({ create: { width: w, height: h, channels: 3, background: { r: 200, g: 120, b: 160 } } })[fmt]().toBuffer();
 const up = (u: User, bytes: Buffer, type: string | null = "image/jpeg") => uploadPhoto(u, { contentType: type, bytes, ip: ip() });
-const cardInput = (mediaId?: string, templateKey: string = cinema) => ({ templateKey: templateKey as never, recipientName: "MediaTest", senderName: "Sam", message: "Hello there", ...(mediaId ? { mediaId } : {}) });
+const cardInput = (mediaId?: string, templateKey: string = cinema) => ({ templateKey: templateKey as never, recipientName: "MediaTest", senderName: "Sam", message: "Hello there", musicTrackId: "none" as const, ...(mediaId ? { mediaId } : {}) });
 const publish = (u: User, mediaId?: string, key = crypto.randomUUID(), templateKey: string = cinema) => publishOwnedCard(cardInput(mediaId, templateKey), u, { idempotencyKey: key });
 const rejects = async (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e as MediaError);
 
@@ -417,7 +417,7 @@ describe("HTTP routes", () => {
   it("publishing through /api/cards: guests cannot send a photo; a signed-in owner can, once", async () => {
     const u = await mkUser();
     const m = await up(u, await photo(100, 100));
-    const body = { templateKey: cinema, recipientName: "MediaTest", senderName: "Sam", message: "Hi", mediaId: m.id };
+    const body = { templateKey: cinema, recipientName: "MediaTest", senderName: "Sam", message: "Hi", musicTrackId: "none", mediaId: m.id };
     const send = (cookie: boolean, key: string) => publishRoute(new Request("http://localhost:3000/api/cards", {
       method: "POST",
       headers: {

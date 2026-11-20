@@ -34,8 +34,8 @@ describe("premium registry: the six launch cards are untouched", () => {
     const t = premiumTemplates["lumis-wish"];
     expect(t.occasion).toBe("Any occasion");
     expect(`${t.title} ${t.description} ${t.greeting} ${t.defaultMessage}`).not.toMatch(/christmas|santa|snow|new year|xmas/i);
-    expect(createCardSchema.safeParse({ templateKey: "lumis-wish", recipientName: "Ava", senderName: "Sam", message: t.defaultMessage }).success).toBe(true);
-    expect(createCardSchema.safeParse({ templateKey: "lumis-wish-pro", recipientName: "Ava", senderName: "Sam", message: "x" }).success).toBe(false);
+    expect(createCardSchema.safeParse({ templateKey: "lumis-wish", recipientName: "Ava", senderName: "Sam", message: t.defaultMessage, musicTrackId: "none" }).success).toBe(true);
+    expect(createCardSchema.safeParse({ templateKey: "lumis-wish-pro", recipientName: "Ava", senderName: "Sam", message: "x", musicTrackId: "none" }).success).toBe(false);
   });
   it("the premium scene is registered in its own lazy map and the six-scene map source is untouched in form", () => {
     expect(Object.keys(premiumScenes)).toEqual(["lumis-wish", "lumis-wish-cinema"]);

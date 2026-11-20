@@ -10,7 +10,7 @@ import { hit } from "@/modules/security/rate-limit";
 import { readFileSync } from "node:fs";
 
 const ORIGIN = "http://localhost:3000";
-const body = { templateKey: "snow-globe", recipientName: "Ava", senderName: "Sam", message: "Hello" };
+const body = { templateKey: "snow-globe", recipientName: "Ava", senderName: "Sam", message: "Hello", musicTrackId: "snowlight-on-the-sleigh-path" as const };
 let ipCounter = 0;
 const freshIp = () => `203.0.113.${(++ipCounter % 250) + 1}`;
 const post = (b: unknown, ip = freshIp(), extra: Record<string, string> = {}) =>
@@ -82,6 +82,7 @@ describe("create wizard: guest publish requires OTP, draft survives, login does 
     const src = readFileSync("src/components/create/CreateWizard.tsx", "utf8");
     expect(src).toMatch(/function signInToPublish/);
     expect(src).toMatch(/sessionStorage\.setItem\(DRAFT_KEY/);
+    expect(src).toMatch(/musicTrackId/);
     expect(src).toMatch(/router\.push\("\/sign-in\?next=\/create"\)/);
     expect(src).toMatch(/sessionStorage\.getItem\(DRAFT_KEY\)/);
     expect(src).toMatch(/setStep\("preview"\)/);
