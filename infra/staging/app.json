@@ -14,6 +14,10 @@
     "appDbPassword": { "type": "secureString", "defaultValue": "", "metadata": { "description": "New password for mawica_app. Empty: keep the current Key Vault secrets (no rotation)." } },
     "migrateDbPassword": { "type": "secureString", "defaultValue": "" },
     "deployWebApp": { "type": "bool", "defaultValue": false, "metadata": { "description": "false until roles and migrations have run." } },
+    "siteUrl": { "type": "string", "defaultValue": "", "metadata": { "description": "Public https origin of the web app (NEXT_PUBLIC_SITE_URL and BETTER_AUTH_URL at runtime). Empty: the Azure-generated https://ca-mawica-stg.<environment default domain>. Must match the URL the image was built with (STAGING_URL)." } },
+    "authTrustedOrigins": { "type": "string", "defaultValue": "", "metadata": { "description": "Comma-separated EXTRA https origins allowed to call auth and write APIs (AUTH_TRUSTED_ORIGINS), e.g. the Azure hostname during a domain cutover. Empty: only siteUrl. Never '*': entries are parsed as URLs and anything else is ignored by the app; app.sh refuses non-https or wildcard values." } },
+    "customDomainName": { "type": "string", "defaultValue": "", "metadata": { "description": "Custom hostname bound to the web app (e.g. staging.mawica.com). Empty: no custom domain. app.sh passes the LIVE binding automatically, because a full deployment replaces the ingress and would otherwise remove it." } },
+    "customDomainCertificateId": { "type": "string", "defaultValue": "", "metadata": { "description": "Resource ID of the certificate for customDomainName (an environment managedCertificates/... or certificates/... resource). Required when customDomainName is set." } },
     "deployJobs": { "type": "bool", "defaultValue": true, "metadata": { "description": "false: identities, ACR pulls and Key Vault grants only (bootstrap; see app.sh identities / roles)." } },
     "existingSecrets": { "type": "array", "defaultValue": [], "metadata": { "description": "Names of secrets that already exist in the vault (app.sh reads them, names only). Secret-scoped grants are made only for these and for secrets this deployment creates: Azure cannot assign a role on a secret that does not exist." } }
   },
@@ -36,6 +40,7 @@
     "acrServer": "[concat('acrmawicastg', variables('suffix'), '.azurecr.io')]",
     "acrPull": "7f951dda-4ed3-4680-a7ca-43fe172d538d",
     "kvSecretsUser": "4633458b-17de-408a-b874-0445c86b69e6",
+    "customDomains": "[if(empty(parameters('customDomainName')), createArray(), createArray(createObject('name', parameters('customDomainName'), 'bindingType', 'SniEnabled', 'certificateId', parameters('customDomainCertificateId'))))]",
     "rotatedSecrets": ["pg-app-password", "pg-migrate-password", "database-app-url", "database-migrate-url"],
     "secretGrants": [
       { "identity": "id-mawica-stg-app", "secret": "database-app-url" },
@@ -173,7 +178,7 @@
         "configuration": {
           "registries": [{ "server": "[variables('acrServer')]", "identity": "[variables('appId')]" }],
           "activeRevisionsMode": "Single",
-          "ingress": { "external": true, "targetPort": 8080, "transport": "auto", "allowInsecure": false },
+          "ingress": "[union(createObject('external', true(), 'targetPort', 8080, 'transport', 'auto', 'allowInsecure', false()), if(empty(parameters('customDomainName')), createObject(), createObject('customDomains', variables('customDomains'))))]",
           "secrets": [
             { "name": "database-app-url", "keyVaultUrl": "[variables('kvSecret').app]", "identity": "[variables('appId')]" },
             { "name": "better-auth-secret", "keyVaultUrl": "[concat(variables('kvUri'), 'better-auth-secret')]", "identity": "[variables('appId')]" },
@@ -184,14 +189,7 @@
         "template": {
           "containers": [{
             "name": "web", "image": "[parameters('webImage')]", "resources": { "cpu": 0.5, "memory": "1Gi" },
-            "env": [
-              { "name": "NODE_ENV", "value": "production" }, { "name": "HOSTNAME", "value": "0.0.0.0" }, { "name": "PORT", "value": "8080" },
-              { "name": "DATABASE_URL", "secretRef": "database-app-url" }, { "name": "DATABASE_POOL_MAX", "value": "5" },
-              { "name": "BETTER_AUTH_SECRET", "secretRef": "better-auth-secret" }, { "name": "WELCOME_PEPPER", "secretRef": "welcome-pepper" }, { "name": "RATE_LIMIT_SALT", "secretRef": "rate-limit-salt" },
-              { "name": "NEXT_PUBLIC_SITE_URL", "value": "[concat('https://', variables('appName'), '.', reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain)]" }, { "name": "BETTER_AUTH_URL", "value": "[concat('https://', variables('appName'), '.', reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain)]" },
-              { "name": "TRUSTED_PROXY_HOPS", "value": "1" },
-              { "name": "EMAIL_PROVIDER", "value": "none" }, { "name": "MAWICA_DISABLE_EXTERNAL_EMAIL", "value": "1" }, { "name": "EMAIL_DELIVERY_ENABLED", "value": "0" }
-            ],
+            "env": "[concat(createArray(createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'HOSTNAME', 'value', '0.0.0.0'), createObject('name', 'PORT', 'value', '8080'), createObject('name', 'DATABASE_URL', 'secretRef', 'database-app-url'), createObject('name', 'DATABASE_POOL_MAX', 'value', '5'), createObject('name', 'BETTER_AUTH_SECRET', 'secretRef', 'better-auth-secret'), createObject('name', 'WELCOME_PEPPER', 'secretRef', 'welcome-pepper'), createObject('name', 'RATE_LIMIT_SALT', 'secretRef', 'rate-limit-salt')), createArray(createObject('name', 'NEXT_PUBLIC_SITE_URL', 'value', if(empty(parameters('siteUrl')), concat('https://', variables('appName'), '.', reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain), parameters('siteUrl'))), createObject('name', 'BETTER_AUTH_URL', 'value', if(empty(parameters('siteUrl')), concat('https://', variables('appName'), '.', reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain), parameters('siteUrl')))), createArray(createObject('name', 'TRUSTED_PROXY_HOPS', 'value', '1'), createObject('name', 'EMAIL_PROVIDER', 'value', 'none'), createObject('name', 'MAWICA_DISABLE_EXTERNAL_EMAIL', 'value', '1'), createObject('name', 'EMAIL_DELIVERY_ENABLED', 'value', '0')), if(empty(parameters('authTrustedOrigins')), createArray(), createArray(createObject('name', 'AUTH_TRUSTED_ORIGINS', 'value', parameters('authTrustedOrigins')))))]",
             "probes": [
               { "type": "Startup", "httpGet": { "path": "/api/health", "port": 8080 }, "initialDelaySeconds": 3, "periodSeconds": 5, "timeoutSeconds": 5, "failureThreshold": 24 },
               { "type": "Readiness", "httpGet": { "path": "/api/health", "port": 8080 }, "periodSeconds": 15, "timeoutSeconds": 5, "failureThreshold": 3 },
@@ -234,7 +232,7 @@
     }
   ],
   "outputs": {
-    "appUrl": { "type": "string", "value": "[concat('https://', variables('appName'), '.', reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain)]" },
+    "appUrl": { "type": "string", "value": "[if(empty(parameters('siteUrl')), concat('https://', variables('appName'), '.', reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-03-01').defaultDomain), parameters('siteUrl'))]" },
     "rolesJob": { "type": "string", "value": "[variables('rolesJob')]" },
     "migrateJob": { "type": "string", "value": "[variables('migrateJob')]" }
   }

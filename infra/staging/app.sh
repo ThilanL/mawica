@@ -2,7 +2,7 @@
 # Mawica STAGING workload (infra/staging/app.json). Run ONLY with the owner's approval. Images must already exist in the private ACR
 # (built and pushed by the deploy-staging workflow, build-only mode). Every image is deployed by DIGEST, resolved here from the commit tag.
 #   infra/staging/app.sh identities         bootstrap the role/migration identities, AcrPull and secret-scoped grants (no jobs, no secrets)
-#   infra/staging/app.sh what-if <tag>      preview (no changes; uses tag references if the registry does not exist yet)
+#   infra/staging/app.sh what-if <tag>      preview of exactly what `web <tag>` deploys (no changes; uses tag references if the registry does not exist yet)
 #   infra/staging/app.sh roles   <tag>      import postgres:17 into ACR (pinned digest); NEW passwords for mawica_app/mawica_migrator -> Key Vault; create/update jobs; run the role job
 #   infra/staging/app.sh roles-resume <tag> after a failed roles run: jobs + role job again, NO new passwords
 #   infra/staging/app.sh pepper             DISABLED: welcome-pepper exists and must never be rotated (always refuses)
@@ -48,12 +48,31 @@ kv_require() { python3 -I "$HERE/kv_secrets.py" require "$KV_SECRETS_URL" "$@"; 
 # The COMPLETE secret inventory (names only, every page; kv_secrets.py). Fails closed: if it cannot be verified, the script stops.
 # Loaded into a variable first: a failing $(...) inside a command's arguments would NOT stop the script under set -e.
 load_secrets() { SECRETS_JSON="$(kv_list)" || { echo "STOP: Key Vault secret inventory could not be verified; nothing was changed" >&2; exit 1; }; }
+# Web URL + custom domain parameters (web_params.py). A full deployment REPLACES the app's ingress and environment, so the live
+# custom domain/certificate, site URL and extra trusted origins are carried forward unless explicitly changed through
+# SITE_URL / AUTH_TRUSTED_ORIGINS (none = clear) / CUSTOM_DOMAIN / CUSTOM_DOMAIN_CERT_ID (/ REPLACE_DOMAIN=yes). Fails closed.
+load_web_params() {
+  local env_id dom live
+  env_id="/subscriptions/$SUBSCRIPTION/resourceGroups/$RG/providers/Microsoft.App/managedEnvironments/cae-mawica-stg"
+  dom="$(az containerapp env show -g "$RG" -n cae-mawica-stg --query properties.defaultDomain -o tsv)" || { echo "STOP: cannot read the environment" >&2; exit 1; }
+  if [[ -n "$(az containerapp list -g "$RG" --query "[?name=='ca-mawica-stg'].name" -o tsv)" ]]; then
+    live="$(az containerapp show -g "$RG" -n ca-mawica-stg --query "{exists: \`true\`, customDomains: properties.configuration.ingress.customDomains, env: {NEXT_PUBLIC_SITE_URL: properties.template.containers[0].env[?name=='NEXT_PUBLIC_SITE_URL'].value | [0], AUTH_TRUSTED_ORIGINS: properties.template.containers[0].env[?name=='AUTH_TRUSTED_ORIGINS'].value | [0]}}" -o json)" \
+      || { echo "STOP: cannot read the live web app" >&2; exit 1; }
+  else
+    live='{"exists": false}'
+  fi
+  WEB_PARAMS="$(python3 -I -c 'import json,os,sys; print(json.dumps({"envId": sys.argv[1], "azureDefaultUrl": sys.argv[2], "live": json.loads(sys.argv[3]),
+      "request": {k: os.environ.get(k, "") for k in ("SITE_URL", "AUTH_TRUSTED_ORIGINS", "CUSTOM_DOMAIN", "CUSTOM_DOMAIN_CERT_ID", "REPLACE_DOMAIN")}}))' \
+      "$env_id" "https://ca-mawica-stg.$dom" "$live" | python3 -I "$HERE/web_params.py")" || exit 1
+}
+web_params_file() { python3 -I -c 'import json,sys; print(json.dumps({"parameters": {k: {"value": v} for k, v in json.loads(sys.argv[1]).items()}}))' "$WEB_PARAMS"; }
+
 deploy() { # $1 = deployWebApp, $2 = deployJobs, $3 = rotate (yes/no)
-  load_secrets
+  load_secrets; load_web_params
   local extra=(); [[ "$3" == yes ]] && extra=(--parameters "@"<(pw_params))
   az deployment group create -g "$RG" -n mawica-staging-app --template-file "$HERE/app.json" \
     --parameters webImage="${WEB:-}" migrateImage="${MIG:-}" rolesImage="${PGI:-}" rolesSqlB64="$(roles_b64)" pgRootCasB64="$(cas_b64)" \
-      deployWebApp="$1" deployJobs="$2" existingSecrets="$SECRETS_JSON" ${extra[@]+"${extra[@]}"} \
+      deployWebApp="$1" deployJobs="$2" existingSecrets="$SECRETS_JSON" --parameters "@"<(web_params_file) ${extra[@]+"${extra[@]}"} \
     --query "properties.{state:provisioningState, outputs:outputs}" -o json
 }
 deploy_jobs() { # create/update the jobs (no password change). New secret grants can take minutes to become effective; Container Apps
@@ -83,10 +102,12 @@ run_job() { # $1 = job name; waits, then prints only the lines the job marks as 
 
 case "$MODE" in
   what-if)
-    need_tag; images preview; load_secrets
+    # Preview of EXACTLY what `web <tag>` would deploy (no password rotation), including the carried-forward URL/domain parameters.
+    need_tag; images preview; load_secrets; load_web_params
+    echo "web parameters: $WEB_PARAMS" >&2
     az deployment group what-if -g "$RG" -n mawica-staging-app --template-file "$HERE/app.json" \
       --parameters webImage="$WEB" migrateImage="$MIG" rolesImage="$PGI" rolesSqlB64="$(roles_b64)" pgRootCasB64="$(cas_b64)" deployWebApp=true deployJobs=true \
-        existingSecrets="$SECRETS_JSON" "@"<(pw_params) \
+        existingSecrets="$SECRETS_JSON" --parameters "@"<(web_params_file) \
       --no-pretty-print -o json | python3 -I "$HERE/whatif-summary.py" ;;
   identities)  # bootstrap: the role-job and migration-job identities, their ACR pulls, and secret-scoped grants for secrets that exist
     deploy false false no ;;
