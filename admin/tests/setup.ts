@@ -1,0 +1,9 @@
+process.env.DATABASE_URL ??= "postgresql://mawica_app:test@127.0.0.1:5433/mawica_test?schema=public";
+process.env.RATE_LIMIT_SALT ??= "test-rate-limit-salt-16chars";
+process.env.ADMIN_APP_URL ??= "http://localhost:3010";
+process.env.ADMIN_SESSION_SECRET ??= "test-admin-session-secret-32chars-minimum";
+process.env.ADMIN_DEV_AUTH = "1";
+process.env.ADMIN_DEV_STAFF_EMAIL ??= "dev.admin@mawica.local";
+process.env.ADMIN_DEV_STAFF_OID ??= "local-dev-oid";
+process.env.ADMIN_DEV_STAFF_ROLE ??= "OWNER";
+process.env.ADMIN_STAFF_ALLOWLIST ??= "dev.admin@mawica.local:OWNER,readonly@mawica.local:READONLY";

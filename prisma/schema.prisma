@@ -196,6 +196,9 @@ model AuditLog {
   id        BigInt   @id @default(autoincrement())
   actorId   String?  @db.Uuid
   actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  /// Staff actor for admin.mawica.com actions (separate from consumer User).
+  staffPrincipalId String? @db.Uuid
+  staffPrincipal   StaffPrincipal? @relation(fields: [staffPrincipalId], references: [id], onDelete: SetNull)
   action    String   @db.VarChar(60)
   meta      Json?
   /// HMAC of the client IP (same keyed hash scheme as rate limits), never the raw address.
@@ -203,7 +206,36 @@ model AuditLog {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([actorId, createdAt])
+  @@index([staffPrincipalId, createdAt])
   @@index([action, createdAt])
+}
+
+/// Staff roles for admin.mawica.com (server-side RBAC). Not used by the consumer app.
+enum StaffRole {
+  OWNER
+  MODERATOR
+  SUPPORT
+  FINANCE
+  OPS
+  READONLY
+}
+
+/// Staff identity linked to Microsoft Entra ID (oid). Seeded/updated on successful admin sign-in.
+model StaffPrincipal {
+  id          String    @id @default(uuid()) @db.Uuid
+  /// Entra object id (oid claim). Stable across email changes.
+  entraOid    String    @unique @db.VarChar(64)
+  email       String    @db.VarChar(320)
+  displayName String    @db.VarChar(120)
+  role        StaffRole
+  disabledAt  DateTime? @db.Timestamptz(3)
+  lastSeenAt  DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  auditLogs   AuditLog[]
+
+  @@index([email])
+  @@index([role, disabledAt])
 }
 
 // ============================ Card wallet (Phase 2B.2) ============================
