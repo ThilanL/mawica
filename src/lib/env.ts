@@ -24,11 +24,17 @@ const schema = z.object({
   /** File that the LOCAL mail transport appends one-time codes to. Dev/test only; unset in production = no mail is sent. */
   MAIL_LOCAL_OUTBOX: z.string().optional(),
   /** Transactional email provider. Unset = local outbox in development/test, none in production (sending fails closed). */
-  EMAIL_PROVIDER: z.enum(["none", "local-outbox", "acs"]).optional(),
+  EMAIL_PROVIDER: z.enum(["none", "local-outbox", "acs", "resend"]).optional(),
   /** Marks a deliberate local run of a production build (with a loopback database). Never set it in staging or production. */
   MAWICA_ENV: z.enum(["local"]).optional(),
   ACS_EMAIL_ENDPOINT: z.string().optional(),
   ACS_EMAIL_ACCESS_KEY: z.string().optional(),
+  /** Resend API key (server-side only; from Key Vault). Validated in modules/email/config.ts, never logged. */
+  RESEND_API_KEY: z.string().optional(),
+  /** Comma/newline-separated exact recipient addresses allowed to receive ANY email (staging). Personal data: Key Vault only. */
+  EMAIL_RECIPIENT_ALLOWLIST: z.string().optional(),
+  /** "1" = the allowlist is mandatory: missing, empty or malformed means no email is sent at all (fail closed). Set on staging. */
+  MAWICA_EMAIL_ALLOWLIST_REQUIRED: z.enum(["0", "1"]).optional(),
   /** Sender for account sign-in codes, e.g. DoNotReply@<verified domain>. */
   EMAIL_FROM_AUTH: z.string().optional(),
   /** "1" = no external provider is ever used (kill switch). */

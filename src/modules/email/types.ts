@@ -13,7 +13,7 @@ export type TransportResult =
   | { status: "uncertain"; code: string };
 
 export interface TransactionalTransport {
-  readonly name: "local-outbox" | "acs" | "fake";
+  readonly name: "local-outbox" | "acs" | "resend" | "fake";
   /** True when this transport leaves the machine (never for local-outbox/fake). */
   readonly external: boolean;
   send(message: OutboundEmail, ctx: { operationId: string; timeoutMs: number; from: string }): Promise<TransportResult>;
@@ -22,4 +22,4 @@ export interface TransactionalTransport {
 /** What callers see. Codes are stable and contain no recipient data. */
 export type SendOutcome =
   | { ok: true; provider: string; providerRef: string }
-  | { ok: false; reason: "disabled" | "unavailable" | "rate_limited" | "rejected" | "uncertain" | "invalid"; retryAfterSeconds?: number };
+  | { ok: false; reason: "disabled" | "unavailable" | "blocked" | "rate_limited" | "rejected" | "uncertain" | "invalid"; retryAfterSeconds?: number };
