@@ -6,8 +6,10 @@ import {
   CmsConflictError,
   CmsValidationError,
   getCmsDocument,
+  getCmsRevision,
   listCmsDocuments,
   publishCmsDocument,
+  restoreCmsRevision,
   saveCmsDraft,
 } from "@/modules/staff/cms";
 import { StaffAuthzError } from "@/modules/staff/roles";
@@ -187,5 +189,26 @@ describe.skipIf(!canRun)("CMS draft/publish service", () => {
         rateLimitSalt: process.env.RATE_LIMIT_SALT!,
       }),
     ).rejects.toBeInstanceOf(CmsValidationError);
+  });
+
+  it("restores a prior revision into a new draft without publishing", async () => {
+    const doc = await getCmsDocument(key, "OWNER");
+    const firstNote = doc.revisions.find((r) => r.note === "p5 test publish");
+    expect(firstNote).toBeTruthy();
+    const before = await getCmsDocument(key, "OWNER");
+    const restored = await restoreCmsRevision({
+      key,
+      revisionId: firstNote!.id,
+      expectedDraftVersion: before.draftVersion,
+      role: "OWNER",
+      staffPrincipalId: staffId,
+      rateLimitSalt: process.env.RATE_LIMIT_SALT!,
+    });
+    expect(restored.draftVersion).toBe(before.draftVersion + 1);
+    expect((restored.draftPayload as { eyebrow: string }).eyebrow).toBe("CMS Test Season");
+    // Live pointer unchanged until publish
+    expect(restored.publishedRevisionId).toBe(before.publishedRevisionId);
+    const loaded = await getCmsRevision(key, firstNote!.id, "OWNER");
+    expect(loaded.revisionNumber).toBe(firstNote!.revisionNumber);
   });
 });

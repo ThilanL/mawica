@@ -39,7 +39,7 @@ export async function POST(req: Request, ctx: Ctx) {
       return NextResponse.json({ error: e.message, code: e.code }, { status: 409 });
     }
     if (e instanceof CmsValidationError) {
-      return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+      return NextResponse.json({ error: e.message, code: e.code, issues: e.issues }, { status: 400 });
     }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });

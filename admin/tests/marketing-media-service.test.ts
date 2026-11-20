@@ -7,6 +7,7 @@ import {
   publishCmsDocument,
   saveCmsDraft,
 } from "@/modules/staff/cms";
+// ensure getCmsDocument import used for post-publish version
 import {
   assetReferenceCount,
   getMarketingAsset,
@@ -260,16 +261,17 @@ describe.skipIf(!canRun)("Marketing media service (P5C)", () => {
     expect(pub1.publishedAt).toBeTruthy();
     expect(pub1.revisions.length).toBeGreaterThanOrEqual(1);
 
+    const afterPub = await getCmsDocument(campaignKey, "OWNER");
     const v2 = { ...v1, title: "Published Christmas B" };
     const saved2 = await saveCmsDraft({
       key: campaignKey,
       payload: v2,
-      expectedDraftVersion: saved.draftVersion,
+      expectedDraftVersion: afterPub.draftVersion,
       role: "OWNER",
       staffPrincipalId: staffId,
       rateLimitSalt: salt,
     });
-    expect(saved2.draftVersion).toBeGreaterThan(saved.draftVersion);
+    expect(saved2.draftVersion).toBeGreaterThan(afterPub.draftVersion);
     await publishCmsDocument({
       key: campaignKey,
       expectedDraftVersion: saved2.draftVersion,

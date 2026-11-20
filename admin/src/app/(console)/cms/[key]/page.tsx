@@ -51,12 +51,16 @@ export default async function CmsDocumentPage({ params }: { params: Promise<{ ke
         initialPayload={doc.draftPayload}
         draftVersion={doc.draftVersion}
         publishedAt={doc.publishedAt}
+        publishedPayload={doc.publishedPayload}
+        state={doc.state}
         revisions={doc.revisions.map((r) => ({
           id: r.id,
           revisionNumber: r.revisionNumber,
           note: r.note,
           publishedAt: r.publishedAt.toISOString(),
           publishedByStaffId: r.publishedByStaffId,
+          publishedByName: r.publishedByName,
+          publishedByEmail: r.publishedByEmail,
         }))}
         canWrite={hasPermission(session.role, "cms:write")}
         canPublish={hasPermission(session.role, "cms:publish")}

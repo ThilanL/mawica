@@ -10,6 +10,7 @@ import {
 } from "@mawica/modules/cms/marketing-media/validate";
 import { CMS_MEDIA_LIMITS } from "@mawica/modules/cms/marketing-media/limits";
 import { recordStaffAudit } from "./audit";
+import { countIndexedAssetReferences } from "./cms-asset-refs";
 import { assertPermission, type StaffRoleName } from "./roles";
 
 function isMissingTable(e: unknown): boolean {
@@ -212,27 +213,17 @@ export async function updateMarketingAssetMeta(opts: {
   return getMarketingAsset(opts.id, opts.role);
 }
 
-/** Scan CMS drafts + published revisions for asset id references. */
+/**
+ * Count CMS references to a marketing asset.
+ * Uses CmsAssetReference index when migrated; otherwise deterministic field extract (not JSON substring).
+ */
 export async function assetReferenceCount(assetId: string): Promise<number> {
-  const needle = assetId.toLowerCase();
-  const docs = await db.cmsDocument.findMany({
-    select: {
-      draftPayload: true,
-      publishedRevision: { select: { payload: true } },
-      revisions: { select: { payload: true }, take: 50, orderBy: { revisionNumber: "desc" } },
-    },
-  });
-  let count = 0;
-  const check = (payload: unknown) => {
-    const s = JSON.stringify(payload).toLowerCase();
-    if (s.includes(needle)) count += 1;
-  };
-  for (const d of docs) {
-    check(d.draftPayload);
-    if (d.publishedRevision) check(d.publishedRevision.payload);
-    for (const r of d.revisions) check(r.payload);
-  }
-  return count;
+  const result = await countIndexedAssetReferences(assetId);
+  return result.count;
+}
+
+export async function assetReferenceDetail(assetId: string) {
+  return countIndexedAssetReferences(assetId);
 }
 
 /**
@@ -327,14 +318,17 @@ export async function softDeleteMarketingAsset(opts: {
   const row = await db.cmsMarketingAsset.findFirst({ where: { id: opts.id, deletedAt: null } });
   if (!row) throw new CmsMediaError("NOT_FOUND", "Asset not found.", 404);
 
-  const refs = await assetReferenceCount(opts.id);
-  if (refs > 0 && !opts.force) {
+  const detail = await assetReferenceDetail(opts.id);
+  if (detail.count > 0 && !opts.force) {
     throw new CmsMediaError(
       "IN_USE",
-      `Asset is referenced by ${refs} CMS draft/revision payload(s). Unpublish or remove references first.`,
+      `Asset is referenced by ${detail.count} CMS draft/revision payload(s)` +
+        ` (${detail.draft} draft, ${detail.published} revision; via ${detail.source}).` +
+        ` Remove references or restore without this asset before deleting.`,
       409,
     );
   }
+  const refs = detail.count;
 
   await db.cmsMarketingAsset.update({
     where: { id: opts.id },

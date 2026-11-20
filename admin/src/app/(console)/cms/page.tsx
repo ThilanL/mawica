@@ -42,7 +42,7 @@ export default async function CmsIndexPage() {
               <th className="px-4 py-3 font-medium">Document</th>
               <th className="px-4 py-3 font-medium">Key</th>
               <th className="px-4 py-3 font-medium">Draft</th>
-              <th className="px-4 py-3 font-medium">Published</th>
+              <th className="px-4 py-3 font-medium">State</th>
               <th className="px-4 py-3 font-medium">Updated</th>
             </tr>
           </thead>
@@ -57,11 +57,19 @@ export default async function CmsIndexPage() {
                 <td className="px-4 py-3 font-mono text-xs">{d.key}</td>
                 <td className="px-4 py-3 tabular-nums">{d.draftVersion || "—"}</td>
                 <td className="px-4 py-3">
-                  {d.publishedRevisionNumber != null
-                    ? `Rev ${d.publishedRevisionNumber}`
-                    : d.seeded
-                      ? "Draft only"
-                      : "Fallback"}
+                  {d.state === "published" ? (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">
+                      Published · Rev {d.publishedRevisionNumber}
+                    </span>
+                  ) : d.state === "draft_only" ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-950">
+                      Draft only
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs font-semibold text-[var(--admin-muted)]">
+                      Fallback
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-[var(--admin-muted)]">
                   {d.updatedAt ? new Date(d.updatedAt).toLocaleString() : "—"}

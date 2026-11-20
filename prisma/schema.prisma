@@ -582,6 +582,7 @@ model CmsDocument {
   updatedByStaffId     String?       @db.Uuid
   updatedByStaff       StaffPrincipal? @relation("CmsDocumentUpdatedBy", fields: [updatedByStaffId], references: [id], onDelete: SetNull)
   revisions            CmsRevision[] @relation("CmsDocumentRevisions")
+  assetReferences      CmsAssetReference[]
 
   @@index([updatedAt])
 }
@@ -598,9 +599,38 @@ model CmsRevision {
   publishedByStaff   StaffPrincipal? @relation("CmsRevisionPublishedBy", fields: [publishedByStaffId], references: [id], onDelete: SetNull)
   /// Back-relation when this revision is the live pointer.
   publishedFor       CmsDocument? @relation("CmsPublishedPointer")
+  assetReferences    CmsAssetReference[]
 
   @@unique([documentId, revisionNumber])
   @@index([documentId, publishedAt])
+}
+
+/// Deterministic index of marketing asset UUIDs referenced by CMS drafts/revisions (P5D).
+/// Replaces JSON-substring scans for delete protection. Scope DRAFT = working copy; REVISION = published history.
+enum CmsAssetRefScope {
+  DRAFT
+  REVISION
+}
+
+model CmsAssetReference {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assetId      String           @db.Uuid
+  documentId   String           @db.Uuid
+  document     CmsDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentKey  String           @db.VarChar(80)
+  scope        CmsAssetRefScope
+  /// Null when scope = DRAFT; set when scope = REVISION.
+  revisionId   String?          @db.Uuid
+  revision     CmsRevision?     @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  /// Stable field path, e.g. mediaAssetId
+  fieldPath    String           @db.VarChar(160)
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+
+  // Uniqueness enforced by sync (replace-all per draft/revision) + partial unique indexes in SQL.
+  @@index([assetId, scope])
+  @@index([documentId, scope])
+  @@index([revisionId])
+  @@index([documentId, fieldPath, assetId])
 }
 
 // ============================ Marketing media library (P5C) ============================

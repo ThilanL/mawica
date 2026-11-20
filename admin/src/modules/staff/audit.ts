@@ -14,6 +14,7 @@ export type StaffAuditAction =
   | "finance.projection_exported"
   | "cms.document_saved"
   | "cms.document_published"
+  | "cms.document_restored"
   | "cms.media_uploaded"
   | "cms.media_updated"
   | "cms.media_deleted";
