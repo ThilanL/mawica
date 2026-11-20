@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState, type ComponentType } from "react";
+import { CardEnding } from "@/components/brand/CardEnding";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import type { SceneProps } from "../../types";
 import { autoAdvanceSeconds } from "../support";
@@ -30,16 +30,7 @@ export function withEnding(Scene: ComponentType<SceneProps>) {
         <Scene {...props} />
         {ready && !ending && <div className="pointer-events-none absolute inset-x-0 bottom-1 z-20 flex justify-center"><button type="button" onClick={toEnding} className="cin-pill pointer-events-auto text-[0.8rem]">Continue</button></div>}
         <div className={`cin-end ${ending ? "cin-end-on" : ""}`} aria-hidden={!ending} inert={!ending}>
-          <div className="cin-end-inner">
-            <p className="cin-wordmark">mawica.</p>
-            <Link href="/" className="cin-url">www.mawica.com</Link>
-            <p className="cin-send">Send your feelings to others.</p>
-            <p className="cin-tag">BRING YOUR WISHES TO LIFE.</p>
-            <div className="cin-end-actions">
-              <Link href="/create" className="cin-pill cin-pill-primary">Create your own card</Link>
-              <button type="button" onClick={() => setEnding(false)} className="cin-pill">Read again</button>
-            </div>
-          </div>
+          <CardEnding onReadAgain={() => setEnding(false)} />
         </div>
       </div>
     );

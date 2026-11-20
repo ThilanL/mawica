@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CardEnding } from "@/components/brand/CardEnding";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import { LumisWishScene } from "../scenes/LumisWishScene";
 import type { SceneProps } from "../types";
@@ -171,16 +171,7 @@ export function CinematicScene(props: SceneProps) {
 
       {/* Mawica ending: shown only after the message, never over it, never redirects */}
       <div className={`cin-end ${stage === "ending" ? "cin-end-on" : ""}`} aria-hidden={stage !== "ending"} inert={stage !== "ending"}>
-        <div className="cin-end-inner">
-          <p className="cin-wordmark">mawica.</p>
-          <Link href="/" className="cin-url">www.mawica.com</Link>
-          <p className="cin-send">Send your feelings to others.</p>
-          <p className="cin-tag">BRING YOUR WISHES TO LIFE.</p>
-          <div className="cin-end-actions">
-            <Link href="/create" className="cin-pill cin-pill-primary">Create your own card</Link>
-            <button type="button" onClick={readAgain} className="cin-pill">Read again</button>
-          </div>
-        </div>
+        <CardEnding onReadAgain={readAgain} />
       </div>
 
       {dev.perf && stats && (

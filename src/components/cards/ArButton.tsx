@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { Wordmark } from "@/components/brand/Wordmark";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import { chooseArRoute, chromeIntent, inAppBrowser, isAndroid, type ArKey, type ArRoute } from "./arSupport";
 import type { ArHandle, ArState } from "./premium3d/ar/webxr";
@@ -128,7 +129,7 @@ export function ArButton({ card, wish, slug }: { card: ArKey; wish: WishText; sl
               <div className="ar-reader-rule" aria-hidden />
               <div className="ar-reader-message" tabIndex={0}><p>{wish.message}</p></div>
               <p className="ar-reader-from">With love, {wish.sender}</p>
-              <p className="ar-reader-mark">mawica.</p>
+              <div className="ar-reader-mark"><Wordmark variant="mark" size="sm" surface="light" /></div>
             </article>
             <div className="ar-reader-actions">
               <button type="button" className="cin-pill" onClick={() => setReader(false)}>{active ? "Back to AR" : "Close"}</button>
@@ -144,7 +145,7 @@ export function ArButton({ card, wish, slug }: { card: ArKey; wish: WishText; sl
             <p className="ar-from">With love, {wish.sender}</p>
             {clipped && <p className="ar-note">The full message is shown here.</p>}
             <div className="ar-end">
-              <p className="ar-wordmark">mawica.</p>
+              <div className="ar-wordmark"><Wordmark variant="mark" size="sm" surface="dark" /></div>
               <p className="ar-tag">Send your feelings to others.</p>
               <Link href="/create" className="cin-pill cin-pill-primary">Create your own card</Link>
             </div>

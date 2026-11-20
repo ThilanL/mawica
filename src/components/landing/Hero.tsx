@@ -2,10 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import { ButtonLink } from "@/components/ui/Button";
+import { heroCopy } from "@/content/hero";
 import { useMediaQuery, usePrefersReducedMotion } from "@/lib/useMediaQuery";
+import { HeroAnnotation } from "./HeroAnnotation";
 import { HeroArtwork } from "./HeroArtwork";
-import { HeroOrnaments, HeroPlate } from "./HeroBackdrop";
-import { WatchMagic } from "./WatchMagic";
+import { HeroBenefits } from "./HeroBenefits";
+import { HeroPlate } from "./HeroBackdrop";
+import { SnowCanvas } from "./SnowCanvas";
 
 export function Hero() {
   const root = useRef<HTMLElement>(null);
@@ -13,80 +16,114 @@ export function Hero() {
   const finePointer = useMediaQuery("(hover: hover) and (pointer: fine)");
   const compact = useMediaQuery("(max-width: 767px)");
 
-  // Entrance animation
   useEffect(() => {
     if (reduced || !root.current) return;
     let cancelled = false;
     let revert: (() => void) | undefined;
-    // GSAP is loaded after first paint so it never competes with hydration or LCP.
     void import("gsap").then(({ default: gsap }) => {
       if (cancelled || !root.current) return;
       const ctx = gsap.context(() => {
-      // Progressive enhancement: content is already visible in the SSR HTML.
-      // Only transforms animate on text and globe; nothing is ever set to opacity 0.
-      gsap
-        .timeline({ defaults: { ease: "power3.out" } })
-        .from("[data-hero=halo]", { scale: 0.85, duration: 1.6 })
-        .from("[data-hero=enter]", { y: 28, scale: 0.96, duration: 1.3 }, 0)
-        .from("[data-in]", { y: 18, duration: 0.9, stagger: 0.1 }, 0.1)
-        .from("[data-hero=light]", { opacity: 0, duration: 1.2, stagger: 0.08 }, 0.6);
+        gsap
+          .timeline({ defaults: { ease: "power3.out" } })
+          .from("[data-hero=halo]", { scale: 0.88, duration: 1.5 })
+          .from("[data-hero=enter]", { y: 24, scale: 0.97, duration: 1.25 }, 0)
+          .from("[data-in]", { y: 16, duration: 0.85, stagger: 0.09 }, 0.08);
       }, root);
       revert = () => ctx.revert();
     });
-    return () => { cancelled = true; revert?.(); };
+    return () => {
+      cancelled = true;
+      revert?.();
+    };
   }, [reduced]);
 
-  // Desktop pointer parallax (fine pointers only, never with reduced motion)
   useEffect(() => {
     const el = root.current;
     if (!el || reduced || !finePointer) return;
     let cancelled = false;
     let teardown: (() => void) | undefined;
     void import("gsap").then(({ default: gsap }) => {
-    if (cancelled) return;
-    const layers = Array.from(el.querySelectorAll<HTMLElement>("[data-depth]")).map((node) => ({
-      x: gsap.quickTo(node, "x", { duration: 0.9, ease: "power3.out" }),
-      y: gsap.quickTo(node, "y", { duration: 0.9, ease: "power3.out" }),
-      d: Number(node.dataset.depth),
-    }));
-    const move = (e: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      const nx = (e.clientX - r.left) / r.width - 0.5;
-      const ny = (e.clientY - r.top) / r.height - 0.5;
-      layers.forEach((l) => { l.x(nx * l.d); l.y(ny * l.d); });
-    };
-    const leave = () => layers.forEach((l) => { l.x(0); l.y(0); });
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerleave", leave);
-    teardown = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerleave", leave); };
+      if (cancelled) return;
+      const layers = Array.from(el.querySelectorAll<HTMLElement>("[data-depth]")).map((node) => ({
+        x: gsap.quickTo(node, "x", { duration: 0.9, ease: "power3.out" }),
+        y: gsap.quickTo(node, "y", { duration: 0.9, ease: "power3.out" }),
+        d: Number(node.dataset.depth),
+      }));
+      const move = (e: PointerEvent) => {
+        const r = el.getBoundingClientRect();
+        const nx = (e.clientX - r.left) / r.width - 0.5;
+        const ny = (e.clientY - r.top) / r.height - 0.5;
+        layers.forEach((l) => {
+          l.x(nx * l.d);
+          l.y(ny * l.d);
+        });
+      };
+      const leave = () =>
+        layers.forEach((l) => {
+          l.x(0);
+          l.y(0);
+        });
+      el.addEventListener("pointermove", move);
+      el.addEventListener("pointerleave", leave);
+      teardown = () => {
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerleave", leave);
+      };
     });
-    return () => { cancelled = true; teardown?.(); };
+    return () => {
+      cancelled = true;
+      teardown?.();
+    };
   }, [reduced, finePointer]);
 
   return (
-    <section ref={root} aria-labelledby="hero-title" className="relative overflow-hidden bg-[radial-gradient(120%_80%_at_80%_10%,#e9defa_0%,transparent_60%),linear-gradient(180deg,#fff8f4,#f7e6ef_130%)]">
+    <section
+      ref={root}
+      aria-labelledby="hero-title"
+      className="relative -mt-16 overflow-hidden bg-[radial-gradient(90%_70%_at_70%_20%,#f3e7fb_0%,transparent_55%),linear-gradient(180deg,#fff8f4,#f7e6ef_120%)] pt-16"
+    >
       <HeroPlate />
-      <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-5 pb-12 pt-6 sm:gap-12 sm:px-8 sm:pb-20 lg:min-h-[calc(100dvh-4rem)] lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:pb-16">
-        <div className="text-center lg:text-left">
-          <p data-in className="text-sm font-semibold uppercase tracking-[0.22em] text-rose" style={{ color: "#a63d78" }}>
-            Christmas &amp; New Year 2026
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-[1]">
+        <SnowCanvas count={compact ? 28 : 55} speed={0.55} color="255,248,244" />
+      </div>
+
+      <div className="relative z-[2] mx-auto grid max-w-[90rem] items-center gap-6 px-5 pb-14 pt-4 sm:gap-10 sm:px-8 sm:pb-16 lg:min-h-[calc(100dvh-1rem)] lg:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] lg:gap-6 lg:pb-12 lg:pt-2 xl:gap-8">
+        <div className="order-1 text-center lg:order-none lg:self-center lg:text-left lg:pb-6">
+          <p data-in className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[#8a3d6e] sm:text-sm">
+            {heroCopy.eyebrow}
           </p>
-          <h1 id="hero-title" data-in className="mt-4 font-display text-[clamp(2.5rem,7.5vw,5.5rem)] leading-[1.02] tracking-tight text-balance">
-            A Little Magic.<br />A Lot of Love.
+          <h1
+            id="hero-title"
+            data-in
+            className="mt-3 font-display text-[clamp(2.55rem,6.4vw,4.85rem)] font-semibold leading-[1.02] tracking-tight text-midnight text-balance sm:mt-4"
+          >
+            {heroCopy.titleLines[0]}
+            <br />
+            {heroCopy.titleLines[1]}
           </h1>
-          <p data-in className="mx-auto mt-4 max-w-xl text-base sm:mt-6 sm:text-lg leading-relaxed text-ink-soft text-pretty lg:mx-0">
-            Create beautiful, personalised, magical greeting cards for free. Add a name and a heartfelt message, then share it in seconds by link, WhatsApp or QR code.
+          <p data-in className="mx-auto mt-4 max-w-md text-base leading-relaxed text-ink-soft text-pretty sm:mt-5 sm:text-lg lg:mx-0 lg:max-w-[28rem]">
+            {heroCopy.body}
           </p>
-          <div data-in className="mt-7 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center lg:justify-start">
-            <ButtonLink href="/create">Create Free Card</ButtonLink>
-            <WatchMagic />
+          <div data-in className="mt-7 flex justify-center lg:justify-start">
+            <ButtonLink href="/create" className="group gap-2.5 px-7 py-3.5 shadow-[0_14px_34px_-12px_rgb(42_27_61/0.55)]">
+              {heroCopy.cta}
+              <span aria-hidden className="transition-transform duration-300 group-hover:translate-x-0.5">
+                →
+              </span>
+            </ButtonLink>
+          </div>
+          <div className="flex justify-center lg:justify-start">
+            <HeroBenefits />
           </div>
         </div>
-        <div data-in className="pb-6">
-          <HeroArtwork snowCount={compact ? 40 : 90} />
+
+        <div className="relative order-2 pb-2 sm:pb-6 lg:order-none lg:pb-8 lg:pt-4">
+          <HeroAnnotation />
+          <div data-in>
+            <HeroArtwork snowCount={compact ? 36 : 70} />
+          </div>
         </div>
       </div>
-      <HeroOrnaments />
     </section>
   );
 }

@@ -1,0 +1,23 @@
+{
+  "name": "mawica.",
+  "short_name": "mawica.",
+  "description": "Beautiful, personalised digital greeting cards.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF8F4",
+  "theme_color": "#2A1B3D",
+  "icons": [
+    {
+      "src": "/brand/mawica-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/mawica-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

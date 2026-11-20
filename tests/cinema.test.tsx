@@ -184,7 +184,7 @@ describe("renderer choice, reduced motion and WebGL fallback", () => {
     const css = read("src/app/globals.css");
     const block = css.slice(css.indexOf("Lumi's Wish: Cinematic (3D)"));
     expect(block).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.cin-page[\s\S]*transition: none/);
-    expect(block).toMatch(/\.cin-wordmark[\s\S]*animation: none/);
+    expect(block).toMatch(/\.cin-end-on \.cin-end-inner > \*[\s\S]*animation: none/);
   });
 });
 
