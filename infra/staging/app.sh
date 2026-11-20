@@ -70,7 +70,7 @@ job_log() { # $1 = job, $2 = execution: print only the job's marker lines (never
   q="ContainerAppConsoleLogs_CL | where ContainerJobName_s == '$1' and ContainerGroupName_s startswith '$2' | where Log_s matches regex @'^(ROLES_OK|APP_CHECK_OK|MIGRATOR_CHECK_OK|CHECKS_OK)$' or Log_s has_any ('ERROR', 'FATAL', 'failed', 'unexpected database host') | project TimeGenerated, Log_s | order by TimeGenerated asc"
   for i in $(seq 1 20); do
     out="$(az rest --method post --resource https://api.loganalytics.io --url "https://api.loganalytics.io/v1/workspaces/$ws/query" \
-      --body "$(python3 -I -c 'import json,sys; print(json.dumps({"query": sys.argv[1], "timespan": "PT6H"}))' "$q")" --query "tables[0].rows[].[1]" -o tsv 2>/dev/null || true)"
+      --body "$(python3 -I -c 'import json,sys; print(json.dumps({"query": sys.argv[1], "timespan": "PT6H"}))' "$q")" --query "tables[0].rows[*][1]" -o tsv 2>/dev/null || true)"
     [[ -n "$out" ]] && { echo "$out" | cut -c1-200; return 0; }; sleep 15
   done
   echo "(no log lines yet; Log Analytics can lag several minutes: $0 job-log $1 $2)"
