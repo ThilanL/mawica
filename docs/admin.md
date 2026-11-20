@@ -64,6 +64,31 @@ Existing `StaffPrincipal` rows keep their DB role on subsequent sign-ins.
 - Card messages, recipient/sender names, and media blobs are never selected for customer views.
 - Directory/detail expose email + display name for support lookup; minimize further PII.
 
+## P3 — Operations & analytics
+
+- `/ops` — date-filtered dashboard (7d / 30d / 90d / custom UTC range, max 366 days)
+- Detail routes: `/ops/customers`, `/ops/cards`, `/ops/deliveries`, `/ops/moderation`, `/ops/wallet`, `/ops/media`, `/ops/health`
+- CSV export: `GET /api/ops/export?dataset=…&preset=…` (`ops:read`; moderation also needs `reports:read`; wallet needs `wallet:read`)
+- Server-side SQL aggregations only; never selects card messages, report details, or `CardMediaBlob.data`
+- Wallet section is **credit activity** (ledger/grant counts), not revenue
+- Explicitly unavailable: consumer HTTP health probe, worker CycleStats heartbeat (no `WorkerRun` table)
+- Audits: `ops.dashboard_viewed`, `ops.export_downloaded`
+
+### Authorization matrix (P3 ops)
+
+| Role | Ops dashboard | Moderation metrics | Wallet credit metrics | CSV export |
+|------|---------------|--------------------|-----------------------|------------|
+| OWNER | yes | yes | yes | yes |
+| OPS | yes | yes | yes (`wallet:read`) | yes |
+| READONLY | yes | yes | yes | yes (aggregates) |
+| SUPPORT | no | — | — | no |
+| MODERATOR | no | (queue UI only) | no | no |
+| FINANCE | no | no | (has `wallet:read` only) | no |
+
+### Query performance notes
+
+Global date aggregations may sequential-scan until additive indexes exist (not migrated in P3): `user(createdAt)`, `Report(createdAt)`, `LedgerEntry(kind, createdAt)`, `CardMedia(createdAt)`. Partial delivery indexes already help due/lease health probes. Ranges are capped at 366 days.
+
 ## Out of scope
 
 Stripe/billing, wallet adjustments, events/RSVP, CMS, Azure deploy, DNS, production migrations.

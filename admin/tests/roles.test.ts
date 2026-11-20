@@ -27,6 +27,13 @@ describe("staff RBAC", () => {
     expect(hasPermission("SUPPORT", "wallet:adjust")).toBe(false);
   });
 
+  it("gives OPS ops+wallet read for credit activity metrics", () => {
+    expect(hasPermission("OPS", "ops:read")).toBe(true);
+    expect(hasPermission("OPS", "wallet:read")).toBe(true);
+    expect(hasPermission("OPS", "wallet:adjust")).toBe(false);
+    expect(hasPermission("SUPPORT", "ops:read")).toBe(false);
+  });
+
   it("keeps readonly from mutating moderation", () => {
     expect(hasPermission("READONLY", "reports:read")).toBe(true);
     expect(hasPermission("READONLY", "cards:remove")).toBe(false);

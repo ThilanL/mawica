@@ -36,10 +36,22 @@ export default async function DashboardPage() {
       </div>
 
       <div className="flex flex-wrap gap-3">
+        {hasPermission(session.role, "ops:read") ? (
+          <Link
+            href="/ops"
+            className="rounded-full bg-[var(--admin-accent)] px-5 py-2.5 text-sm font-semibold text-[#fff8f4]"
+          >
+            Operations analytics
+          </Link>
+        ) : null}
         {hasPermission(session.role, "users:read") ? (
           <Link
             href="/customers"
-            className="rounded-full bg-[var(--admin-accent)] px-5 py-2.5 text-sm font-semibold text-[#fff8f4]"
+            className={`rounded-full px-5 py-2.5 text-sm font-semibold ${
+              hasPermission(session.role, "ops:read")
+                ? "border border-[var(--admin-line)] bg-[var(--admin-card)]"
+                : "bg-[var(--admin-accent)] text-[#fff8f4]"
+            }`}
           >
             Customer directory
           </Link>

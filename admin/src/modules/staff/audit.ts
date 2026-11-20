@@ -7,7 +7,9 @@ export type StaffAuditAction =
   | "staff.sign_out"
   | "moderation.card_removed"
   | "moderation.report_viewed"
-  | "support.customer_viewed";
+  | "support.customer_viewed"
+  | "ops.dashboard_viewed"
+  | "ops.export_downloaded";
 
 /**
  * Admin audit writer. Never store emails, message bodies, tokens, or raw IPs in meta.
