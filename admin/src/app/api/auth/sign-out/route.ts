@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { recordStaffAudit } from "@/modules/staff/audit";
 import { requestIp } from "@/lib/client-ip";
 import { env } from "@/lib/env";
+import { adminAppUrl } from "@/lib/origins";
 import { clearStaffSessionCookie, readStaffSession, STAFF_COOKIE } from "@/lib/session";
 
 export async function POST(req: Request) {
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
     });
   }
   await clearStaffSessionCookie();
-  const res = NextResponse.redirect(new URL("/sign-in", env.ADMIN_APP_URL));
+  const res = NextResponse.redirect(adminAppUrl("/sign-in"));
   res.cookies.delete(STAFF_COOKIE);
   return res;
 }

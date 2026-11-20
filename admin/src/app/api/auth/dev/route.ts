@@ -4,6 +4,7 @@ import { upsertStaffPrincipal } from "@/modules/staff/principals";
 import { recordStaffAudit } from "@/modules/staff/audit";
 import { requestIp } from "@/lib/client-ip";
 import { devAuthEnabled, env } from "@/lib/env";
+import { adminAppUrl } from "@/lib/origins";
 import { createStaffSessionToken, setStaffSessionCookie } from "@/lib/session";
 
 export async function POST(req: Request) {
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
     seedRole: seed,
   });
   if (!principal) {
-    return NextResponse.redirect(new URL("/sign-in?error=Account%20disabled", env.ADMIN_APP_URL));
+    return NextResponse.redirect(adminAppUrl("/sign-in?error=Account%20disabled"));
   }
 
   const token = await createStaffSessionToken({
@@ -41,5 +42,5 @@ export async function POST(req: Request) {
     ip: requestIp(req.headers),
     meta: { method: "dev" },
   });
-  return NextResponse.redirect(new URL("/", env.ADMIN_APP_URL));
+  return NextResponse.redirect(adminAppUrl("/"));
 }

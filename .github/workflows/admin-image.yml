@@ -1,0 +1,83 @@
+# Build-only: produce the Mawica Admin container image. No Azure login, no push to ACR,
+# no Container Apps updates, no migrations, no Key Vault access.
+name: admin-image
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "admin/**"
+      - "src/modules/cms/**"
+      - "src/generated/prisma/**"
+      - "prisma/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/admin-image.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-image-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build-admin-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build admin image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: admin/Dockerfile
+          push: false
+          load: true
+          tags: mawica-admin:ci
+          cache-from: type=gha,scope=mawica-admin
+          cache-to: type=gha,mode=max,scope=mawica-admin
+
+      - name: Smoke — process liveness inside the image
+        run: |
+          set -euo pipefail
+          cid="$(docker run -d --rm \
+            -e NODE_ENV=production \
+            -e DATABASE_URL='postgresql://ci:ci@127.0.0.1:5433/ci' \
+            -e RATE_LIMIT_SALT='ci-only-dummy-salt-ci-only' \
+            -e ADMIN_SESSION_SECRET='ci-only-dummy-secret-ci-only-dummy-secret-0000' \
+            -e ADMIN_APP_URL='http://127.0.0.1:8080' \
+            -e ADMIN_ENTRA_TENANT_ID='ci-tenant' \
+            -e ADMIN_ENTRA_CLIENT_ID='ci-client' \
+            -e ADMIN_ENTRA_CLIENT_SECRET='ci-secret' \
+            -e ADMIN_ENTRA_REDIRECT_URI='http://127.0.0.1:8080/api/auth/callback' \
+            -e ADMIN_STAFF_ALLOWLIST='ci@mawica.local:OWNER' \
+            -p 18080:8080 \
+            mawica-admin:ci)"
+          cleanup() { docker stop "$cid" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:18080/api/health" | grep -q '"check":"process"'; then
+              echo "liveness ok"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then echo "liveness timeout"; docker logs "$cid" || true; exit 1; fi
+            sleep 1
+          done
+          # Dev auth must stay closed in production
+          code="$(curl -sS -o /tmp/dev-auth.json -w '%{http_code}' -X POST "http://127.0.0.1:18080/api/auth/dev")"
+          test "$code" = "403"
+          # Console must redirect unauthenticated users to sign-in (RSC may return 200 + NEXT_REDIRECT)
+          body="$(curl -fsS "http://127.0.0.1:18080/cms" || true)"
+          echo "$body" | grep -qi 'NEXT_REDIRECT\|sign-in'
+          echo "$body" | grep -qi 'Staff operations for Mawica' && exit 1 || true
+          # noindex on health
+          curl -sSI "http://127.0.0.1:18080/api/health" | grep -qi 'x-robots-tag:.*noindex'
+          # Graceful stop
+          docker stop -t 15 "$cid"
+          trap - EXIT

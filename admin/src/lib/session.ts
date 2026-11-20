@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import type { StaffRoleName } from "@/modules/staff/roles";
 import { env } from "./env";
+import { sessionCookieSecure } from "./origins";
 
 export const STAFF_COOKIE = "mawica_admin_session";
 const MAX_AGE_SEC = 60 * 60 * 8; // 8 hours
@@ -18,6 +19,17 @@ export type StaffSession = {
 
 function secretKey() {
   return new TextEncoder().encode(env.ADMIN_SESSION_SECRET);
+}
+
+export function staffSessionCookieOptions(maxAge = MAX_AGE_SEC) {
+  return {
+    httpOnly: true as const,
+    secure: sessionCookieSecure(),
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge,
+    // Host-only cookie (no Domain) — prevents leakage to sibling hosts like mawica.com
+  };
 }
 
 export async function createStaffSessionToken(session: Omit<StaffSession, "sid"> & { sid?: string }): Promise<string> {
@@ -64,13 +76,7 @@ export async function readStaffSession(): Promise<StaffSession | null> {
 
 export async function setStaffSessionCookie(token: string): Promise<void> {
   const jar = await cookies();
-  jar.set(STAFF_COOKIE, token, {
-    httpOnly: true,
-    secure: env.ADMIN_APP_URL.startsWith("https://"),
-    sameSite: "lax",
-    path: "/",
-    maxAge: MAX_AGE_SEC,
-  });
+  jar.set(STAFF_COOKIE, token, staffSessionCookieOptions());
 }
 
 export async function clearStaffSessionCookie(): Promise<void> {

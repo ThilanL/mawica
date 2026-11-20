@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { Shell } from "@/components/Shell";
+import { adminAppUrl } from "@/lib/origins";
 import { readStaffSession } from "@/lib/session";
 
 export default async function ConsoleLayout({ children }: { children: ReactNode }) {
   const session = await readStaffSession();
-  if (!session) redirect("/sign-in");
+  if (!session) redirect(adminAppUrl("/sign-in"));
   return (
     <Shell staff={{ displayName: session.displayName, email: session.email, role: session.role }}>
       {children}

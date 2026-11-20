@@ -15,6 +15,8 @@
     "admin:dev": "npm run dev --prefix admin",
     "admin:test": "npm run test --prefix admin",
     "admin:build": "npm run build --prefix admin",
+    "admin:image": "docker build -f admin/Dockerfile -t mawica-admin:local .",
+    "admin:smoke": "tsx scripts/admin-container-smoke.mts",
     "art:check": "tsx scripts/check-art.mts",
     "test": "vitest run",
     "delivery:worker": "tsx --conditions=react-server scripts/delivery-worker.mts"

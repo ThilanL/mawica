@@ -2,6 +2,8 @@
 
 Separate Next.js application for staff operations, intended for `admin.mawica.com`.
 
+Container/image foundation (R1, no Azure deploy): see [`docs/admin-deployment-r1.md`](./admin-deployment-r1.md).
+
 ## Local run
 
 1. Apply the staff migration **only** to your local Mawica Postgres (port 5433), never shared/prod:
