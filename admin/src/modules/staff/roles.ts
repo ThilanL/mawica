@@ -16,6 +16,7 @@ export type StaffPermission =
   | "wallet:read"
   | "wallet:adjust"
   | "finance:read"
+  | "finance:plan"
   | "ops:read"
   | "staff:manage";
 
@@ -29,6 +30,7 @@ const ALL: StaffPermission[] = [
   "wallet:read",
   "wallet:adjust",
   "finance:read",
+  "finance:plan",
   "ops:read",
   "staff:manage",
 ];
@@ -38,7 +40,8 @@ const ROLE_PERMISSIONS: Record<StaffRoleName, readonly StaffPermission[]> = {
   MODERATOR: ["dashboard:read", "reports:read", "reports:moderate", "cards:remove", "audit:read"],
   // wallet:adjust reserved for a future phase — P2 is read-only wallet views.
   SUPPORT: ["dashboard:read", "reports:read", "audit:read", "users:read", "wallet:read"],
-  FINANCE: ["dashboard:read", "audit:read", "finance:read", "wallet:read"],
+  // finance:plan = revenue forecasting (P4A); OWNER + FINANCE only — not READONLY.
+  FINANCE: ["dashboard:read", "audit:read", "finance:read", "finance:plan", "wallet:read"],
   // wallet:read for credit-activity ops metrics (not revenue / Stripe).
   OPS: ["dashboard:read", "reports:read", "audit:read", "ops:read", "wallet:read"],
   READONLY: ["dashboard:read", "reports:read", "audit:read", "finance:read", "ops:read", "users:read", "wallet:read"],

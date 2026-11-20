@@ -34,6 +34,12 @@ describe("staff RBAC", () => {
     expect(hasPermission("SUPPORT", "ops:read")).toBe(false);
   });
 
+  it("limits finance:plan to OWNER and FINANCE", () => {
+    expect(hasPermission("OWNER", "finance:plan")).toBe(true);
+    expect(hasPermission("FINANCE", "finance:plan")).toBe(true);
+    expect(hasPermission("READONLY", "finance:plan")).toBe(false);
+  });
+
   it("keeps readonly from mutating moderation", () => {
     expect(hasPermission("READONLY", "reports:read")).toBe(true);
     expect(hasPermission("READONLY", "cards:remove")).toBe(false);

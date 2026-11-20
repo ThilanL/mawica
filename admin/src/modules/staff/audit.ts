@@ -9,7 +9,9 @@ export type StaffAuditAction =
   | "moderation.report_viewed"
   | "support.customer_viewed"
   | "ops.dashboard_viewed"
-  | "ops.export_downloaded";
+  | "ops.export_downloaded"
+  | "finance.plan_viewed"
+  | "finance.projection_exported";
 
 /**
  * Admin audit writer. Never store emails, message bodies, tokens, or raw IPs in meta.

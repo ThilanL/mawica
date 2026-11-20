@@ -89,6 +89,26 @@ Existing `StaffPrincipal` rows keep their DB role on subsequent sign-ins.
 
 Global date aggregations may sequential-scan until additive indexes exist (not migrated in P3): `user(createdAt)`, `Report(createdAt)`, `LedgerEntry(kind, createdAt)`, `CardMedia(createdAt)`. Partial delivery indexes already help due/lease health probes. Ranges are capped at 366 days.
 
+## P4A — Financial planning & revenue forecasting
+
+- `/finance` — editable assumptions, 12/24/36-month projections, Conservative/Base/Optimistic comparison
+- `/finance/formulas` — calculation explanations and scenario multipliers
+- `GET /api/finance/export` — monthly projection CSV (`finance:plan` only)
+- **Not** coupled to wallet, ledger, or Stripe. Labels every figure as a projection.
+- Currency: **AUD**. Tax treatment: **exclusive of GST** (planning label, not tax advice).
+- Annual subscriptions recognised as `annual_price / 12` per month (no double-counting).
+- Permission: `finance:plan` — **OWNER** and **FINANCE** only (READONLY keeps `finance:read` but cannot open planning).
+- Audits: `finance.plan_viewed`, `finance.projection_exported`
+- No DB migration: assumptions live in code defaults + query-string overrides (session-less planning inputs).
+
+### Authorization matrix (P4A)
+
+| Role | Finance plan UI | CSV export |
+|------|-----------------|------------|
+| OWNER | yes | yes |
+| FINANCE | yes | yes |
+| READONLY / OPS / SUPPORT / MODERATOR | no | no |
+
 ## Out of scope
 
-Stripe/billing, wallet adjustments, events/RSVP, CMS, Azure deploy, DNS, production migrations.
+Live Stripe/billing, wallet adjustments, events/RSVP, CMS, Azure deploy, DNS, production migrations.

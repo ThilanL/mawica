@@ -44,6 +44,14 @@ export default async function DashboardPage() {
             Operations analytics
           </Link>
         ) : null}
+        {hasPermission(session.role, "finance:plan") ? (
+          <Link
+            href="/finance"
+            className="rounded-full border border-[var(--admin-line)] bg-[var(--admin-card)] px-5 py-2.5 text-sm font-semibold"
+          >
+            Financial planning
+          </Link>
+        ) : null}
         {hasPermission(session.role, "users:read") ? (
           <Link
             href="/customers"

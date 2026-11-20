@@ -5,6 +5,7 @@ import { hasPermission, type StaffRoleName } from "@/modules/staff/roles";
 const NAV: { href: string; label: string; permission: Parameters<typeof hasPermission>[1] }[] = [
   { href: "/", label: "Dashboard", permission: "dashboard:read" },
   { href: "/ops", label: "Operations", permission: "ops:read" },
+  { href: "/finance", label: "Finance plan", permission: "finance:plan" },
   { href: "/customers", label: "Customers", permission: "users:read" },
   { href: "/reports", label: "Reports", permission: "reports:read" },
   { href: "/audit", label: "Moderation audit", permission: "audit:read" },
