@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { PURPOSE_POLICY } from "./purposes";
-import { resolveEmailConfig, type EmailConfig, type EmailEnv } from "./config";
+import { normalizeRecipient, resolveAllowlist, resolveEmailConfig, type Allowlist, type EmailConfig, type EmailEnv } from "./config";
 import { AcsEmailTransport } from "./transports/acs";
+import { ResendTransport } from "./transports/resend";
 import { LocalOutboxTransport } from "./transports/local-outbox";
 import type { EmailPurpose, OutboundEmail, SendOutcome, TransactionalTransport } from "./types";
 
@@ -14,28 +15,34 @@ export const SEND_TIMEOUT_MS = 8000;
 
 export type EmailService = {
   config: EmailConfig;
+  allowlist: Allowlist;
   send(purpose: EmailPurpose, message: OutboundEmail): Promise<SendOutcome>;
 };
 
-type Deps = { transport?: TransactionalTransport; limiter?: Limiter; log?: (l: EmailLog) => void; config?: EmailConfig; outboxMeta?: (m: OutboundEmail) => Record<string, unknown> };
+type Deps = { transport?: TransactionalTransport; limiter?: Limiter; log?: (l: EmailLog) => void; config?: EmailConfig; allowlist?: Allowlist; outboxMeta?: (m: OutboundEmail) => Record<string, unknown> };
 
 const defaultLog = (l: EmailLog) => console.info(JSON.stringify(l)); // fields are fixed codes: no recipient, subject, body or code
 
 export function buildTransport(config: EmailConfig, fetchImpl?: typeof fetch, outboxMeta?: Deps["outboxMeta"]): TransactionalTransport | null {
   if (config.provider === "local-outbox") return new LocalOutboxTransport(config.outboxPath, outboxMeta);
   if (config.provider === "acs") return new AcsEmailTransport({ endpoint: config.endpoint, accessKey: config.accessKey }, fetchImpl);
+  if (config.provider === "resend") return new ResendTransport({ apiKey: config.apiKey }, fetchImpl);
   return null;
 }
 
 /** Pure factory (everything injectable) so tests never touch a network or a database. */
 export function createEmailService(env: EmailEnv, deps: Deps = {}): EmailService {
-  const config = deps.config ?? resolveEmailConfig(env);
+  const allowlist = deps.allowlist ?? resolveAllowlist(env);
+  const baseConfig = deps.config ?? resolveEmailConfig(env);
+  // Allowlist problems are config problems too (logged once at boot as codes); they never contain an address.
+  const config: EmailConfig = allowlist.problems.length ? { ...baseConfig, problems: [...baseConfig.problems, ...allowlist.problems] } : baseConfig;
   const transport = deps.transport ?? buildTransport(config, undefined, deps.outboxMeta);
   const log = deps.log ?? defaultLog;
   const from = config.provider === "acs" ? config.from : env.EMAIL_FROM_AUTH ?? "noreply@localhost.invalid";
 
   return {
     config,
+    allowlist,
     async send(purpose, message) {
       const t0 = Date.now();
       const done = (o: SendOutcome, extra: Partial<EmailLog> = {}): SendOutcome => {
@@ -43,6 +50,9 @@ export function createEmailService(env: EmailEnv, deps: Deps = {}): EmailService
         return o;
       };
       if (!PURPOSE_POLICY[purpose]?.enabled) return done({ ok: false, reason: "disabled" });
+      // Recipient allowlist BEFORE any transport (staging). Same generic outcome to the user as any failed send: the route
+      // answers 503 for every address, so membership cannot be probed. The log line carries the reason code only.
+      if (allowlist.recipients && !allowlist.recipients.has(normalizeRecipient(message.to))) return done({ ok: false, reason: "blocked" });
       if (!transport) return done({ ok: false, reason: "unavailable" });
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(message.to) || /[\r\n]/.test(message.subject)) return done({ ok: false, reason: "invalid" });
 

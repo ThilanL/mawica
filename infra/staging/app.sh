@@ -7,6 +7,7 @@
 #   infra/staging/app.sh roles-resume <tag> after a failed roles run: jobs + role job again, NO new passwords
 #   infra/staging/app.sh pepper             DISABLED: welcome-pepper exists and must never be rotated (always refuses)
 #   infra/staging/app.sh job-log <job> <execution>   the job's marker lines from Log Analytics
+#   infra/staging/app.sh email-secrets      OWNER ONLY, interactive: store the Resend API key + recipient allowlist in Key Vault (hidden prompts)
 #   infra/staging/app.sh migrate            run `prisma migrate deploy` (migration job, inside the VNet), then re-apply grants
 #   infra/staging/app.sh web     <tag>      create/update the web container app (scale 0-1) and smoke-test it
 #   infra/staging/app.sh status             show jobs, app revision and URL
@@ -45,6 +46,7 @@ KV_SECRETS_URL="https://management.azure.com/subscriptions/$SUBSCRIPTION/resourc
 kv_list() { python3 -I "$HERE/kv_secrets.py" list "$KV_SECRETS_URL"; }
 kv_guard_absent() { python3 -I "$HERE/kv_secrets.py" guard-absent "$KV_SECRETS_URL" "$@"; }
 kv_require() { python3 -I "$HERE/kv_secrets.py" require "$KV_SECRETS_URL" "$@"; }
+has_secret() { python3 -I -c 'import json,sys; sys.exit(0 if sys.argv[2] in json.loads(sys.argv[1]) else 1)' "$SECRETS_JSON" "$1"; }
 # The COMPLETE secret inventory (names only, every page; kv_secrets.py). Fails closed: if it cannot be verified, the script stops.
 # Loaded into a variable first: a failing $(...) inside a command's arguments would NOT stop the script under set -e.
 load_secrets() { SECRETS_JSON="$(kv_list)" || { echo "STOP: Key Vault secret inventory could not be verified; nothing was changed" >&2; exit 1; }; }
@@ -56,14 +58,16 @@ load_web_params() {
   env_id="/subscriptions/$SUBSCRIPTION/resourceGroups/$RG/providers/Microsoft.App/managedEnvironments/cae-mawica-stg"
   dom="$(az containerapp env show -g "$RG" -n cae-mawica-stg --query properties.defaultDomain -o tsv)" || { echo "STOP: cannot read the environment" >&2; exit 1; }
   if [[ -n "$(az containerapp list -g "$RG" --query "[?name=='ca-mawica-stg'].name" -o tsv)" ]]; then
-    live="$(az containerapp show -g "$RG" -n ca-mawica-stg --query "{exists: \`true\`, customDomains: properties.configuration.ingress.customDomains, env: {NEXT_PUBLIC_SITE_URL: properties.template.containers[0].env[?name=='NEXT_PUBLIC_SITE_URL'].value | [0], AUTH_TRUSTED_ORIGINS: properties.template.containers[0].env[?name=='AUTH_TRUSTED_ORIGINS'].value | [0]}}" -o json)" \
+    live="$(az containerapp show -g "$RG" -n ca-mawica-stg --query "{exists: \`true\`, customDomains: properties.configuration.ingress.customDomains, env: {NEXT_PUBLIC_SITE_URL: properties.template.containers[0].env[?name=='NEXT_PUBLIC_SITE_URL'].value | [0], AUTH_TRUSTED_ORIGINS: properties.template.containers[0].env[?name=='AUTH_TRUSTED_ORIGINS'].value | [0], EMAIL_PROVIDER: properties.template.containers[0].env[?name=='EMAIL_PROVIDER'].value | [0], EMAIL_FROM_AUTH: properties.template.containers[0].env[?name=='EMAIL_FROM_AUTH'].value | [0], MAWICA_DISABLE_EXTERNAL_EMAIL: properties.template.containers[0].env[?name=='MAWICA_DISABLE_EXTERNAL_EMAIL'].value | [0], MAWICA_EMAIL_ALLOWLIST_REQUIRED: properties.template.containers[0].env[?name=='MAWICA_EMAIL_ALLOWLIST_REQUIRED'].value | [0]}}" -o json)" \
       || { echo "STOP: cannot read the live web app" >&2; exit 1; }
   else
     live='{"exists": false}'
   fi
-  WEB_PARAMS="$(python3 -I -c 'import json,os,sys; print(json.dumps({"envId": sys.argv[1], "azureDefaultUrl": sys.argv[2], "live": json.loads(sys.argv[3]),
-      "request": {k: os.environ.get(k, "") for k in ("SITE_URL", "AUTH_TRUSTED_ORIGINS", "CUSTOM_DOMAIN", "CUSTOM_DOMAIN_CERT_ID", "REPLACE_DOMAIN")}}))' \
-      "$env_id" "https://ca-mawica-stg.$dom" "$live" | python3 -I "$HERE/web_params.py")" || exit 1
+  [[ -n "${SECRETS_JSON:-}" ]] || load_secrets
+  WEB_PARAMS="$(python3 -I -c 'import json,os,sys; print(json.dumps({"envId": sys.argv[1], "azureDefaultUrl": sys.argv[2], "live": json.loads(sys.argv[3]), "secrets": json.loads(sys.argv[4]),
+      "request": {k: os.environ.get(k, "") for k in ("SITE_URL", "AUTH_TRUSTED_ORIGINS", "CUSTOM_DOMAIN", "CUSTOM_DOMAIN_CERT_ID", "REPLACE_DOMAIN",
+                                                     "EMAIL_PROVIDER", "EMAIL_FROM_AUTH", "MAWICA_DISABLE_EXTERNAL_EMAIL", "MAWICA_EMAIL_ALLOWLIST_REQUIRED")}}))' \
+      "$env_id" "https://ca-mawica-stg.$dom" "$live" "$SECRETS_JSON" | python3 -I "$HERE/web_params.py")" || exit 1
 }
 web_params_file() { python3 -I -c 'import json,sys; print(json.dumps({"parameters": {k: {"value": v} for k, v in json.loads(sys.argv[1]).items()}}))' "$WEB_PARAMS"; }
 
@@ -134,6 +138,29 @@ case "$MODE" in
     case "$rc" in 0) ;; 5) echo "STOP: role secrets are incomplete; this needs an approved ROTATE=yes $0 roles $TAG" >&2; exit 1 ;;
       *) echo "STOP: could not verify the Key Vault secret inventory; nothing was changed" >&2; exit 1 ;; esac
     mirror_postgres; images; deploy_jobs; run_job caj-mawica-stg-dbroles ;;
+  email-secrets)
+    # One-time (or deliberate rotation with ROTATE_EMAIL=yes): store the Resend API key and the recipient allowlist in Key Vault.
+    # Run by the OWNER in their own terminal: values are typed at hidden prompts, piped to ARM as secureString parameters (never on a
+    # command line, in files, history, output or deployment history). The owner has no Key Vault data access; ARM writes them.
+    load_secrets
+    for n in resend-api-key email-recipient-allowlist; do
+      if has_secret "$n" && [[ "${ROTATE_EMAIL:-}" != yes ]]; then echo "STOP: $n already exists (ROTATE_EMAIL=yes to replace it deliberately)" >&2; exit 1; fi
+    done
+    [[ -t 0 ]] || { echo "STOP: run this interactively in your own terminal" >&2; exit 1; }
+    read -r -s -p "Resend API key (hidden): " k; echo
+    read -r -s -p "Allowed recipient addresses, comma-separated (hidden): " a; echo
+    # Values go through stdin from printf (a shell builtin: never in the process list), not argv.
+    printf '%s\n%s\n' "$k" "$a" | python3 -I -c 'import re,sys
+k,a=sys.stdin.read().split("\n")[:2]
+ok=re.fullmatch(r"re_[A-Za-z0-9_-]{16,}",k) and any(x.strip() for x in a.split(",")) and all(re.fullmatch(r"[^\s@<>,;\"]+@[^\s@<>,;\"]+\.[^\s@<>,;\"]+",x.strip().lower()) for x in a.split(",") if x.strip())
+sys.exit(0 if ok else 1)' || { unset k a; echo "STOP: key or allowlist malformed; nothing was stored" >&2; exit 1; }
+    az deployment group create -g "$RG" -n mawica-staging-email-secrets --template-file "$HERE/email-secrets.json" \
+      --parameters "@"<(printf '%s\n%s\n' "$k" "$a" | python3 -I -c 'import json,sys
+k,a=sys.stdin.read().split("\n")[:2]
+print(json.dumps({"parameters": {"resendApiKey": {"value": k}, "recipientAllowlist": {"value": ",".join(x.strip().lower() for x in a.split(",") if x.strip())}}}))') \
+      --query properties.provisioningState -o tsv
+    unset k a
+    echo "stored; now grant them to the web identity: $0 identities" ;;
   job-log) job_log "$TAG" "${3:?usage: $0 job-log <job> <execution>}" ;;
   pepper)
     # DISABLED: welcome-pepper exists (created with the infrastructure on 2026-11-18) and must NEVER be rotated: rotating it unlinks
@@ -155,5 +182,5 @@ case "$MODE" in
   status)
     az containerapp job list -g "$RG" --query "[].{job:name, image:properties.template.containers[0].image}" -o table
     az containerapp list -g "$RG" --query "[].{app:name, image:properties.template.containers[0].image, revision:properties.latestRevisionName, url:properties.configuration.ingress.fqdn}" -o table ;;
-  *) echo "usage: $0 what-if|identities|roles|roles-resume|migrate|web|status|pepper|job-log [tag]" >&2; exit 2 ;;
+  *) echo "usage: $0 what-if|identities|roles|roles-resume|migrate|web|status|pepper|email-secrets|job-log [tag]" >&2; exit 2 ;;
 esac

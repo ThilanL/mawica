@@ -8,7 +8,9 @@ stdin JSON:
   {"envId": "/subscriptions/.../managedEnvironments/cae-mawica-stg",
    "azureDefaultUrl": "https://ca-mawica-stg.<env default domain>",
    "live": {"exists": bool, "customDomains": [{"name", "certificateId", "bindingType"}], "env": {"NEXT_PUBLIC_SITE_URL", "AUTH_TRUSTED_ORIGINS"}},
-   "request": {"SITE_URL", "AUTH_TRUSTED_ORIGINS", "CUSTOM_DOMAIN", "CUSTOM_DOMAIN_CERT_ID", "REPLACE_DOMAIN"}}   (empty = not requested)
+   "request": {"SITE_URL", "AUTH_TRUSTED_ORIGINS", "CUSTOM_DOMAIN", "CUSTOM_DOMAIN_CERT_ID", "REPLACE_DOMAIN",
+               "EMAIL_PROVIDER", "EMAIL_FROM_AUTH", "MAWICA_DISABLE_EXTERNAL_EMAIL", "MAWICA_EMAIL_ALLOWLIST_REQUIRED"}}   (empty = not requested)
+  "secrets": [Key Vault secret NAMES] (for the resend precondition; values are never read)
 stdout JSON: {"siteUrl", "authTrustedOrigins", "customDomainName", "customDomainCertificateId"}; exit 1 with "STOP: ..." on stderr.
 
 Rules:
@@ -80,7 +82,37 @@ def decide(d):
             raise Stop("certificate must belong to this Container Apps environment: %r" % cert)
         if live_domains and live_name == name and (live_domains[0].get("bindingType") or "SniEnabled") != "SniEnabled":
             raise Stop("live binding for %s is not SniEnabled; refusing to change its type silently" % name)
-    return {"siteUrl": site_param, "authTrustedOrigins": trusted, "customDomainName": name, "customDomainCertificateId": cert if name else ""}
+    out = {"siteUrl": site_param, "authTrustedOrigins": trusted, "customDomainName": name, "customDomainCertificateId": cert if name else ""}
+    out.update(email(req, live_env, set(d.get("secrets") or [])))
+    return out
+
+
+SENDER = re.compile(r"^[^\s@<>,;\"]+@" + HOST + r"$")
+
+
+def email(req, live_env, secrets):
+    """Email settings, carried forward like the domain. Staging rules: provider none|resend, allowlist always required with
+    resend, the kill switch explicit, and resend only when both Key Vault secrets exist (else the revision could not start)."""
+    pick = lambda k, default: req.get(k) or live_env.get(k) or default
+    provider = pick("EMAIL_PROVIDER", "none")
+    disable = pick("MAWICA_DISABLE_EXTERNAL_EMAIL", "1")
+    sender = pick("EMAIL_FROM_AUTH", "")
+    required = pick("MAWICA_EMAIL_ALLOWLIST_REQUIRED", "1")
+    if provider not in ("none", "resend"):
+        raise Stop("EMAIL_PROVIDER must be none or resend on staging: %r" % provider)
+    if disable not in ("0", "1"):
+        raise Stop("MAWICA_DISABLE_EXTERNAL_EMAIL must be 0 or 1")
+    if provider == "resend":
+        if not SENDER.match(sender.lower()):
+            raise Stop("EMAIL_FROM_AUTH must be a plain sender address on a verified domain: %r" % sender)
+        if required != "1":
+            raise Stop("staging requires MAWICA_EMAIL_ALLOWLIST_REQUIRED=1 with resend")
+        missing = [n for n in ("resend-api-key", "email-recipient-allowlist") if n not in secrets]
+        if missing:
+            raise Stop("Key Vault secret(s) missing for resend: %s (create them with app.sh email-secrets)" % ", ".join(missing))
+    elif disable == "0":
+        raise Stop("MAWICA_DISABLE_EXTERNAL_EMAIL=0 without an email provider makes no sense; keep 1")
+    return {"emailProvider": provider, "emailFromAuth": sender if provider == "resend" else "", "emailAllowlistRequired": "1", "disableExternalEmail": disable}
 
 
 def main():

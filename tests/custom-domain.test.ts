@@ -10,9 +10,11 @@ const AZ = "https://ca-mawica-stg.lemonmushroom-f91c9fdb.australiaeast.azurecont
 const CERT = `${ENV_ID}/managedCertificates/mc-cae-mawica-stg-staging-mawica-1234`;
 
 type Live = { exists: boolean; customDomains?: { name: string; certificateId?: string; bindingType?: string }[] | null; env?: Record<string, string | null> };
+let SECRETS: string[] = [];
+const EMAIL_OFF = { emailProvider: "none", emailFromAuth: "", emailAllowlistRequired: "1", disableExternalEmail: "1" };
 const decide = (live: Live, request: Record<string, string> = {}) => {
   const r = spawnSync("python3", ["-I", join("infra/staging/web_params.py")], {
-    input: JSON.stringify({ envId: ENV_ID, azureDefaultUrl: AZ, live, request }), encoding: "utf8", cwd: ROOT,
+    input: JSON.stringify({ envId: ENV_ID, azureDefaultUrl: AZ, live, request, secrets: SECRETS }), encoding: "utf8", cwd: ROOT,
   });
   return { status: r.status, out: r.status === 0 ? JSON.parse(r.stdout) : null, err: r.stderr };
 };
@@ -22,17 +24,17 @@ const LIVE_BOUND: Live = { exists: true, customDomains: [{ name: "staging.mawica
 
 describe("web_params.py: what a full deployment passes", () => {
   it("default Azure-hostname deployment: every parameter empty, so the template stays identical", () => {
-    expect(decide(LIVE_TODAY).out).toEqual({ siteUrl: "", authTrustedOrigins: "", customDomainName: "", customDomainCertificateId: "" });
-    expect(decide({ exists: false }).out).toEqual({ siteUrl: "", authTrustedOrigins: "", customDomainName: "", customDomainCertificateId: "" });
+    expect(decide(LIVE_TODAY).out).toEqual({ siteUrl: "", authTrustedOrigins: "", customDomainName: "", customDomainCertificateId: "", ...EMAIL_OFF });
+    expect(decide({ exists: false }).out).toEqual({ siteUrl: "", authTrustedOrigins: "", customDomainName: "", customDomainCertificateId: "", ...EMAIL_OFF });
   });
 
   it("carries a live custom domain, its managed certificate, site URL and trusted origins forward", () => {
-    expect(decide(LIVE_BOUND).out).toEqual({ siteUrl: "https://staging.mawica.com", authTrustedOrigins: AZ, customDomainName: "staging.mawica.com", customDomainCertificateId: CERT });
+    expect(decide(LIVE_BOUND).out).toEqual({ siteUrl: "https://staging.mawica.com", authTrustedOrigins: AZ, customDomainName: "staging.mawica.com", customDomainCertificateId: CERT, ...EMAIL_OFF });
   });
 
   it("binds a new custom domain with an SNI certificate of this environment", () => {
     const r = decide(LIVE_TODAY, { CUSTOM_DOMAIN: "staging.mawica.com", CUSTOM_DOMAIN_CERT_ID: CERT, SITE_URL: "https://staging.mawica.com", AUTH_TRUSTED_ORIGINS: AZ });
-    expect(r.out).toEqual({ siteUrl: "https://staging.mawica.com", authTrustedOrigins: AZ, customDomainName: "staging.mawica.com", customDomainCertificateId: CERT });
+    expect(r.out).toEqual({ siteUrl: "https://staging.mawica.com", authTrustedOrigins: AZ, customDomainName: "staging.mawica.com", customDomainCertificateId: CERT, ...EMAIL_OFF });
   });
 
   it("rejects a certificate from another environment, subscription or resource type", () => {
@@ -74,6 +76,20 @@ describe("web_params.py: what a full deployment passes", () => {
     expect(decide(LIVE_BOUND, { AUTH_TRUSTED_ORIGINS: `${AZ}, https://preview.mawica.com` }).out.authTrustedOrigins).toBe(`${AZ},https://preview.mawica.com`);
   });
 
+  it("email: carried forward; resend needs a sender, both Key Vault secrets and the allowlist flag", () => {
+    const LIVE_RESEND: Live = { ...LIVE_TODAY, env: { ...LIVE_TODAY.env, EMAIL_PROVIDER: "resend", EMAIL_FROM_AUTH: "no-reply@mail.mawica.com", MAWICA_DISABLE_EXTERNAL_EMAIL: "0", MAWICA_EMAIL_ALLOWLIST_REQUIRED: "1" } };
+    SECRETS = ["resend-api-key", "email-recipient-allowlist"];
+    expect(decide(LIVE_RESEND).out).toMatchObject({ emailProvider: "resend", emailFromAuth: "no-reply@mail.mawica.com", disableExternalEmail: "0", emailAllowlistRequired: "1" });
+    expect(decide(LIVE_RESEND, { MAWICA_DISABLE_EXTERNAL_EMAIL: "1" }).out.disableExternalEmail).toBe("1"); // kill switch always allowed
+    expect(decide(LIVE_RESEND, { MAWICA_EMAIL_ALLOWLIST_REQUIRED: "0" }).status).toBe(1);
+    expect(decide(LIVE_TODAY, { EMAIL_PROVIDER: "resend", EMAIL_FROM_AUTH: "Mawica <x@mail.mawica.com>" }).status).toBe(1);
+    expect(decide(LIVE_TODAY, { EMAIL_PROVIDER: "acs" }).status).toBe(1);
+    expect(decide(LIVE_TODAY, { MAWICA_DISABLE_EXTERNAL_EMAIL: "0" }).status).toBe(1); // no provider: switch stays 1
+    SECRETS = ["resend-api-key"];
+    expect(decide(LIVE_TODAY, { EMAIL_PROVIDER: "resend", EMAIL_FROM_AUTH: "no-reply@mail.mawica.com" }).err).toMatch(/email-recipient-allowlist/);
+    SECRETS = [];
+  });
+
   it("fails closed on an unreadable live state", () => {
     const r = spawnSync("python3", ["-I", join("infra/staging/web_params.py")], { input: "{not json", encoding: "utf8" });
     expect(r.status).toBe(1);
@@ -109,11 +125,17 @@ describe("app.json: custom-domain support without changing the running app", () 
 
   it("environment variables, Key Vault references and database settings are unchanged", () => {
     const names = [...c.env.matchAll(/createObject\('name', '([A-Z_]+)'/g)].map((m: RegExpMatchArray) => m[1]);
-    expect(names).toEqual(["NODE_ENV", "HOSTNAME", "PORT", "DATABASE_URL", "DATABASE_POOL_MAX", "BETTER_AUTH_SECRET", "WELCOME_PEPPER", "RATE_LIMIT_SALT", "NEXT_PUBLIC_SITE_URL", "BETTER_AUTH_URL", "TRUSTED_PROXY_HOPS", "EMAIL_PROVIDER", "MAWICA_DISABLE_EXTERNAL_EMAIL", "EMAIL_DELIVERY_ENABLED", "AUTH_TRUSTED_ORIGINS"]);
-    for (const s of ["'DATABASE_URL', 'secretRef', 'database-app-url'", "'BETTER_AUTH_SECRET', 'secretRef', 'better-auth-secret'", "'WELCOME_PEPPER', 'secretRef', 'welcome-pepper'", "'RATE_LIMIT_SALT', 'secretRef', 'rate-limit-salt'", "'DATABASE_POOL_MAX', 'value', '5'", "'EMAIL_PROVIDER', 'value', 'none'", "'MAWICA_DISABLE_EXTERNAL_EMAIL', 'value', '1'", "'EMAIL_DELIVERY_ENABLED', 'value', '0'", "'TRUSTED_PROXY_HOPS', 'value', '1'"])
+    expect(names).toEqual(["NODE_ENV", "HOSTNAME", "PORT", "DATABASE_URL", "DATABASE_POOL_MAX", "BETTER_AUTH_SECRET", "WELCOME_PEPPER", "RATE_LIMIT_SALT", "NEXT_PUBLIC_SITE_URL", "BETTER_AUTH_URL", "TRUSTED_PROXY_HOPS", "EMAIL_PROVIDER", "MAWICA_DISABLE_EXTERNAL_EMAIL", "EMAIL_DELIVERY_ENABLED", "EMAIL_FROM_AUTH", "MAWICA_EMAIL_ALLOWLIST_REQUIRED", "RESEND_API_KEY", "EMAIL_RECIPIENT_ALLOWLIST", "AUTH_TRUSTED_ORIGINS"]);
+    for (const s of ["'DATABASE_URL', 'secretRef', 'database-app-url'", "'BETTER_AUTH_SECRET', 'secretRef', 'better-auth-secret'", "'WELCOME_PEPPER', 'secretRef', 'welcome-pepper'", "'RATE_LIMIT_SALT', 'secretRef', 'rate-limit-salt'", "'DATABASE_POOL_MAX', 'value', '5'", "'EMAIL_PROVIDER', 'value', parameters('emailProvider')", "'MAWICA_DISABLE_EXTERNAL_EMAIL', 'value', parameters('disableExternalEmail')", "'EMAIL_DELIVERY_ENABLED', 'value', '0'", "'TRUSTED_PROXY_HOPS', 'value', '1'"])
       expect(c.env).toContain(s);
-    expect(conf.secrets.map((s: { name: string; identity: string }) => [s.name, s.identity])).toEqual([
-      ["database-app-url", "[variables('appId')]"], ["better-auth-secret", "[variables('appId')]"], ["welcome-pepper", "[variables('appId')]"], ["rate-limit-salt", "[variables('appId')]"]]);
+    // Resend env/secret references only exist when emailProvider=resend; defaults keep email off exactly as before.
+    expect(c.env).toContain("if(equals(parameters('emailProvider'), 'resend'), createArray(createObject('name', 'EMAIL_FROM_AUTH'");
+    expect(t.parameters.emailProvider).toMatchObject({ defaultValue: "none", allowedValues: ["none", "resend"] });
+    expect(t.parameters.disableExternalEmail).toMatchObject({ defaultValue: "1" });
+    expect(t.parameters.emailAllowlistRequired).toMatchObject({ defaultValue: "1" });
+    for (const n of ["database-app-url", "better-auth-secret", "welcome-pepper", "rate-limit-salt"]) expect(conf.secrets).toContain(`createObject('name', '${n}'`);
+    expect(conf.secrets).toContain("if(equals(parameters('emailProvider'), 'resend'), createArray(createObject('name', 'resend-api-key'");
+    expect(conf.secrets.match(/'identity', variables\('appId'\)/g).length).toBe(6); // every web secret is read by the web identity only
   });
 
   it("identity, registry, scaling, probes and resources are unchanged", () => {
@@ -124,5 +146,6 @@ describe("app.json: custom-domain support without changing the running app", () 
     expect(c.probes.map((p: { type: string; httpGet: { path: string } }) => `${p.type}:${p.httpGet.path}`)).toEqual(["Startup:/api/health", "Readiness:/api/health", "Liveness:/api/health"]);
     const grants = t.resources.filter((r: { type: string }) => r.type === "Microsoft.Authorization/roleAssignments").length;
     expect(grants).toBe(6); // 2 AcrPull + secretGrants loop + env join + migrate job + web app (unchanged count)
+    expect(t.variables.secretGrants.filter((g: { identity: string }) => g.identity === "id-mawica-stg-app").map((g: { secret: string }) => g.secret)).toEqual(["database-app-url", "better-auth-secret", "welcome-pepper", "rate-limit-salt", "resend-api-key", "email-recipient-allowlist"]);
   });
 });
