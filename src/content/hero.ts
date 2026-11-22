@@ -1,9 +1,8 @@
 /**
- * Homepage hero artwork.
- *
- * Layered Christmas hero: full-bleed scenic background + transparent Mawica snow globe.
- * The catalogue snow-globe card still uses `public/art/hero/globe@2x.webp` (separate).
+ * Homepage hero — shared chrome (benefits, legacy layered plates for fallbacks).
+ * Celebration scenes / video paths live in `celebrations.ts`.
  */
+
 export type HeroLight = {
   /** Horizontal position, % of image width */
   x: number;
@@ -16,7 +15,10 @@ export type HeroLight = {
   delay: number;
 };
 
-/** Transparent snow globe with golden Mawica base (homepage hero). Never crop or stretch. */
+/**
+ * Transparent snow globe still shipped for reduced-motion / no-video fallbacks
+ * and catalogue separation. The cinematic hero prefers celebration video posters.
+ */
 export const heroArtwork = {
   src: "/art/hero/snow-globe-mawica.webp",
   srcMobile: "/art/hero/snow-globe-mawica-sm.webp",
@@ -26,16 +28,14 @@ export const heroArtwork = {
   widthMobile: 577,
   heightMobile: 655,
   isPlaceholder: false,
-  /** No layout crop — the PNG is already tightly framed. */
   crop: { top: 0, bottom: 0 },
-  /** Soft interior snowfall hint (approximate glass region). */
   snowClip: "circle(34% at 50% 42%)",
   lights: [] as HeroLight[],
 } as const;
 
 export type HeroPlate = { src: string; width: number; height: number; position?: string };
 
-/** Full-bleed Christmas atmosphere behind the globe (no snow globe in these plates). */
+/** Scenic plates retained as offline / reduced-motion atmosphere fallbacks. */
 export const heroPlates: {
   desktop?: HeroPlate;
   mobile?: HeroPlate;
@@ -55,10 +55,8 @@ export const heroPlates: {
   },
 };
 
+/** Shared CTA + benefit row (celebration-specific copy lives in celebrations.ts). */
 export const heroCopy = {
-  eyebrow: "Christmas Magic 2026",
-  titleLines: ["A Little Magic.", "A Lot of Love."] as const,
-  body: "Create beautiful 3D Christmas and New Year greeting cards that feel as special as the people you care about.",
   cta: "Create Your Free Card",
   annotation: ["Because", "moments like these", "matter."] as const,
   benefits: [
@@ -66,4 +64,8 @@ export const heroCopy = {
     { id: "sparkles", label: "Beautiful 3D cards" },
     { id: "share", label: "Share instantly" },
   ] as const,
+  /** Default (Christmas) strings for SSR / tests that assert first paint. */
+  eyebrow: "Christmas Magic 2026",
+  titleLines: ["A Little Magic.", "A Lot of Love."] as const,
+  body: "Create beautiful 3D Christmas greetings that feel as special as the people you care about.",
 } as const;
