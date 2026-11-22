@@ -12,6 +12,9 @@
     "db:deploy": "prisma migrate deploy",
     "email:check": "tsx scripts/email-check.mts",
     "admin": "tsx scripts/admin.mts",
+    "admin:dev": "npm run dev --prefix admin",
+    "admin:test": "npm run test --prefix admin",
+    "admin:build": "npm run build --prefix admin",
     "art:check": "tsx scripts/check-art.mts",
     "test": "vitest run",
     "delivery:worker": "tsx --conditions=react-server scripts/delivery-worker.mts"
