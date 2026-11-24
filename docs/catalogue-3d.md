@@ -5,7 +5,7 @@ Local only: nothing is deployed. Card names, template ids, the catalogue grid, n
 ## What changed
 | Card | Catalogue thumbnail | Full card |
 |---|---|---|
-| Christmas Snow Globe | the **existing approved pre-rendered globe** (`public/art/hero/globe@2x.webp`) composed on the plum backdrop | unchanged scene (that artwork already matches the brief better than a procedural globe could) + the shared Mawica ending |
+| Christmas Snow Globe | rendered from its own 3D model since Stage F (`scripts/render-catalogue.mjs`, like the other five) | **Genuine 3D since Stage B (2026-11-24)**: real refracting glass, red lacquer and gold base, authored cottage and reindeer, procedural trees, snowman and terrain. The 2D artwork scene is now only its fallback. See `docs/snow-globe-stage-b.md` |
 | Magical Christmas Tree | still from its own 3D scene | WebGL: furry fir (about 3,600 needle clusters, 1,400 on phones), gold/rose/lavender baubles that light one by one, fairy lights chasing up a spiral, glowing star, presents, slow camera orbit, soft snowfall |
 | A Special Gift | still from its own 3D scene | WebGL: rose satin box with gold ribbon and bow, floating; ribbon slides away, bow lifts off, lid tips open, golden light and sparkles pour out |
 | Warm Christmas Wishes | still from its own 3D scene | WebGL: arched frosted window with snow falling outside, candles with flickering light, string lights, slow push-in, the room warms up |
@@ -63,7 +63,7 @@ All light effects (star halo, candle and bulb glow, the gift's golden light, fir
 | A Special Gift | Box is now four walls and a floor (a real interior). Bow rebuilt from ribbon strips: two large and two small loops, knot, two tails. | Satin ribbon (low metalness, sheen) instead of mirror gold; the bands slacken, slip and fade; the lid stirs, rises and tips back without intersecting the box and carries the bow; interior gradient glow and a softer light column (about half the previous intensity). Second, tighter contact shadow that reacts to the float. |
 | Magical Christmas Tree | Tiered cones and 3,600 identical needle cones replaced by about 900 boughs (two crossed serrated drooping blades each) in 21 whorls with per-bough length, pitch, roll and colour, plus side shoots; dark core cone. | Vertex shading dark at the trunk to bright at the tips (shadow between boughs); metallic clear-coated ornaments with gold caps; star with halo plus a rayed flare and a stronger light on the top boughs; camera starts low and rises. |
 | New Year 2027 | Deeper bevel (8 segments), slightly deeper numerals. | Two golds (polished faces, deeper sides); fireworks are now a pure function of time (seekable, so thumbnails show the real show) at depths from 3 to 11 units, with a rising rocket, twinkle-out, a bloom of light per burst and a light that tints the numerals; the reveal flash is softer; low camera. |
-| Snow Globe | None. | None. |
+| Snow Globe | None at the time; rebuilt as genuine 3D in Stage B (see `docs/snow-globe-stage-b.md`). | — |
 
 ## Can procedural geometry reach the required standard?
 
@@ -72,7 +72,7 @@ Partly. Stated plainly, card by card:
 - **Glasses, 2027, gift:** hard-surface objects. Procedural geometry with PBR materials is adequate; what separates them from a product render is ray-traced refraction and caustics (glasses) and micro-surface detail (ribbon weave, paper grain). Those need either an offline render or baked textures.
 - **Tree:** much better, still visibly stylised: boughs are blades, not needles. A sculpted GLB tree (about 60-100k triangles with baked normal and ambient-occlusion maps) would be the real fix.
 - **Warm Christmas Wishes:** the outdoor view is illustrated (painted textures on planes plus simple pines); it reads as a storybook scene, not a photograph. To match the snow globe it needs either an approved pre-rendered backdrop plate for the view through the window (the 3D window, candles, lights and snow would stay live), or sculpted pines and a displaced terrain.
-- **None of the five is photorealistic.** The snow globe remains the only card at that standard because it is pre-rendered art.
+- **None of the five is photorealistic.** (The snow globe has since been rebuilt in 3D with authored models; see `docs/snow-globe-stage-b.md`.)
 
 Assets that would lift the set: GLB tree, GLB pine (window), pre-rendered or painted landscape plate (window), baked normal/roughness textures for ribbon and wood, an HDR studio environment in place of the generated room environment.
 
