@@ -103,7 +103,7 @@ function Meter({ onStats, publish }: { onStats?: (s: CanvasStats) => void; publi
 }
 
 /** The card's backdrop as a texture (same gradient and glow as the CSS one behind the canvas). */
-function backdropTexture(b: Backdrop | undefined) {
+export function backdropTexture(b: Backdrop | undefined) {
   const c = document.createElement("canvas"); c.width = 256; c.height = 512; const x = c.getContext("2d")!;
   if (b) {
     const g = x.createLinearGradient(0, 0, 0, 512); b.stops.forEach(([col, p]) => g.addColorStop(p / 100, col)); x.fillStyle = g; x.fillRect(0, 0, 256, 512);
@@ -115,8 +115,8 @@ function backdropTexture(b: Backdrop | undefined) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
-export default function StageCanvas({ sceneKey, shared, mode, enabled, mobile, events, publishStats, bare = false, zoom = 1 }: {
-  sceneKey: TemplateKey; shared: { current: Shared }; mode: "play" | "static"; enabled: boolean; mobile: boolean; events: React.MutableRefObject<CinemaEvents>; publishStats: boolean; bare?: boolean; zoom?: number;
+export default function StageCanvas({ sceneKey, shared, mode, enabled, mobile, events, publishStats, bare = false, zoom = 1, text }: {
+  sceneKey: TemplateKey; shared: { current: Shared }; mode: "play" | "static"; enabled: boolean; mobile: boolean; events: React.MutableRefObject<CinemaEvents>; publishStats: boolean; bare?: boolean; zoom?: number; text?: { recipient: string; sender: string };
 }) {
   const [mod, setMod] = useState<StageSceneModule | null>(null);
   useEffect(() => {
@@ -147,7 +147,7 @@ export default function StageCanvas({ sceneKey, shared, mode, enabled, mobile, e
       }}
     >
       <Environment intensity={0.3} />
-      <Scene shared={shared} mobile={mobile} mode={mode} />
+      <Scene shared={shared} mobile={mobile} mode={mode} text={text} />
       <Choreo mod={mod} shared={shared} mode={mode} events={events} bare={bare} zoom={zoom} />
       <Driver mod={mod} shared={shared} enabled={enabled} mode={mode} events={events} bare={bare} />
       <Meter onStats={(s) => events.current.onStats?.(s)} publish={publishStats} />

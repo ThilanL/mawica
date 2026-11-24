@@ -50,16 +50,17 @@ export function ArLab() {
     // ?key= picks the card (default A Special Gift). ?live: the Android AR scene (model + real light + personal wish panel) without WebXR, on a grey
     // floor; ?name= ?msg= ?from= set the wish, &reduced=1 shows the finished scene.
     const key: ArKey = isArKey(q.get("key") ?? "") ? (q.get("key") as ArKey) : "special-gift";
-    const tall = key === "christmas-tree";
+    const tall = key === "christmas-tree", small = key === "snow-globe";
     if (tall) { camera.position.set(0.6, 1.0, 2.4); controls.target.set(0, 0.55, 0); controls.update(); }
+    if (small) { camera.position.set(0.32, 0.26, 0.62); controls.target.set(0.06, 0.12, 0); controls.update(); }
     let live: ArScene | null = null;
     if (q.has("live")) {
       scene.add(new THREE.HemisphereLight("#fff4e6", "#5a4a60", 0.6)); const sun = new THREE.DirectionalLight("#fff1e0", 1.1); sun.position.set(0.5, 1.5, 0.8); scene.add(sun);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      if (!tall) { camera.position.set(0.3, 0.75, 1.6); controls.target.set(0, 0.42, 0); controls.update(); }
-      buildArModel(key).then((m) => {
+      if (!tall && !small) { camera.position.set(0.3, 0.75, 1.6); controls.target.set(0, 0.42, 0); controls.update(); }
+      buildArModel(key, { recipient: q.get("name") ?? "Anna", sender: q.get("from") ?? "Sam" }).then((m) => {
         if (stop) { m.dispose(); return; }
-        live = createArScene(m, { name: q.get("name") ?? "Anna", greeting: tall ? "Merry Christmas" : "A gift, just for you", message: q.get("msg") ?? "The best presents can't be wrapped. This is my way of saying thank you, and Merry Christmas.", sender: q.get("from") ?? "Sam" }, { reduced: q.has("reduced") });
+        live = createArScene(m, { name: q.get("name") ?? "Anna", greeting: tall || small ? "Merry Christmas" : "A gift, just for you", message: q.get("msg") ?? "The best presents can't be wrapped. This is my way of saying thank you, and Merry Christmas.", sender: q.get("from") ?? "Sam" }, { reduced: q.has("reduced") });
         scene.add(live.root);
         setInfo(`live AR scene (${key}) · clipped: ${live.clipped}`);
       });
@@ -83,6 +84,12 @@ export function ArLab() {
       const { exportCardUSDZ } = await import("@/components/cards/premium3d/ar/quicklook");
       const r = await exportCardUSDZ(k ?? key, w, { reduced });
       return { b64: b64(await r.blob.arrayBuffer()), ms: r.ms, bytes: r.bytes, clipped: r.clipped };
+    };
+    // the snow globe's generic iPhone files (personal pictures are swapped in on the phone): bytes and the manifest naming the swappable textures
+    (window as unknown as { __globeArExport?: (reduced: boolean) => Promise<{ b64: string; manifest: unknown }> }).__globeArExport = async (reduced) => {
+      const { exportGenericGlobeUSDZ } = await import("@/components/cards/premium3d/ar/globe-usdz");
+      const r = await exportGenericGlobeUSDZ({ reduced });
+      return { b64: b64(r.bytes.buffer as ArrayBuffer), manifest: r.manifest };
     };
     (window as unknown as { __arExport?: () => Promise<Record<string, string>> }).__arExport = async () => { const x = await exporting; return { glb: b64(x.glb), glbStatic: b64(x.glbStatic), usdz: b64(x.usdz), usdzStatic: b64(x.usdzStatic) }; };
 

@@ -39,6 +39,8 @@ Hero uses `src/content/hero.ts` (`src`, `width`, `height`, `snowClip`, `lights`)
 | Visible before JS | Yes: artwork is server-rendered with `priority`; entrance only moves transforms |
 
 ## 1. Christmas Snow Globe (`snow-globe`), ~8 s
+
+> Since Stage B (2026-11-24) this card is a genuine 3D model (`stage/cards/globe*`, `docs/snow-globe-stage-b.md`). The 2D timeline below now applies only to its fallback scene (no WebGL, lost context, low-performance devices).
 | | |
 |---|---|
 | Layers | backdrop: deep plum night with soft bokeh (optional) / **main**: same globe as hero (reuse) / foreground: subtle vignette (optional) |

@@ -18,7 +18,7 @@ import Globe from "@/components/cards/premium3d/stage/entries/globe";
 const root = path.resolve(__dirname, "..");
 const read = (p: string) => readFileSync(path.join(root, p), "utf8");
 const walk = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = path.join(d, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
-const THREE_KEYS = ["christmas-tree", "special-gift", "warm-wishes", "new-year-2027", "new-year-celebration"] as const;
+const THREE_KEYS = ["snow-globe", "christmas-tree", "special-gift", "warm-wishes", "new-year-2027", "new-year-celebration"] as const;
 
 describe("saved-card compatibility", () => {
   it("the six template ids and names are unchanged, all STANDARD (free), and old payloads still validate", () => {
@@ -125,7 +125,7 @@ describe("each 3D card: camera, timing and framing (pure)", () => {
 
 describe("shell: message, ending, fallback and motion", () => {
   const props = { recipientName: "Nadia <b>", senderName: "Sam", message: "Hello <img src=x onerror=alert(1)>\nLine two", replayKey: 0, greeting: "Merry Christmas" };
-  const entries = { "christmas-tree": ChristmasTree, "special-gift": Gift, "warm-wishes": Window, "new-year-2027": NewYear, "new-year-celebration": Glasses } as const;
+  const entries = { "snow-globe": Globe, "christmas-tree": ChristmasTree, "special-gift": Gift, "warm-wishes": Window, "new-year-2027": NewYear, "new-year-celebration": Glasses } as const;
   it.each(Object.entries(entries))("%s server-renders the personal message as escaped real text with the Mawica ending (works without JavaScript or WebGL)", (key, Entry) => {
     const html = renderToStaticMarkup(<Entry {...props} />);
     expect(html).toContain("Nadia &lt;b&gt;"); expect(html).toContain("Hello &lt;img src=x onerror=alert(1)&gt;"); expect(html).toContain("With love, Sam"); expect(html).not.toContain("<img src=x");
@@ -149,9 +149,12 @@ describe("shell: message, ending, fallback and motion", () => {
     expect(src("newyear.tsx")).not.toMatch(/fwVel/); // no integrated state left
     expect(src("window.tsx")).toMatch(/mountainTexture/); expect(src("window.tsx")).toMatch(/moonTexture/); expect(src("window.tsx")).toMatch(/pineGeometry/);
   });
-  it("the snow globe keeps its artwork and gains the same ending, hidden until Continue", () => {
+  it("the snow globe is a genuine 3D stage (no flat artwork inside the glass); the 2D artwork scene is only its fallback", () => {
+    expect(read("src/components/cards/premium3d/stage/entries/globe.tsx")).toMatch(/makeStage\("snow-globe", withEnding\(SnowGlobeScene\)\)/);
     const html = renderToStaticMarkup(<Globe {...props} />);
-    expect(html).toContain("With love, Sam"); expect(html).toContain("BRING YOUR WISHES TO LIFE."); expect(html).toMatch(/class="cin-end[^"]*"[^>]*aria-hidden="true"/);
+    expect(html).toContain('data-scene="snow-globe"'); expect(html).toMatch(/class="cin-end[^"]*"[^>]*aria-hidden="true"/);
+    const model = read("src/components/cards/premium3d/stage/cards/globe/build.ts");
+    expect(model).not.toMatch(/snow-globe-mawica|globe@2x|christmas-poster/); // the reference images never stand in for the model
   });
   it("never redirects, and keeps scene code free of automatic navigation", () => {
     for (const f of ["Stage.tsx", "LegacyEnding.tsx"]) expect(read(`src/components/cards/premium3d/stage/${f}`)).not.toMatch(/router\.(push|replace)|location\.(href|assign|replace)\s*=/);
@@ -165,7 +168,7 @@ describe("shell: message, ending, fallback and motion", () => {
   it("low-power and failure paths fall back to the CSS scene (never a blank card)", () => {
     const stage = read("src/components/cards/premium3d/stage/Stage.tsx");
     expect(stage).toMatch(/fallback-2d/); expect(stage).toMatch(/onLowPerf/); expect(stage).toMatch(/onLost/); expect(stage).toMatch(/<Fallback \{\.\.\.props\} \/>/);
-    for (const f of ["tree", "gift", "window", "newyear", "glasses"]) expect(read(`src/components/cards/premium3d/stage/entries/${f}.tsx`)).toMatch(/withEnding\(/);
+    for (const f of ["globe", "tree", "gift", "window", "newyear", "glasses"]) expect(read(`src/components/cards/premium3d/stage/entries/${f}.tsx`)).toMatch(/withEnding\(/);
   });
   it("scenes stop rendering when hidden and after they rest, release GPU objects, and cap pixel ratio", () => {
     const canvas = read("src/components/cards/premium3d/stage/StageCanvas.tsx");
@@ -173,5 +176,6 @@ describe("shell: message, ending, fallback and motion", () => {
     const stage = read("src/components/cards/premium3d/stage/Stage.tsx");
     expect(stage).toMatch(/IntersectionObserver/); expect(stage).toMatch(/visibilitychange/);
     for (const f of ["tree", "gift", "window", "newyear", "glasses"]) expect(read(`src/components/cards/premium3d/stage/cards/${f}.tsx`)).toMatch(/dispose\(/);
+    expect(read("src/components/cards/premium3d/stage/cards/globe/GlobeWorld.tsx")).toMatch(/built\?\.dispose\(\)/);
   });
 });

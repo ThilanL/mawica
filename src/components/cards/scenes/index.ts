@@ -9,7 +9,7 @@ import type { SceneProps } from "../types";
  * Tests import the scene files directly (tests/regression.test.tsx).
  */
 export const scenes: Record<TemplateKey, ComponentType<SceneProps>> = {
-  "snow-globe": dynamic(() => import("../premium3d/stage/entries/globe").then((m) => m.default)), // existing premium artwork + the shared Mawica ending
+  "snow-globe": dynamic(() => import("../premium3d/stage/entries/globe").then((m) => m.default)), // 3D (WebGL), with the 2D artwork scene as its fallback
   "christmas-tree": dynamic(() => import("../premium3d/stage/entries/tree").then((m) => m.default)), // 3D (WebGL), with the CSS scene as its fallback
   "special-gift": dynamic(() => import("../premium3d/stage/entries/gift").then((m) => m.default)),
   "warm-wishes": dynamic(() => import("../premium3d/stage/entries/window").then((m) => m.default)),

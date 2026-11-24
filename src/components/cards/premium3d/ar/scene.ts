@@ -49,7 +49,7 @@ export type ArScene = {
   /** The placed object: put it at the hit-test pose. Its origin is the model's base. */
   root: THREE.Group;
   /** Advances to `time` seconds after placing; turns the wish panel towards `camera`. */
-  update(time: number, camera: THREE.Camera): void;
+  update(time: number, camera: THREE.Camera, bufferHeight?: number): void;
   /** Whether the panel shows only part of the message (the overlay then offers the full text). */
   clipped: boolean;
   /** The wish card mesh (for tap detection), and whether it has risen enough to be tapped. */
@@ -68,15 +68,16 @@ export function createArScene(model: ArModel, wish: WishText, { reduced = false 
   if (light && model.light) { light.position.copy(model.light.pos); root.add(light); }
   const { texture, clipped } = wishTexture(wish);
   const panelMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0, side: THREE.DoubleSide, toneMapped: false });
-  const panelGeo = new THREE.PlaneGeometry(PANEL_W, PANEL_H);
+  const ps = model.wish.scale ?? 1, panelGeo = new THREE.PlaneGeometry(PANEL_W * ps, PANEL_H * ps);
   const panel = new THREE.Mesh(panelGeo, panelMat); panel.name = "wish_panel"; panel.renderOrder = 3;
   const pivot = new THREE.Group(); pivot.add(panel); root.add(pivot);
   const { from: start, to: top, at: rise } = model.wish;
   const camPos = new THREE.Vector3(), look = new THREE.Vector3();
 
-  function update(time: number, camera: THREE.Camera) {
+  function update(time: number, camera: THREE.Camera, bufferHeight = 1600) {
     const t = reduced ? model.length + WISH_IN : time;
     model.pose(Math.min(t, 600));
+    model.live?.(t, camera, bufferHeight); // what only a live renderer can do (the snow globe's falling snow, smoke and storm)
     if (light && model.light) light.intensity = model.light.level(t) * 1.2;
     const k = easeOutCubic(seg(t, rise, rise + WISH_IN));
     pivot.position.lerpVectors(start, top, k);

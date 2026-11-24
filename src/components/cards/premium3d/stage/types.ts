@@ -19,5 +19,6 @@ export type StageSceneDef = {
   fog?: [string, number, number];
 };
 
-export type StageSceneProps = { shared: { current: Shared }; mobile: boolean; mode: "play" | "static" };
+/** `text`: the card's own names, for scenes that show them in 3D (the snow globe's engraving). The message itself always stays DOM text. */
+export type StageSceneProps = { shared: { current: Shared }; mobile: boolean; mode: "play" | "static"; text?: { recipient: string; sender: string } };
 export type StageSceneModule = { def: StageSceneDef; Scene: ComponentType<StageSceneProps> };

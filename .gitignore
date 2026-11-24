@@ -52,3 +52,9 @@ next-env.d.ts
 !/public/music/rise-and-shine.mp3
 !/public/music/snowflakes-and-lights.mp3
 !/public/music/snowlight-on-the-sleigh-path.mp3
+
+# Source 3D assets (downloaded originals; optimised copies ship under public/)
+/assets-src/
+
+# Snow globe review renders and visual-regression baselines: kept locally, not in git (regenerate with scripts/globe/*)
+/docs/screenshots/snow-globe/
