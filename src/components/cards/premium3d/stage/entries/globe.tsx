@@ -2,6 +2,7 @@
 
 import { SnowGlobeScene } from "../../../scenes/SnowGlobeScene";
 import { withEnding } from "../LegacyEnding";
+import { makeStage } from "../Stage";
 
-/** The snow globe keeps its premium pre-rendered artwork (see docs/catalogue-3d.md); it gains the shared Mawica ending. */
-export default withEnding(SnowGlobeScene);
+/** Genuine 3D snow globe (WebGL), with the existing 2D artwork scene (plus the Mawica ending) as its fallback. */
+export default makeStage("snow-globe", withEnding(SnowGlobeScene));

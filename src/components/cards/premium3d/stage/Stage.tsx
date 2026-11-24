@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Component, useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { CardEnding } from "@/components/brand/CardEnding";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import type { TemplateKey } from "@/modules/templates/registry";
@@ -24,7 +24,15 @@ class Boundary extends Component<{ onError: () => void; children: ReactNode }, {
 }
 
 /** Duration of each card's intro, needed here only for the static "finished" state (kept in sync by tests with each scene's def). */
-export const STAGE_DURATION: Record<string, number> = { "christmas-tree": 11, "special-gift": 11, "warm-wishes": 11, "new-year-2027": 12.5, "new-year-celebration": 11 };
+/**
+ * Per-card extras of the shell, only for the snow globe: a one-line hint under the message, an opt-in sound toggle (off by default) and the
+ * golden message reveal. Every other card renders exactly as before.
+ */
+export const STAGE_INTERACTIVE: Partial<Record<TemplateKey, { hint: string; sound: boolean; goldReveal: boolean }>> = {
+  "snow-globe": { hint: "Tap the globe, or shake your phone, for a snowstorm", sound: true, goldReveal: true },
+};
+
+export const STAGE_DURATION: Record<string, number> = { "snow-globe": 11, "christmas-tree": 11, "special-gift": 11, "warm-wishes": 11, "new-year-2027": 12.5, "new-year-celebration": 11 };
 
 /**
  * Shell shared by the five 3D standard cards. The 3D scene draws everything physical; the personal message is real DOM text on a sheet below
@@ -33,6 +41,9 @@ export const STAGE_DURATION: Record<string, number> = { "christmas-tree": 11, "s
 export function Stage(props: SceneProps & { sceneKey: TemplateKey; Fallback: ComponentType<SceneProps> }) {
   const { sceneKey, Fallback, recipientName, senderName, message, greeting, replayKey, compact = false } = props;
   const reduced = usePrefersReducedMotion();
+  const interactive = STAGE_INTERACTIVE[sceneKey];
+  const names = useMemo(() => ({ recipient: recipientName, sender: senderName }), [recipientName, senderName]);
+  const [sound, setSound] = useState(false);
   const [webgl, setWebgl] = useState<boolean | null>(null);
   const [lost, setLost] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -126,19 +137,25 @@ export function Stage(props: SceneProps & { sceneKey: TemplateKey; Fallback: Com
       {choice !== "pending" && (
         <div className="absolute inset-0" aria-hidden>
           <Boundary key={`${replayKey}-${choice}`} onError={() => setFailed(true)}>
-            <StageCanvas sceneKey={sceneKey} shared={shared} mode={mode} enabled={visible} mobile={mobile} events={events} publishStats={dev.perf && !dev.bare} bare={dev.bare} zoom={dev.zoom} />
+            <StageCanvas sceneKey={sceneKey} shared={shared} mode={mode} enabled={visible} mobile={mobile} events={events} publishStats={dev.perf && !dev.bare} bare={dev.bare} zoom={dev.zoom} text={names} />
           </Boundary>
         </div>
       )}
       {count && <p aria-hidden className="stg-count">{count}</p>}
-      <section aria-label="Your greeting" className={`stg-panel ${showPanel ? "stg-panel-on" : ""} ${compact ? "stg-compact" : ""}`}>
+      <section aria-label="Your greeting" className={`stg-panel ${showPanel ? "stg-panel-on" : ""} ${compact ? "stg-compact" : ""} ${interactive?.goldReveal ? "stg-gold" : ""}`}>
         <p className="stg-for">For {recipientName}</p>
         <h2 className="stg-greeting">{greeting}</h2>
         <div className="stg-message" tabIndex={0} onScroll={() => { autoCancelled.current = true; }}><p>{message}</p></div>
         <p className="stg-from">With love, {senderName}</p>
+        {interactive && choice === "webgl" && <p className="stg-hint">{interactive.hint}</p>}
         {choice !== "pending" && <button type="button" onClick={toEnding} className="cin-pill cin-pill-primary stg-continue">Continue</button>}
       </section>
       {stage === "intro" && <button type="button" onClick={skip} className="cin-pill absolute left-3 top-3 z-20">Skip intro</button>}
+      {interactive?.sound && choice === "webgl" && stage !== "ending" && (
+        <button type="button" aria-pressed={sound} onClick={() => { const on = !sound; setSound(on); shared.current.sound = on; }} className={`cin-pill absolute left-3 z-20 text-[0.8rem] ${stage === "intro" ? "top-14" : "top-3"}`}>
+          {sound ? "Sound on" : "Sound off"}
+        </button>
+      )}
       <div className={`cin-end ${stage === "ending" ? "cin-end-on" : ""}`} aria-hidden={stage !== "ending"} inert={stage !== "ending"}>
         <CardEnding onReadAgain={readAgain} />
       </div>

@@ -40,10 +40,10 @@ describe("AR-1a: AR model and files", () => {
   });
   it("the public AR files are generic: no personal greeting text can be in them", () => {
     const files = readdirSync(path.join(root, "public/ar"));
-    expect(files.sort()).toEqual(["christmas-tree-still.glb", "christmas-tree-still.usdz", "christmas-tree.glb", "christmas-tree.usdz", "special-gift-still.glb", "special-gift-still.usdz", "special-gift.glb", "special-gift.usdz"]);
+    expect(files.sort()).toEqual(["christmas-tree-still.glb", "christmas-tree-still.usdz", "christmas-tree.glb", "christmas-tree.usdz", "snow-globe-still.glb", "snow-globe-still.usdz", "snow-globe-still.usdz.json", "snow-globe.glb", "snow-globe.usdz", "snow-globe.usdz.json", "special-gift-still.glb", "special-gift-still.usdz", "special-gift.glb", "special-gift.usdz"]);
     for (const f of files) {
       const bytes = readFileSync(path.join(root, "public/ar", f));
-      expect(bytes.length, f).toBeLessThan((f.startsWith("christmas-tree") ? 4 : 3) * 1024 * 1024); // size budget per file (the tree has ~100 animated nodes)
+      expect(bytes.length, f).toBeLessThan((f.startsWith("snow-globe") ? 7 : f.startsWith("christmas-tree") ? 4 : 3) * 1024 * 1024); // size budget per file (the tree has ~100 animated nodes; the snow globe is a full miniature scene)
       const text = bytes.toString("latin1");
       expect(text).not.toMatch(/recipient|senderName|message|With love/i);
     }
@@ -76,6 +76,6 @@ describe("AR: the Christmas tree", () => {
     expect((TOP_Y + 0.92) * TREE_SCALE).toBeGreaterThan(0.95); expect((TOP_Y + 0.92) * TREE_SCALE).toBeLessThan(1.2);
     expect(TREE_LENGTH - (TREE_DONE - TREE_FROM)).toBeGreaterThanOrEqual(8);
     const { AR_KEYS } = await import("@/components/cards/arSupport");
-    expect([...AR_KEYS]).toEqual(["special-gift", "christmas-tree"]);
+    expect([...AR_KEYS]).toEqual(["special-gift", "christmas-tree", "snow-globe"]);
   });
 });

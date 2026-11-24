@@ -26,5 +26,9 @@ export type Shared = {
   /** celebration trigger (performance.now()/1000 of the last tap on Lumi) */
   celebrateAt: number;
   lumi: number;
+  /** snow globe: performance.now()/1000 of the last tap or shake (its snowstorm), whether the recipient turned sound on, motion access granted */
+  stormAt?: number;
+  sound?: boolean;
+  motion?: boolean;
 };
 export const newShared = (): Shared => ({ t: 0, playing: true, wind: 1, storm: 1, px: 0, py: 0, lastInput: -100, celebrateAt: -100, lumi: 0 });

@@ -15,6 +15,8 @@ export const QL_NOTE = "Read the full message on your card";
 
 /** Builds a card's personalised USDZ. `reduced`: no animation, the finished scene with the wish in place. */
 export async function exportCardUSDZ(key: ArKey, wish: WishText, { reduced = false } = {}): Promise<{ blob: Blob; ms: number; bytes: number; clipped: boolean }> {
+  // the snow globe is too detailed to export on a phone: its pre-built file gets this card's engraving and wish swapped in instead
+  if (key === "snow-globe") return (await import("./globe-usdz")).exportGlobeUSDZ(wish, { reduced });
   const started = performance.now();
   const gift = await buildArModel(key);
   const { texture, clipped } = wishTexture(wish, { note: QL_NOTE });

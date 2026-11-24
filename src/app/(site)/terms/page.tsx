@@ -41,6 +41,10 @@ export default function TermsPage() {
         <p>The mawica. name, logo, designs and software belong to <Todo>legal entity name</Todo>. You keep ownership of your message.</p>
       </section>
       <section>
+        <h2>3D model credits</h2>
+        <p>The Christmas Snow Globe card includes third-party 3D models used under Creative Commons licences, modified by mawica. (resized, decimated and restyled): &ldquo;Scandinavian Log Cabin&rdquo; by rivetech and &ldquo;Realistic Animated Elk 3D Model&rdquo; by WildMesh 3D, both under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener noreferrer" target="_blank">CC BY 4.0</a>, and CC0 assets from Poly Haven. Full credits: <a href="/models/snow-globe/CREDITS.md">3D model credits</a>.</p>
+      </section>
+      <section>
         <h2>Governing law</h2>
         <p><Todo>Governing law and jurisdiction, per legal advice</Todo>.</p>
       </section>

@@ -17,8 +17,15 @@ export type ArModel = {
   length: number;
   /** Keyframes per second of its clip (exporters must be told the same rate). */
   fps: number;
-  /** Where the wish card starts (hidden inside the model) and where its centre ends up, in scene metres, and when it starts to rise. */
-  wish: { from: THREE.Vector3; to: THREE.Vector3; at: number };
+  /** Where the wish card starts (hidden inside the model) and where its centre ends up, in scene metres, and when it starts to rise. `scale`: size
+   * of the card relative to PANEL_W × PANEL_H (default 1; the 22 cm snow globe uses a smaller card so it never towers over the globe). */
+  wish: { from: THREE.Vector3; to: THREE.Vector3; at: number; scale?: number };
+  /** Diameter (m) of the soft contact shadow the live Android scene draws under the model (default 0.62). */
+  shadow?: number;
+  /** Live Android scene only: called every frame with the seconds since placing, the XR camera and the framebuffer height (snow, smoke, lights). */
+  live?(time: number, camera: THREE.Camera, bufferHeight: number): void;
+  /** Live Android scene only: the recipient tapped the model (not the wish card), e.g. to whip up the snow globe's snowstorm. */
+  onTap?(): void;
   /** A real light only the live (Android) scene can show: position in scene metres and its level (0..1) over time. */
   light?: { pos: THREE.Vector3; color: string; range: number; level(time: number): number };
   pose(time: number): void;
@@ -62,8 +69,9 @@ export function twoSided(g: THREE.BufferGeometry, nudge = 0.007) {
 import type { ArKey } from "../../arSupport";
 export { AR_KEYS, isArKey, type ArKey } from "../../arSupport"; // the list lives with the (three-free) route detection so pages can read it
 
-/** Builds a card's AR model (each card's code is its own chunk). */
-export async function buildArModel(key: ArKey): Promise<ArModel> {
+/** Builds a card's AR model (each card's code is its own chunk). `names`: the card's names, for models that show them (the snow globe's engraving). */
+export async function buildArModel(key: ArKey, names?: { recipient: string; sender: string }): Promise<ArModel> {
+  if (key === "snow-globe") return (await import("./globe-ar")).buildGlobeAR({ names });
   if (key === "christmas-tree") return (await import("./tree-ar")).buildTreeAR();
   return (await import("./gift-ar")).buildGiftAR();
 }

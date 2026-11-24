@@ -2,18 +2,23 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { heroArtwork } from "@/content/hero";
 import { usePrefersReducedMotion } from "@/lib/useMediaQuery";
 import { SnowCanvas } from "@/components/landing/SnowCanvas";
 import { SceneBackdrop, SceneForeground } from "../parts/ArtLayers";
 import type { SceneProps } from "../types";
 
 /**
- * Snow globe scene. Pure presentation: receives plain props, knows nothing about
+ * Still of the card's own 3D model (rendered by scripts/globe/render-fallback.mjs), so the fallback looks like the 3D card. The homepage hero keeps
+ * its own artwork (content/hero.ts); this card no longer borrows it. `snowClip` is the glass circle for the 2D snow overlay.
+ */
+const globeStill = { src: "/art/cards/snow-globe-3d.webp", width: 1154, height: 1092, snowClip: "circle(30.4% at 50% 32.9%)", lights: [] as { x: number; y: number; size: number; delay: number; color: "gold" | "rose" }[] } as const;
+
+/**
+ * Snow globe scene (the 2D fallback of the 3D card: no WebGL, a lost context or a slow device). Pure presentation: receives plain props, knows nothing about
  * storage or publishing. Timeline lives in CSS (globals.css, .sg-*); tap-to-snow in JS.
  */
 export function SnowGlobeScene({ recipientName, senderName, message, greeting, replayKey, compact = false }: SceneProps) {
-  const art = heroArtwork;
+  const art = globeStill;
   const reduced = usePrefersReducedMotion();
   const [burst, setBurst] = useState(false);
 

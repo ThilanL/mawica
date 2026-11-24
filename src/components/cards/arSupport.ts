@@ -1,5 +1,5 @@
 /** The cards that have an AR version (each has an AR model, loaded only when the recipient taps View in AR). */
-export const AR_KEYS = ["special-gift", "christmas-tree"] as const;
+export const AR_KEYS = ["special-gift", "christmas-tree", "snow-globe"] as const;
 export type ArKey = (typeof AR_KEYS)[number];
 export const isArKey = (k: string): k is ArKey => (AR_KEYS as readonly string[]).includes(k);
 
