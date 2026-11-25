@@ -1,0 +1,77 @@
+/* About page — light ivory/blush surfaces. Motion only under no-preference. */
+
+.ab-hero {
+  background:
+    radial-gradient(50% 60% at 15% 0%, rgb(217 105 163 / 0.14), transparent 70%),
+    radial-gradient(45% 60% at 90% 10%, rgb(156 126 219 / 0.16), transparent 70%),
+    radial-gradient(40% 50% at 55% 100%, rgb(244 195 113 / 0.14), transparent 70%),
+    #fff8f4;
+}
+.ab-gradient-text {
+  background: linear-gradient(100deg, #a63d78, #d969a3 45%, #8667cc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ab-world {
+  background: linear-gradient(180deg, #fff8f4 0%, #f9ecf3 100%);
+}
+.ab-map-card {
+  background:
+    radial-gradient(70% 60% at 50% 40%, rgb(247 230 239 / 0.7), transparent 75%),
+    #ffffff;
+  box-shadow:
+    0 0 0 1px rgb(42 27 61 / 0.06),
+    0 40px 80px -40px rgb(42 27 61 / 0.35);
+}
+.ab-city {
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgb(42 27 61 / 0.07),
+    0 18px 36px -24px rgb(42 27 61 / 0.35);
+}
+.ab-card {
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgb(42 27 61 / 0.06),
+    0 24px 50px -30px rgb(42 27 61 / 0.35);
+}
+
+/* ---------- Map ---------- */
+.ab-map {
+  overflow: visible;
+}
+.ab-label {
+  fill: #2a1b3d;
+  font-size: 15px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+.ab-ping {
+  fill: rgb(217 105 163 / 0.22);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ab-arc {
+  opacity: 0.85;
+  stroke-dasharray: 6 7;
+}
+
+@keyframes ab-ping {
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes ab-flow {
+  to { stroke-dashoffset: -130; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ab-ping { animation: ab-ping 2.8s ease-out infinite; }
+  .ab-arc { animation: ab-flow 6s linear infinite; }
+}
+@media (max-width: 640px) {
+  .ab-label { display: none; }
+}
