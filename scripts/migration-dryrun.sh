@@ -37,6 +37,7 @@ echo "restored $(wc -l < /tmp/mawica-dryrun-before.txt | tr -d ' ') tables, $row
 case "$LAST" in
   *_card_media) P -c 'DROP TABLE "CardMediaBlob"' -c 'DROP TABLE "CardMedia"' -c 'DROP TYPE "MediaKind"' -c "DELETE FROM _prisma_migrations WHERE migration_name = '$LAST'" ;;
   *_attempt_base) P -c 'ALTER TABLE "ScheduledDelivery" DROP COLUMN "attemptBase"' -c "DELETE FROM _prisma_migrations WHERE migration_name = '$LAST'" ;;
+  *_billing_foundations) P -c 'DROP TABLE "BillingPayment", "BillingOrder", "BillingSubscription", "BillingCustomer", "StripeEvent"' -c 'DROP TYPE "StripeCustomerRefType", "BillingInterval", "BillingEntitlementState", "BillingOrderKind", "BillingOrderStatus", "StripeEventStatus"' -c "DELETE FROM _prisma_migrations WHERE migration_name = '$LAST'" ;;
   *) echo "no rewind recipe for $LAST: add one to this script"; exit 1 ;;
 esac
 COLS="select table_name||'.'||column_name||':'||data_type||':'||is_nullable from information_schema.columns where table_schema='public' order by 1"
