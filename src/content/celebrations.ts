@@ -43,7 +43,7 @@ export const celebrations: readonly Celebration[] = [
     durationSec: 6,
     theme: {
       accent: "#c9a227",
-      veil: "linear-gradient(90deg, rgb(255 248 244 / 0.92) 0%, rgb(255 248 244 / 0.72) 42%, transparent 68%)",
+      veil: "linear-gradient(90deg, rgb(255 248 244 / 0.96) 0%, rgb(255 248 244 / 0.86) 38%, rgb(255 248 244 / 0.45) 58%, transparent 78%)",
       particle: "snow",
     },
   },
@@ -59,7 +59,7 @@ export const celebrations: readonly Celebration[] = [
     durationSec: 6,
     theme: {
       accent: "#e8a0bf",
-      veil: "linear-gradient(90deg, rgb(255 246 250 / 0.92) 0%, rgb(255 246 250 / 0.7) 42%, transparent 68%)",
+      veil: "linear-gradient(90deg, rgb(255 246 250 / 0.96) 0%, rgb(255 246 250 / 0.86) 38%, rgb(255 246 250 / 0.45) 58%, transparent 78%)",
       particle: "confetti",
     },
   },
@@ -67,7 +67,8 @@ export const celebrations: readonly Celebration[] = [
     id: "wedding",
     label: "Wedding",
     eyebrow: "Celebrate Forever",
-    titleLines: ["Every Love Story", "Deserves Magic."],
+    // nbsp keeps "Love Story" together so the phrase cannot wrap to three ragged lines
+    titleLines: ["Every Love\u00A0Story", "Deserves Magic."],
     body: "Celebrate beautiful beginnings with unforgettable personalised wedding greetings.",
     cta: "Create Your Free Card",
     video: "/art/hero/videos/wedding.mp4",
@@ -75,7 +76,7 @@ export const celebrations: readonly Celebration[] = [
     durationSec: 6,
     theme: {
       accent: "#e8c9a0",
-      veil: "linear-gradient(90deg, rgb(255 250 246 / 0.92) 0%, rgb(255 250 246 / 0.7) 42%, transparent 68%)",
+      veil: "linear-gradient(90deg, rgb(255 250 246 / 0.97) 0%, rgb(255 250 246 / 0.9) 40%, rgb(255 250 246 / 0.5) 60%, transparent 80%)",
       particle: "petals",
     },
   },

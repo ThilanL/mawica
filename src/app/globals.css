@@ -98,25 +98,31 @@ body {
 
 /* Hero H1: React Bits–style sliding gradient (plum-dominant, gold/pink accents). */
 .hero-gradient-text {
-  /* Plum stays the readable base; lavender / champagne / rose drift through as soft accents. */
+  /*
+    Plum-led gradient clipped to glyphs. Accents stay mid-tone so the
+    headline remains readable over bright celebration video frames
+    (wedding florals / birthday pastels) — no near-white stops.
+  */
   background-image: linear-gradient(
     105deg,
     #29183f 0%,
-    #29183f 22%,
-    #a98bdf 38%,
-    #f6d39a 50%,
-    #f3accf 62%,
-    #fff0dd 72%,
+    #29183f 28%,
+    #6b3f8f 42%,
+    #9a6bb8 52%,
+    #8a3d6e 62%,
+    #5c2d78 74%,
     #29183f 88%,
     #29183f 100%
   );
-  background-size: 240% 100%;
+  background-size: 220% 100%;
   background-position: 0% 50%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   /* Safari: keep a solid plum fallback if clip is unsupported */
   -webkit-text-fill-color: transparent;
+  /* Soft halo so light video areas cannot erase the glyphs */
+  filter: drop-shadow(0 1px 0 rgb(255 248 244 / 0.55)) drop-shadow(0 10px 28px rgb(41 24 63 / 0.18));
   animation: hero-gradient-sweep 10s ease-in-out infinite alternate;
 }
 @keyframes hero-gradient-sweep {

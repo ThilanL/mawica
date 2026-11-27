@@ -39,6 +39,8 @@ export function CinematicHero() {
   const [inView, setInView] = useState(true);
   const [videoFailed, setVideoFailed] = useState(false);
   const [cursor, setCursor] = useState({ x: 0.5, y: 0.4 });
+  /** Gate MP4 network until after first paint (poster-first), longer delay on mobile/slow links. */
+  const [mediaEnabled, setMediaEnabled] = useState(false);
 
   const gen = useRef(0);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -211,8 +213,50 @@ export function CinematicHero() {
     goTo(nextIndex, { manual: true });
   };
 
+  useEffect(() => {
+    if (reduced) return;
+    let cancelled = false;
+    const enable = () => {
+      if (!cancelled) setMediaEnabled(true);
+    };
+
+    const conn =
+      typeof navigator !== "undefined"
+        ? (navigator as Navigator & {
+            connection?: { saveData?: boolean; effectiveType?: string };
+          }).connection
+        : undefined;
+    const constrained =
+      Boolean(conn?.saveData) ||
+      /2g/i.test(conn?.effectiveType ?? "") ||
+      window.matchMedia("(max-width: 767px)").matches;
+
+    if (constrained) {
+      // Let the ~100KB poster + copy paint before pulling a multi‑MB MP4 on cellular.
+      const delay = window.setTimeout(() => {
+        const ric = (
+          window as Window & {
+            requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+          }
+        ).requestIdleCallback;
+        if (ric) ric(enable, { timeout: 2500 });
+        else enable();
+      }, 700);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(delay);
+      };
+    }
+
+    const id = window.requestAnimationFrame(() => enable());
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(id);
+    };
+  }, [reduced]);
+
   const active = celebrations[index];
-  const showVideo = !reduced && !videoFailed;
+  const showVideo = !reduced && !videoFailed && mediaEnabled;
 
   return (
     <section
@@ -221,7 +265,7 @@ export function CinematicHero() {
       className="relative -mt-16 flex flex-col overflow-x-hidden bg-[#fff8f4] pt-16 md:block md:min-h-[calc(100dvh)] md:bg-[#1a1028]"
     >
       {/* 1. Copy — above video on mobile; left overlay on desktop */}
-      <div className="relative z-[3] order-1 px-5 pt-3 text-center sm:px-6 md:absolute md:inset-y-0 md:left-0 md:flex md:w-[min(42%,34rem)] md:flex-col md:justify-center md:px-8 md:pb-28 md:pt-20 md:text-left lg:w-[min(42%,38rem)] xl:px-10">
+      <div className="relative z-[3] order-1 px-5 pt-3 text-center sm:px-6 md:absolute md:inset-y-0 md:left-0 md:flex md:w-[min(46%,36rem)] md:flex-col md:justify-center md:px-8 md:pb-28 md:pt-20 md:text-left lg:w-[min(44%,40rem)] xl:px-12">
         <HeroContent celebration={active} animKey={animKey} reducedMotion={reduced} />
         <div className="mt-7 hidden justify-start md:flex">
           <HeroCtaButton label={active.cta} />
@@ -233,6 +277,16 @@ export function CinematicHero() {
         className="relative z-0 order-2 mx-5 mt-5 aspect-[16/9] overflow-hidden bg-[#1a1028] sm:mx-6 md:absolute md:inset-0 md:z-0 md:m-0 md:mt-0 md:aspect-auto"
         aria-hidden
       >
+        {/* Poster always present for instant first paint; MP4 layers mount after mediaEnabled. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- exact framing with video object-fit */}
+        <img
+          src={active.poster}
+          alt=""
+          className="absolute inset-0 h-full w-full object-contain object-center md:object-cover md:object-[72%_center]"
+          decoding="async"
+          fetchPriority="high"
+          draggable={false}
+        />
         {showVideo ? (
           <>
             <HeroVideoLayer
@@ -252,14 +306,7 @@ export function CinematicHero() {
               onError={() => setVideoFailed(true)}
             />
           </>
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element -- poster fallback; keep exact framing
-          <img
-            src={active.poster}
-            alt=""
-            className="absolute inset-0 h-full w-full object-contain object-center md:object-cover md:object-[72%_center]"
-          />
-        )}
+        ) : null}
 
         <div
           aria-hidden
@@ -286,7 +333,7 @@ export function CinematicHero() {
       </div>
 
       {/* 4. Celebration selector */}
-      <div className="relative z-[3] order-4 mt-5 px-5 pb-8 sm:px-6 md:absolute md:bottom-8 md:left-0 md:mt-0 md:w-[min(42%,34rem)] md:px-8 md:pb-0 lg:w-[min(42%,38rem)] xl:px-10">
+      <div className="relative z-[3] order-4 mt-5 px-5 pb-8 sm:px-6 md:absolute md:bottom-8 md:left-0 md:mt-0 md:w-[min(46%,36rem)] md:px-8 md:pb-0 lg:w-[min(44%,40rem)] xl:px-12">
         <CelebrationSelector
           activeId={active.id}
           progress={progress}
