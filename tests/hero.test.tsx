@@ -63,8 +63,19 @@ describe("hero copy and chrome", () => {
     expect(video).toMatch(/object-contain/);
     expect(video).toMatch(/md:object-cover/);
     expect(read("src/components/landing/cinematic/HeroContent.tsx")).toMatch(
-      /clamp\(2\.5rem,\s*9vw,\s*3\.5rem\)/,
+      /clamp\(2\.35rem,\s*8\.2vw,\s*3\.25rem\)/,
     );
+  });
+
+  it("defers hero MP4 network so mobile first paint is poster-first", () => {
+    const src = read("src/components/landing/cinematic/CinematicHero.tsx");
+    const video = read("src/components/landing/cinematic/HeroVideoLayer.tsx");
+    expect(src).toMatch(/mediaEnabled/);
+    expect(src).toMatch(/max-width:\s*767px/);
+    expect(src).toMatch(/saveData|effectiveType/);
+    expect(video).toMatch(/preload=\{load \? "metadata" : "none"\}/);
+    expect(video).not.toMatch(/preload=["']auto["']/);
+    expect(video).toMatch(/fetchPriority=\{active \? "high" : "low"\}/);
   });
 
   it("applies a continuous gradient to the semantic H1 and freezes it under reduced motion", () => {
@@ -86,7 +97,7 @@ describe("hero copy and chrome", () => {
       cta: "Create Your Free Card",
     });
     expect(celebrations[1].titleLines).toEqual(["Make Every Birthday", "Unforgettable."]);
-    expect(celebrations[2].titleLines).toEqual(["Every Love Story", "Deserves Magic."]);
+    expect(celebrations[2].titleLines).toEqual(["Every Love\u00A0Story", "Deserves Magic."]);
     expect(celebrations).toHaveLength(3);
   });
 

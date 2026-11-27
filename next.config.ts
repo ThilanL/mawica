@@ -25,6 +25,15 @@ const nextConfig: NextConfig = {
       { source: "/ar/:file*.glb", headers: [{ key: "Content-Type", value: "model/gltf-binary" }, { key: "Cache-Control", value: "public, max-age=3600" }] },
       // Curated card soundtracks (catalogue ids only; files under public/music/).
       { source: "/music/:file*.mp3", headers: [{ key: "Content-Type", value: "audio/mpeg" }, { key: "Cache-Control", value: "public, max-age=3600" }] },
+      // Hero celebration videos + posters (stable filenames; long cache for repeat visits / back-nav).
+      {
+        source: "/art/hero/videos/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      {
+        source: "/art/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
     ];
   },
   cacheComponents: true,
