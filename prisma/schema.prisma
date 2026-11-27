@@ -102,6 +102,7 @@ model User {
   scheduledDeliveries ScheduledDelivery[]
   reminderPreference ReminderPreference?
   cardMedia     CardMedia[]
+  billingCustomers BillingCustomer[]
 
   @@unique([email])
   @@map("user")
@@ -289,6 +290,10 @@ model CreditAccount {
   grants       CreditGrant[]
   reservations CreditReservation[]
   ledger       LedgerEntry[]
+  billingCustomers     BillingCustomer[]
+  billingSubscriptions BillingSubscription[]
+  billingOrders        BillingOrder[]
+  billingPayments      BillingPayment[]
 }
 
 model CreditGrant {
@@ -524,4 +529,198 @@ model CardMediaBlob {
   mediaId String    @id @db.Uuid
   media   CardMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
   data    Bytes
+}
+
+// ============================ Billing foundations (Stripe Phase 2, release gate E1) ============================
+// References to Stripe objects plus webhook processing state. NOT a wallet: credits and entitlements stay in CreditGrant /
+// LedgerEntry (append-only). Nothing in Phase 2 writes paid grants. Stripe is the authoritative payment record; these rows are a
+// verified mirror for authorisation and reconciliation. Every row records `livemode`, and hand-written CHECK constraints in the
+// migration pin E1 to sandbox data only (livemode = false) and AUD. Lifting that requires a reviewed migration at gate E4.
+
+enum StripeCustomerRefType {
+  /// Classic Stripe Customer (`cus_…`): approved for Mawica (C1).
+  CUSTOMER
+  /// Accounts v2 customer-configured account (`acct_…`): reserved for a possible future move; not used.
+  ACCOUNT_V2
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}
+
+/// Mawica's own entitlement view of a subscription (Stripe's status is mirrored separately in `stripeStatus`).
+enum BillingEntitlementState {
+  PENDING
+  ACTIVE
+  GRACE
+  SUSPENDED
+  ENDED
+}
+
+enum BillingOrderKind {
+  PREMIUM_PASS
+  EVENT_PASS
+}
+
+enum BillingOrderStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  DISPUTED
+}
+
+enum StripeEventStatus {
+  /// Claimed by a delivery and being processed (only ever visible inside that delivery's transaction).
+  PROCESSING
+  PROCESSED
+  /// Verified but intentionally not acted on (unsupported type, stale out-of-order delivery, ...). See `outcome`.
+  IGNORED
+  /// The last attempt failed; Stripe retries and the next delivery reclaims the row.
+  FAILED
+}
+
+/// Maps a Mawica wallet (and the user who owns it) to a Stripe customer. One per wallet per mode.
+model BillingCustomer {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId         String                @db.Uuid
+  account           CreditAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  /// SetNull: deleting a user keeps finance records (anonymised), like the wallet itself.
+  userId            String?               @db.Uuid
+  user              User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  stripeCustomerRef String                @unique @db.VarChar(255)
+  refType           StripeCustomerRefType @default(CUSTOMER)
+  livemode          Boolean
+  createdAt         DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime              @updatedAt @db.Timestamptz(3)
+  subscriptions     BillingSubscription[]
+  orders            BillingOrder[]
+
+  @@unique([accountId, livemode])
+  @@index([userId])
+}
+
+model BillingSubscription {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId            String                  @db.Uuid
+  account              CreditAccount           @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  customerId           String                  @db.Uuid
+  customer             BillingCustomer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  stripeSubscriptionId String                  @unique @db.VarChar(255)
+  stripePriceId        String                  @db.VarChar(255)
+  /// Catalogue code (src/modules/billing/catalogue.ts), resolved on the server from the Stripe price lookup key.
+  catalogueCode        String                  @db.VarChar(40)
+  planKey              String                  @db.VarChar(40)
+  interval             BillingInterval
+  /// Stripe's subscription status as last observed (active, past_due, unpaid, canceled, ...).
+  stripeStatus         String                  @db.VarChar(32)
+  entitlementState     BillingEntitlementState @default(PENDING)
+  billingAnchor        DateTime?               @db.Timestamptz(3)
+  currentPeriodStart   DateTime?               @db.Timestamptz(3)
+  currentPeriodEnd     DateTime?               @db.Timestamptz(3)
+  /// End of the latest PAID period. No allowance is ever granted beyond it.
+  paidThrough          DateTime?               @db.Timestamptz(3)
+  /// Fixed 72-hour deadline from the first failed renewal payment of `graceInvoiceId`; never extended by retries.
+  graceEndsAt          DateTime?               @db.Timestamptz(3)
+  graceInvoiceId       String?                 @db.VarChar(255)
+  cancelAtPeriodEnd    Boolean                 @default(false)
+  canceledAt           DateTime?               @db.Timestamptz(3)
+  pendingPlanKey       String?                 @db.VarChar(40)
+  pendingEffectiveAt   DateTime?               @db.Timestamptz(3)
+  /// Out-of-order guard: `created` of the newest Stripe event applied to this row.
+  lastStripeEventAt    DateTime?               @db.Timestamptz(3)
+  lastStripeEventId    String?                 @db.VarChar(255)
+  livemode             Boolean
+  createdAt            DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                @updatedAt @db.Timestamptz(3)
+  payments             BillingPayment[]
+
+  @@index([accountId, entitlementState])
+  @@index([customerId])
+}
+
+/// One-time purchases (AUD $2.99 premium pass, Event package). Grants will be keyed "purchase:<order id>:<n>" (Phase 3).
+model BillingOrder {
+  id                      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId               String             @db.Uuid
+  account                 CreditAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  customerId              String?            @db.Uuid
+  customer                BillingCustomer?   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  kind                    BillingOrderKind
+  catalogueCode           String             @db.VarChar(40)
+  quantity                Int                @default(1)
+  /// Cents, taken from Stripe objects, never from the client.
+  amountTotal             Int
+  currency                String             @default("aud") @db.Char(3)
+  status                  BillingOrderStatus @default(PENDING)
+  /// Client Idempotency-Key + canonical request hash (same pattern as wallet reservations).
+  idempotencyKey          String             @db.VarChar(64)
+  requestHash             String             @db.VarChar(64)
+  stripeCheckoutSessionId String?            @unique @db.VarChar(255)
+  stripePaymentIntentId   String?            @unique @db.VarChar(255)
+  /// Card-specific purchase intent (hash of the draft), honoured for 7 days, then the pass becomes general.
+  intentRef               String?            @db.VarChar(64)
+  intentExpiresAt         DateTime?          @db.Timestamptz(3)
+  fulfilledAt             DateTime?          @db.Timestamptz(3)
+  lastStripeEventAt       DateTime?          @db.Timestamptz(3)
+  livemode                Boolean
+  createdAt               DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime           @updatedAt @db.Timestamptz(3)
+  payments                BillingPayment[]
+
+  @@unique([accountId, idempotencyKey])
+  @@index([accountId, createdAt])
+}
+
+/// A settled Stripe payment (charge) for reconciliation and finance actuals: amounts, fees and refunds in cents.
+model BillingPayment {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId             String               @db.Uuid
+  account               CreditAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  orderId               String?              @db.Uuid
+  order                 BillingOrder?        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  subscriptionId        String?              @db.Uuid
+  subscription          BillingSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  stripeChargeId        String               @unique @db.VarChar(255)
+  stripePaymentIntentId String?              @db.VarChar(255)
+  stripeInvoiceId       String?              @db.VarChar(255)
+  amount                Int
+  amountRefunded        Int                  @default(0)
+  fee                   Int?
+  net                   Int?
+  currency              String               @default("aud") @db.Char(3)
+  disputed              Boolean              @default(false)
+  paidAt                DateTime?            @db.Timestamptz(3)
+  livemode              Boolean
+  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@index([accountId, createdAt])
+  @@index([stripeInvoiceId])
+}
+
+/// Exactly-once webhook processing. The row is inserted (or reclaimed from FAILED) inside the same transaction as the event's
+/// effects, so a crash or error rolls both back and Stripe's retry processes it again. Stores no payload and no personal data.
+model StripeEvent {
+  /// Stripe event id (`evt_…`).
+  id              String            @id @db.VarChar(255)
+  type            String            @db.VarChar(100)
+  livemode        Boolean
+  apiVersion      String?           @db.VarChar(40)
+  /// Stripe's `created` (second resolution): used for out-of-order protection per object.
+  stripeCreatedAt DateTime          @db.Timestamptz(3)
+  objectId        String?           @db.VarChar(255)
+  objectType      String?           @db.VarChar(60)
+  status          StripeEventStatus @default(PROCESSING)
+  /// Machine-readable result, e.g. DEFERRED_PHASE2, UNSUPPORTED_TYPE, STALE_OUT_OF_ORDER, HANDLER_ERROR.
+  outcome         String?           @db.VarChar(40)
+  attempts        Int               @default(1)
+  receivedAt      DateTime          @default(now()) @db.Timestamptz(3)
+  processedAt     DateTime?         @db.Timestamptz(3)
+
+  @@index([status, receivedAt])
+  @@index([objectId, stripeCreatedAt])
 }

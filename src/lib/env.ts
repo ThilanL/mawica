@@ -39,6 +39,14 @@ const schema = z.object({
   EMAIL_FROM_AUTH: z.string().optional(),
   /** "1" = no external provider is ever used (kill switch). */
   MAWICA_DISABLE_EXTERNAL_EMAIL: z.enum(["0", "1"]).optional(),
+  /**
+   * Stripe restricted SANDBOX key (`rk_test_…`, least privilege). Server-side only: never NEXT_PUBLIC_, never logged.
+   * Optional and deliberately not format-checked here: a missing or refused key disables payments (modules/billing/config.ts)
+   * instead of breaking the app. Full-access `sk_` keys and every live key are refused there.
+   */
+  STRIPE_SECRET_KEY: z.string().optional(),
+  /** Stripe webhook signing secret (`whsec_…`; locally from `stripe listen --print-secret`). Missing = webhook endpoint answers 503. */
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);
